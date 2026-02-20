@@ -12,9 +12,19 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
     /// Open the editor for a captured screenshot.
     /// Multiple editors can be open simultaneously.
     static func openEditor(imageURL: URL, template: ScreenshotTemplate? = nil, appSettings: AppSettings? = nil) {
-        let controller = EditorWindowController(imageURL: imageURL, template: template, appSettings: appSettings)
-        openEditors.insert(controller)
-        controller.showWindow(nil)
+        let open = {
+            let controller = EditorWindowController(imageURL: imageURL, template: template, appSettings: appSettings)
+            openEditors.insert(controller)
+            updateDockIconVisibility()
+            controller.showWindow(nil)
+            controller.bringToFront()
+        }
+
+        if Thread.isMainThread {
+            open()
+        } else {
+            DispatchQueue.main.async(execute: open)
+        }
     }
 
     private init(imageURL: URL, template: ScreenshotTemplate? = nil, appSettings: AppSettings? = nil) {
@@ -64,9 +74,23 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
     }
 
     override func showWindow(_ sender: Any?) {
-        NSApp.activate(ignoringOtherApps: true)
         super.showWindow(sender)
+        bringToFront()
+    }
+
+    /// Force the editor to the front, even when another app was just active
+    /// during capture and focus handoff.
+    private func bringToFront() {
+        NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+        window?.orderFrontRegardless()
+
+        // Re-assert on the next run loop tick for more reliable focus handoff.
+        DispatchQueue.main.async { [weak self] in
+            NSApp.activate(ignoringOtherApps: true)
+            self?.window?.makeKeyAndOrderFront(nil)
+            self?.window?.orderFrontRegardless()
+        }
     }
 
     // MARK: - NSWindowDelegate
@@ -77,6 +101,16 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
             Self.saveWindowSize(size)
         }
         Self.openEditors.remove(self)
+        Self.updateDockIconVisibility()
+    }
+
+    /// Show Dock icon while at least one editor is open; hide it again when all are closed.
+    private static func updateDockIconVisibility() {
+        if openEditors.isEmpty {
+            NSApp.setActivationPolicy(.accessory)
+        } else {
+            NSApp.setActivationPolicy(.regular)
+        }
     }
 
     // MARK: - Window Sizing

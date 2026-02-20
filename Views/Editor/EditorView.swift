@@ -115,6 +115,7 @@ struct EditorView: View {
                     onCopy: copyToClipboard,
                     onSaveAs: saveAs
                 )
+                .background(.clear)
 
                 // Status bar with zoom controls
                 statusBar
@@ -258,7 +259,7 @@ struct EditorView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(.bar)
+        .background(.clear)
     }
 
     // MARK: - Zoom

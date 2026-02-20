@@ -68,7 +68,7 @@ struct GeneralSettingsView: View {
 
             // --- Permissions ---
             settingsRow("Permissions:") {
-                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 10) {
                     permissionRow(
                         label: "Accessibility",
                         granted: accessibilityGranted,

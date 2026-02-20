@@ -72,7 +72,7 @@ enum BuiltInGradient: String, Codable, CaseIterable, Identifiable {
             return GradientDefinition(colors: [
                 CodableColor(red: 0.00, green: 0.47, blue: 0.84),
                 CodableColor(red: 0.00, green: 0.78, blue: 0.85),
-            ], angle: 235)
+            ], angle: 45)
         case .sunset:
             return GradientDefinition(colors: [
                 CodableColor(red: 1.00, green: 0.37, blue: 0.33),
@@ -92,7 +92,7 @@ enum BuiltInGradient: String, Codable, CaseIterable, Identifiable {
             return GradientDefinition(colors: [
                 CodableColor(red: 0.07, green: 0.07, blue: 0.20),
                 CodableColor(red: 0.20, green: 0.11, blue: 0.38),
-            ], angle: 180)
+            ], angle: 270)
         case .forest:
             return GradientDefinition(colors: [
                 CodableColor(red: 0.07, green: 0.30, blue: 0.20),
@@ -117,7 +117,7 @@ enum BuiltInGradient: String, Codable, CaseIterable, Identifiable {
             return GradientDefinition(colors: [
                 CodableColor(red: 0.82, green: 0.72, blue: 0.55),
                 CodableColor(red: 0.93, green: 0.87, blue: 0.75),
-            ], angle: 180)
+            ], angle: 290)
         }
     }
 }
