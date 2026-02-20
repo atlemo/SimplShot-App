@@ -9,6 +9,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     case circle
     case line
     case text
+    case pixelate
     case crop
 
     var id: String { rawValue }
@@ -21,6 +22,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .circle:    return "Circle"
         case .line:      return "Line"
         case .text:      return "Text"
+        case .pixelate:  return "Pixelate"
         case .crop:      return "Crop"
         }
     }
@@ -33,7 +35,16 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .circle:    return "circle"
         case .line:      return "line.diagonal"
         case .text:      return "textformat"
+        case .pixelate:  return ""      // uses customImageName instead
         case .crop:      return "crop"
+        }
+    }
+
+    /// Asset catalog image name for tools that use a custom icon instead of an SF Symbol.
+    var customImageName: String? {
+        switch self {
+        case .pixelate: return "PixelateIcon"
+        default:        return nil
         }
     }
 }

@@ -173,7 +173,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(batchItem)
 
-        let freeSizeItem = NSMenuItem(title: "Free Size Capture", action: #selector(freeSizeCaptureAction), keyEquivalent: "")
+        let freeSizeItem = NSMenuItem(title: "Capture Area", action: #selector(freeSizeCaptureAction), keyEquivalent: "")
         freeSizeItem.target = self
         freeSizeItem.isEnabled = true
         applyShortcut(.freeSizeCapture, to: freeSizeItem)

@@ -6,6 +6,9 @@ struct AnnotationOverlayView: View {
     let annotation: Annotation
     let scale: CGFloat         // view points per image pixel
     let isSelected: Bool
+    /// Source image for pixelate preview (image-pixel space). Optional; falls back to a mosaic pattern.
+    var sourceImage: NSImage? = nil
+    var imagePixelSize: CGSize = .zero
 
     var body: some View {
         ZStack {
@@ -65,6 +68,16 @@ struct AnnotationOverlayView: View {
                 .fixedSize()
                 .position(x: start.x, y: start.y)
 
+        case .pixelate:
+            PixelatePreviewView(
+                sourceImage: sourceImage,
+                imagePixelSize: imagePixelSize,
+                pixelRect: annotation.boundingRect,
+                viewSize: CGSize(width: rect.width, height: rect.height)
+            )
+            .frame(width: rect.width, height: rect.height)
+            .position(x: rect.midX, y: rect.midY)
+
         case .select, .crop:
             EmptyView()
         }
@@ -82,7 +95,7 @@ struct AnnotationOverlayView: View {
             HandleDot(center: start)
             HandleDot(center: end)
 
-        case .rectangle, .circle:
+        case .rectangle, .circle, .pixelate:
             let rect = scaledBoundingRect
             HandleDot(center: CGPoint(x: rect.minX, y: rect.minY))
             HandleDot(center: CGPoint(x: rect.maxX, y: rect.minY))
@@ -177,6 +190,82 @@ struct ArrowHeadShape: Shape {
             p.addLine(to: p2)
             p.closeSubpath()
         }
+    }
+}
+
+// MARK: - Pixelate Preview
+
+/// Renders a pixelated (mosaic) preview of a region of the source image.
+/// Downscales the crop to a tiny bitmap, then SwiftUI scales it back up with
+/// `.interpolation(.none)` to produce sharp pixel blocks.
+/// Falls back to a checkerboard placeholder when no source image is available.
+private struct PixelatePreviewView: View {
+    let sourceImage: NSImage?
+    let imagePixelSize: CGSize       // CGImage pixel dimensions
+    let pixelRect: CGRect            // annotation bounds in image-pixel space (top-left origin)
+    let viewSize: CGSize             // display size in view points
+
+    private let blockSize: CGFloat = 16  // image pixels per mosaic block
+
+    var body: some View {
+        if let small = makePixelated() {
+            Image(nsImage: small)
+                .interpolation(.none)
+                .resizable()
+                .frame(width: viewSize.width, height: viewSize.height)
+        } else {
+            // Fallback: deterministic checkerboard pattern
+            Canvas { ctx, size in
+                let bs = max(4.0, min(size.width, size.height) / 14.0)
+                var col = 0; var x = 0.0
+                while x < size.width {
+                    var row = 0; var y = 0.0
+                    while y < size.height {
+                        let b: CGFloat = (row + col) % 2 == 0 ? 0.55 : 0.38
+                        ctx.fill(
+                            Path(CGRect(x: x, y: y,
+                                        width: min(bs, size.width - x),
+                                        height: min(bs, size.height - y))),
+                            with: .color(.init(white: b, opacity: 0.75))
+                        )
+                        row += 1; y += bs
+                    }
+                    col += 1; x += bs
+                }
+            }
+        }
+    }
+
+    /// Crops the source image to `pixelRect` and downscales to blockSize-sized mosaic blocks.
+    /// Returns a tiny NSImage; SwiftUI's `.interpolation(.none)` makes it appear blocky.
+    private func makePixelated() -> NSImage? {
+        guard let img = sourceImage, imagePixelSize.width > 0, imagePixelSize.height > 0 else { return nil }
+
+        // Scale factors from image-pixel space to NSImage point space.
+        // NSImage uses bottom-left origin; annotation uses top-left.
+        let sx = img.size.width  / imagePixelSize.width
+        let sy = img.size.height / imagePixelSize.height
+
+        let fromRect = NSRect(
+            x: pixelRect.minX * sx,
+            y: img.size.height - pixelRect.maxY * sy,   // flip Y to bottom-left
+            width:  pixelRect.width  * sx,
+            height: pixelRect.height * sy
+        )
+        guard fromRect.width > 0, fromRect.height > 0 else { return nil }
+
+        // Destination: one pixel per mosaic block
+        let smallW = max(1, Int(pixelRect.width  / blockSize))
+        let smallH = max(1, Int(pixelRect.height / blockSize))
+
+        let small = NSImage(size: NSSize(width: CGFloat(smallW), height: CGFloat(smallH)))
+        small.lockFocus()
+        img.draw(in: NSRect(x: 0, y: 0, width: CGFloat(smallW), height: CGFloat(smallH)),
+                 from: fromRect,
+                 operation: .copy,
+                 fraction: 1.0)
+        small.unlockFocus()
+        return small
     }
 }
 

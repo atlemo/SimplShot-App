@@ -17,17 +17,22 @@ struct EditorToolbarView: View {
     var onDone: () -> Void
 
     /// The drawing tools available in the toolbar (excludes .select and .crop which are handled separately).
-    private let drawingTools: [AnnotationTool] = [.arrow, .rectangle, .circle, .line, .text]
+    private let drawingTools: [AnnotationTool] = [.arrow, .rectangle, .circle, .line, .text, .pixelate]
+
+    /// Tools that use color/size style controls.
+    private let stylingTools: [AnnotationTool] = [.arrow, .rectangle, .circle, .line, .text]
 
     /// Preset colors for the color picker.
     private let presetColors: [Color] = [
         .red, .orange, .yellow, .green, .blue, .purple, .white, .black
     ]
 
-    /// Whether style controls should be visible: when drawing or when an annotation is selected.
+    /// Whether style controls should be visible: when using a styling tool or when a styled annotation is selected.
     private var showStyleControls: Bool {
-        if drawingTools.contains(currentTool) { return true }
-        if selectedAnnotationID != nil { return true }
+        if stylingTools.contains(currentTool) { return true }
+        if let id = selectedAnnotationID,
+           let ann = annotations.first(where: { $0.id == id }),
+           stylingTools.contains(ann.tool) { return true }
         return false
     }
 
@@ -105,14 +110,23 @@ struct EditorToolbarView: View {
         Button {
             selectTool(tool)
         } label: {
-            Image(systemName: tool.systemImage)
-                .font(.system(size: 14))
-                .frame(width: 28, height: 28)
-                .contentShape(Circle())
-                .background(
-                    Circle()
-                        .fill(currentTool == tool ? Color.primary.opacity(0.12) : Color.clear)
-                )
+            Group {
+                if let assetName = tool.customImageName {
+                    Image(assetName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 14, height: 14)
+                } else {
+                    Image(systemName: tool.systemImage)
+                        .font(.system(size: 14))
+                }
+            }
+            .frame(width: 28, height: 28)
+            .contentShape(Circle())
+            .background(
+                Circle()
+                    .fill(currentTool == tool ? Color.primary.opacity(0.12) : Color.clear)
+            )
         }
         .buttonStyle(.plain)
         .focusable(false)

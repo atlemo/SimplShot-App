@@ -79,7 +79,9 @@ struct EditorCanvasView: View {
                 AnnotationOverlayView(
                     annotation: annotation,
                     scale: scale,
-                    isSelected: annotation.id == selectedAnnotationID && !isDraggingAnnotation
+                    isSelected: annotation.id == selectedAnnotationID && !isDraggingAnnotation,
+                    sourceImage: image,
+                    imagePixelSize: imagePixelSize
                 )
                 .allowsHitTesting(false)
             }
@@ -89,7 +91,9 @@ struct EditorCanvasView: View {
                 AnnotationOverlayView(
                     annotation: pending,
                     scale: scale,
-                    isSelected: false
+                    isSelected: false,
+                    sourceImage: image,
+                    imagePixelSize: imagePixelSize
                 )
                 .allowsHitTesting(false)
             }
@@ -376,7 +380,7 @@ struct EditorCanvasView: View {
             if dist(point, annotation.endPoint)   < r { return .endHandle }
             return nil
 
-        case .rectangle, .circle:
+        case .rectangle, .circle, .pixelate:
             let rect = annotation.boundingRect
             let inset = cornerHitInset / scale
             let corners: [(CGPoint, DragMode)] = [
@@ -408,7 +412,7 @@ struct EditorCanvasView: View {
                     return annotation.id
                 }
 
-            case .rectangle, .circle:
+            case .rectangle, .circle, .pixelate:
                 let rect = annotation.boundingRect.insetBy(dx: -threshold, dy: -threshold)
                 if rect.contains(point) {
                     return annotation.id

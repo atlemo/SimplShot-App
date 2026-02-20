@@ -60,7 +60,7 @@ struct GeneralSettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     shortcutRow("Capture", shortcut: .resizeAndCapture)
                     shortcutRow("Capture all widths", shortcut: .batchCapture)
-                    shortcutRow("Free size capture", shortcut: .freeSizeCapture)
+                    shortcutRow("Capture area", shortcut: .freeSizeCapture)
                 }
             }
 
