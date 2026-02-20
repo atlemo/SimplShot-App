@@ -17,11 +17,11 @@ struct AboutSettingsView: View {
                 .resizable()
                 .frame(width: 64, height: 64)
 
-            Text("WindowSizer")
+            Text("SimplShot")
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("Version \(appVersion) (\(buildNumber))")
+            Text("Version \(appVersion)")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 

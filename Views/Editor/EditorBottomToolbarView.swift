@@ -8,7 +8,6 @@ struct EditorBottomToolbarView: View {
 
     var onTrash: () -> Void
     var onCopy: () -> Void
-    var onSave: () -> Void
     var onSaveAs: () -> Void
 
     var body: some View {
@@ -89,14 +88,6 @@ struct EditorBottomToolbarView: View {
             }
             .help("Copy to Clipboard")
             .focusable(false)
-
-            Divider()
-                .frame(height: 16)
-                .padding(.horizontal, 2)
-
-            Button("Save", action: onSave)
-                .keyboardShortcut("s", modifiers: .command)
-                .focusable(false)
 
             Divider()
                 .frame(height: 16)

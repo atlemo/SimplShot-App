@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import KeyboardShortcuts
+import UniformTypeIdentifiers
 
 @MainActor
 class MenuBuilder: NSObject, NSMenuDelegate {
@@ -35,6 +36,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         self.screenshotService = screenshotService
         self.batchCaptureService = batchCaptureService
         super.init()
+        menu.autoenablesItems = false
         menu.delegate = self
     }
 
@@ -152,7 +154,9 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         // --- Actions ---
         let canCapture = menuState.canResize && appSettings.selectedWidthPreset != nil && appSettings.selectedAspectRatio != nil
 
-        let captureItem = NSMenuItem(title: "Capture", action: #selector(resizeAndCaptureAction), keyEquivalent: "")
+        let appName = menuState.selectedApp?.name
+        let captureTitle = appName.map { "Capture \($0)" } ?? "Capture"
+        let captureItem = NSMenuItem(title: captureTitle, action: #selector(resizeAndCaptureAction), keyEquivalent: "")
         captureItem.target = self
         captureItem.isEnabled = canCapture
         applyShortcut(.resizeAndCapture, to: captureItem)
@@ -160,7 +164,8 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(captureItem)
 
-        let batchItem = NSMenuItem(title: "Capture All Widths", action: #selector(batchCaptureAction), keyEquivalent: "")
+        let batchTitle = appName.map { "Capture \($0) in All Sizes" } ?? "Capture All Widths"
+        let batchItem = NSMenuItem(title: batchTitle, action: #selector(batchCaptureAction), keyEquivalent: "")
         batchItem.target = self
         batchItem.isEnabled = menuState.canResize && appSettings.selectedAspectRatio != nil
         applyShortcut(.batchCapture, to: batchItem)
@@ -178,6 +183,21 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        // --- Open existing image ---
+        let clipboardItem = NSMenuItem(title: "Open from Clipboard", action: #selector(openFromClipboardAction), keyEquivalent: "")
+        clipboardItem.target = self
+        clipboardItem.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+        menu.addItem(clipboardItem)
+
+        let openFileItem = NSMenuItem(title: "Open File…", action: #selector(openFileAction), keyEquivalent: "")
+        openFileItem.target = self
+        openFileItem.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+        menu.addItem(openFileItem)
+
+        menu.addItem(.separator())
+
         // --- Settings & Quit ---
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
@@ -185,7 +205,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(settingsItem)
 
-        let quitItem = NSMenuItem(title: "Quit WindowSizer", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit SimplShot", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
     }
@@ -359,6 +379,61 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         }
     }
 
+    @objc func openFromClipboardAction() {
+        let pasteboard = NSPasteboard.general
+        guard let image = NSImage(pasteboard: pasteboard) else {
+            showAlert("No image found on the clipboard. Copy an image first, then try again.")
+            return
+        }
+
+        let saveURL = appSettings.screenshotSaveURL
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let timestamp = formatter.string(from: Date())
+        let filename = "Clipboard_\(timestamp).png"
+
+        try? FileManager.default.createDirectory(at: saveURL, withIntermediateDirectories: true)
+        let fileURL = saveURL.appendingPathComponent(filename)
+
+        guard let tiffData = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiffData),
+              let pngData = bitmap.representation(using: .png, properties: [:])
+        else {
+            showAlert("Failed to prepare the clipboard image for editing.")
+            return
+        }
+
+        do {
+            try pngData.write(to: fileURL)
+        } catch {
+            showAlert("Failed to save clipboard image: \(error.localizedDescription)")
+            return
+        }
+
+        EditorWindowController.openEditor(
+            imageURL: fileURL,
+            template: appSettings.screenshotTemplate,
+            appSettings: appSettings
+        )
+    }
+
+    @objc func openFileAction() {
+        let panel = NSOpenPanel()
+        panel.title = "Open Image"
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff, .gif, .bmp]
+
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        EditorWindowController.openEditor(
+            imageURL: url,
+            template: appSettings.screenshotTemplate,
+            appSettings: appSettings
+        )
+    }
+
     @objc func batchCaptureAction() {
         guard let app = menuState.selectedApp else {
             showAlert("No application selected. Please select an application first.")
@@ -485,7 +560,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     private func showAlert(_ message: String) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "WindowSizer"
+        alert.messageText = "SimplShot"
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()

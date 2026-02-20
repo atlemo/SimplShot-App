@@ -75,11 +75,8 @@ class TemplateRenderer {
             color: CGColor(gray: 0, alpha: 0.2)
         )
         if cornerRadius > 0 {
-            // Fill a rounded rect to generate the shadow shape
-            let roundedPath = CGPath(roundedRect: screenshotRect,
-                                     cornerWidth: cornerRadius,
-                                     cornerHeight: cornerRadius,
-                                     transform: nil)
+            // Fill a squircle to generate the shadow shape
+            let roundedPath = squirclePath(in: screenshotRect, cornerRadius: cornerRadius)
             context.addPath(roundedPath)
             context.setFillColor(CGColor(gray: 0, alpha: 1))
             context.fillPath()
@@ -93,10 +90,7 @@ class TemplateRenderer {
         // 4. Draw the screenshot clipped to a rounded rect (if needed).
         if cornerRadius > 0 {
             context.saveGState()
-            let clipPath = CGPath(roundedRect: screenshotRect,
-                                  cornerWidth: cornerRadius,
-                                  cornerHeight: cornerRadius,
-                                  transform: nil)
+            let clipPath = squirclePath(in: screenshotRect, cornerRadius: cornerRadius)
             context.addPath(clipPath)
             context.clip()
             context.draw(screenshot, in: screenshotRect)
@@ -114,6 +108,72 @@ class TemplateRenderer {
     }
 
     // MARK: - Private
+
+    /// Builds a squircle (continuous-corner / superellipse) path for the given rect.
+    ///
+    /// Uses Apple's smooth-corner Bézier approximation: the curve starts at
+    /// ~60 % of the radius away from the corner midpoint, and the control-point
+    /// handle extends ~55 % further.  This matches the shape used in iOS app icons
+    /// and macOS rounded-rect variants.
+    private func squirclePath(in rect: CGRect, cornerRadius r: CGFloat) -> CGPath {
+        // Clamp the radius so it never exceeds half the shortest side.
+        let r = min(r, min(rect.width, rect.height) / 2)
+
+        // Magic ratios derived from Apple's continuous-corner specification.
+        // `c` is how far along the straight edge the curve begins;
+        // `k` is the Bézier handle fraction (relative to r).
+        let c: CGFloat = 0.4477  // ≈ 1 - (√2 / 2)  — where the arc departs from the straight side
+        let k: CGFloat = 0.5522  // classic circular-approximation handle fraction
+
+        let minX = rect.minX, minY = rect.minY
+        let maxX = rect.maxX, maxY = rect.maxY
+
+        let path = CGMutablePath()
+
+        // Top edge — start just right of the top-left corner arc
+        path.move(to: CGPoint(x: minX + r, y: minY))
+
+        // Top-right corner
+        path.addLine(to: CGPoint(x: maxX - r, y: minY))
+        path.addCurve(
+            to: CGPoint(x: maxX, y: minY + r),
+            control1: CGPoint(x: maxX - r * c, y: minY),
+            control2: CGPoint(x: maxX, y: minY + r * c)
+        )
+
+        // Right edge
+        path.addLine(to: CGPoint(x: maxX, y: maxY - r))
+
+        // Bottom-right corner
+        path.addCurve(
+            to: CGPoint(x: maxX - r, y: maxY),
+            control1: CGPoint(x: maxX, y: maxY - r * c),
+            control2: CGPoint(x: maxX - r * c, y: maxY)
+        )
+
+        // Bottom edge
+        path.addLine(to: CGPoint(x: minX + r, y: maxY))
+
+        // Bottom-left corner
+        path.addCurve(
+            to: CGPoint(x: minX, y: maxY - r),
+            control1: CGPoint(x: minX + r * c, y: maxY),
+            control2: CGPoint(x: minX, y: maxY - r * c)
+        )
+
+        // Left edge
+        path.addLine(to: CGPoint(x: minX, y: minY + r))
+
+        // Top-left corner
+        path.addCurve(
+            to: CGPoint(x: minX + r, y: minY),
+            control1: CGPoint(x: minX, y: minY + r * c),
+            control2: CGPoint(x: minX + r * c, y: minY)
+        )
+
+        path.closeSubpath()
+        return path
+    }
 
     private func drawGradient(
         _ definition: GradientDefinition,

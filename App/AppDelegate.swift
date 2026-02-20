@@ -57,7 +57,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let image = NSImage(named: "StatusBarIcon")
             image?.isTemplate = true
             button.image = image
-            button.toolTip = "WindowSizer"
+            button.toolTip = "SimplShot"
         }
         statusItem.menu = menuBuilder.menu
         menuBuilder.statusItem = statusItem

@@ -15,7 +15,7 @@ enum Constants {
     ]
 
     static let defaultScreenshotURL: URL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Desktop/WindowSizer Screenshots")
+        .appendingPathComponent("Desktop/SimplShot Screenshots")
 
     enum UserDefaultsKeys {
         static let widthPresets = "widthPresets"

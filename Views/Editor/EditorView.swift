@@ -22,7 +22,8 @@ struct EditorView: View {
     /// The display's backing scale factor (e.g. 2.0 on Retina, 3.0 on 3× displays).
     /// Used to compute "true size" — where 100% shows the image at its logical point dimensions.
     @State private var displayBackingScale: CGFloat = NSScreen.main?.backingScaleFactor ?? 2.0
-    @State private var useTemplateBackground: Bool = false
+    /// nil = no background; non-nil = background enabled with that gradient.
+    @State private var selectedGradient: BuiltInGradient? = nil
     /// Local copies of template padding/cornerRadius for live editing in the bottom toolbar.
     @State private var editorPadding: Int = 80
     @State private var editorCornerRadius: Int = 24
@@ -77,7 +78,7 @@ struct EditorView: View {
                                     image: image,
                                     imagePixelSize: imagePixelSize,
                                     scale: effectiveScale,
-                                    showShadow: !useTemplateBackground,
+                                    showShadow: selectedGradient == nil,
                                     annotations: $annotations,
                                     selectedAnnotationID: $selectedAnnotationID,
                                     currentTool: $currentTool,
@@ -109,10 +110,9 @@ struct EditorView: View {
                 EditorBottomToolbarView(
                     padding: $editorPadding,
                     cornerRadius: $editorCornerRadius,
-                    useTemplateBackground: useTemplateBackground,
+                    useTemplateBackground: selectedGradient != nil,
                     onTrash: { showTrashAlert = true },
                     onCopy: copyToClipboard,
-                    onSave: saveOverwrite,
                     onSaveAs: saveAs
                 )
 
@@ -129,17 +129,24 @@ struct EditorView: View {
                 annotations: $annotations,
                 canUndo: !undoStack.isEmpty,
                 hasTemplate: template != nil,
-                useTemplateBackground: $useTemplateBackground,
+                selectedGradient: $selectedGradient,
                 onApplyCrop: applyCrop,
                 onCancelCrop: cancelCrop,
-                onUndo: undo
+                onUndo: undo,
+                onDone: saveOverwrite
             )
         }
         .onAppear {
             if let appSettings, let template {
-                useTemplateBackground = appSettings.editorUseTemplateBackground
                 editorPadding = template.padding
                 editorCornerRadius = template.cornerRadius
+                if appSettings.editorUseTemplateBackground {
+                    if case .builtInGradient(let gradient) = template.wallpaperSource {
+                        selectedGradient = gradient
+                    } else {
+                        selectedGradient = .oceanBlue
+                    }
+                }
             }
             loadImage()
         }
@@ -149,20 +156,23 @@ struct EditorView: View {
                 cancelCrop()
             }
         }
-        .onChange(of: useTemplateBackground) { _, newValue in
-            appSettings?.editorUseTemplateBackground = newValue
+        .onChange(of: selectedGradient) { oldValue, newValue in
+            let wasEnabled = oldValue != nil
+            let isEnabled = newValue != nil
+            appSettings?.editorUseTemplateBackground = isEnabled
             if let rawImage {
-                // Shift annotations to compensate for the padding offset that is
-                // added (or removed) when the template background is toggled.
-                let paddingPixels = CGFloat(editorPadding) * displayBackingScale
-                let shift = newValue ? paddingPixels : -paddingPixels
-                shiftAnnotations(by: shift)
+                if wasEnabled != isEnabled {
+                    // Background toggled on/off — shift annotations to compensate for padding.
+                    let paddingPixels = CGFloat(editorPadding) * displayBackingScale
+                    let shift = isEnabled ? paddingPixels : -paddingPixels
+                    shiftAnnotations(by: shift)
+                }
                 applyDisplayImage(from: rawImage)
             }
         }
         .onChange(of: editorPadding) { oldValue, newValue in
             appSettings?.screenshotTemplate.padding = newValue
-            if useTemplateBackground, let rawImage {
+            if selectedGradient != nil, let rawImage {
                 // Shift annotations by the difference in padding pixels so they
                 // stay anchored to the same spot on the screenshot content.
                 let oldPaddingPixels = CGFloat(oldValue) * displayBackingScale
@@ -174,9 +184,8 @@ struct EditorView: View {
         }
         .onChange(of: editorCornerRadius) { _, newValue in
             appSettings?.screenshotTemplate.cornerRadius = newValue
-            if useTemplateBackground, let rawImage {
+            if selectedGradient != nil, let rawImage {
                 applyDisplayImage(from: rawImage)
-                // Note: annotations, zoom, and undo stack are preserved when changing corner radius
             }
         }
         .onChange(of: selectedAnnotationID) { _, newID in
@@ -303,11 +312,12 @@ struct EditorView: View {
         }
 
         var displayCG = cgSource
-        if useTemplateBackground, let template {
-            // Build a template with the current editor slider values
+        if let gradient = selectedGradient, let template {
+            // Build a template with the current editor slider values and selected gradient
             var editorTemplate = template
             editorTemplate.padding = editorPadding
             editorTemplate.cornerRadius = editorCornerRadius
+            editorTemplate.wallpaperSource = .builtInGradient(gradient)
             let renderer = TemplateRenderer()
             if let templated = try? renderer.applyTemplate(editorTemplate, to: cgSource, backingScale: displayBackingScale) {
                 displayCG = templated

@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct WindowSizerApp: App {
+struct SimplShotApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.openSettings) private var openSettings
 

@@ -10,10 +10,11 @@ struct EditorToolbarView: View {
 
     var canUndo: Bool
     var hasTemplate: Bool
-    @Binding var useTemplateBackground: Bool
+    @Binding var selectedGradient: BuiltInGradient?
     var onApplyCrop: () -> Void
     var onCancelCrop: () -> Void
     var onUndo: () -> Void
+    var onDone: () -> Void
 
     /// The drawing tools available in the toolbar (excludes .select and .crop which are handled separately).
     private let drawingTools: [AnnotationTool] = [.arrow, .rectangle, .circle, .line, .text]
@@ -49,15 +50,26 @@ struct EditorToolbarView: View {
                         .glassEffect(in: Capsule())
                 }
 
-                // Template background toggle
+                // Background label + gradient picker (entire pill is the click target)
                 if hasTemplate {
-                    Toggle("Show Background", isOn: $useTemplateBackground)
-                        .toggleStyle(.switch)
-                        .font(.system(size: 12))
-                        .focusable(false)
+                    Button { gradientPopoverVisible.toggle() } label: {
+                        HStack(spacing: 0) {
+                            Text("Background")
+                                .font(.system(size: 12))
+                                .padding(.leading, 10)
+                                .padding(.trailing, 6)
+                            Divider().frame(height: 16)
+                            gradientIndicator
+                        }
                         .frame(height: 34)
-                        .padding(.horizontal, 10)
-                        .glassEffect(in: Capsule())
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .focusable(false)
+                    .glassEffect(in: Capsule())
+                    .popover(isPresented: $gradientPopoverVisible, arrowEdge: .bottom) {
+                        gradientPopoverContent
+                    }
                 }
 
                 Spacer()
@@ -65,6 +77,9 @@ struct EditorToolbarView: View {
                 // Undo button pill
                 undoButton
                     .glassEffect(in: Capsule())
+
+                // Done button
+                doneButton
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -117,6 +132,7 @@ struct EditorToolbarView: View {
 
     @State private var colorPopoverVisible = false
     @State private var sizePopoverVisible = false
+    @State private var gradientPopoverVisible = false
 
     private var styleControls: some View {
         HStack(spacing: 0) {
@@ -214,6 +230,74 @@ struct EditorToolbarView: View {
         }
     }
 
+    // MARK: - Gradient Picker
+
+    /// Circle + chevron shown inside the pill label.
+    private var gradientIndicator: some View {
+        HStack(spacing: 4) {
+            if let gradient = selectedGradient {
+                Circle()
+                    .fill(gradient.swiftUIGradient)
+                    .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
+                    .frame(width: 14, height: 14)
+            } else {
+                noneCircle(size: 14)
+            }
+            Image(systemName: "chevron.down")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(width: 40, height: 34)
+    }
+
+    /// Contents of the gradient popover.
+    private var gradientPopoverContent: some View {
+        HStack(spacing: 6) {
+            // None / transparent option
+            noneCircle(size: 20, isSelected: selectedGradient == nil)
+                .help("No Background")
+                .onTapGesture { selectedGradient = nil }
+
+            // Built-in gradient options
+            ForEach(BuiltInGradient.allCases) { gradient in
+                Circle()
+                    .fill(gradient.swiftUIGradient)
+                    .overlay(
+                        Circle().stroke(
+                            selectedGradient == gradient ? Color.accentColor : Color.primary.opacity(0.15),
+                            lineWidth: selectedGradient == gradient ? 2 : 0.5
+                        )
+                    )
+                    .frame(width: 20, height: 20)
+                    .help(gradient.displayName)
+                    .onTapGesture { selectedGradient = gradient }
+            }
+        }
+        .padding(10)
+    }
+
+    @ViewBuilder
+    private func noneCircle(size: CGFloat, isSelected: Bool = false) -> some View {
+        ZStack {
+            Circle()
+                .fill(.white)
+                .overlay(
+                    Circle().stroke(
+                        isSelected ? Color.accentColor : Color.primary.opacity(0.2),
+                        lineWidth: isSelected ? 2 : 0.5
+                    )
+                )
+            Path { path in
+                let inset = size * 0.2
+                path.move(to: CGPoint(x: inset, y: size - inset))
+                path.addLine(to: CGPoint(x: size - inset, y: inset))
+            }
+            .stroke(Color.red, lineWidth: max(1.0, size * 0.08))
+            .clipShape(Circle())
+        }
+        .frame(width: size, height: size)
+    }
+
     private func sizeOptions(
         values: [CGFloat],
         current: CGFloat,
@@ -255,7 +339,19 @@ struct EditorToolbarView: View {
         .padding(.horizontal, 8)
     }
 
-    // MARK: - Undo Button
+    // MARK: - Undo / Done Buttons
+
+    private var doneButton: some View {
+        Button("Done", action: onDone)
+            .buttonStyle(.plain)
+            .keyboardShortcut("s", modifiers: .command)
+            .focusable(false)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(.white)
+            .frame(height: 34)
+            .padding(.horizontal, 14)
+            .background(Color.accentColor, in: Capsule())
+    }
 
     private var undoButton: some View {
         Button(action: onUndo) {
@@ -291,5 +387,18 @@ struct EditorToolbarView: View {
               let idx = annotations.firstIndex(where: { $0.id == id })
         else { return }
         annotations[idx].style = currentStyle
+    }
+}
+
+// MARK: - BuiltInGradient SwiftUI helpers
+
+private extension BuiltInGradient {
+    /// A top-leading → bottom-trailing linear gradient for preview circles.
+    var swiftUIGradient: LinearGradient {
+        let def = gradientDefinition
+        let colors = def.colors.map {
+            Color(red: $0.red, green: $0.green, blue: $0.blue, opacity: $0.alpha)
+        }
+        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 }

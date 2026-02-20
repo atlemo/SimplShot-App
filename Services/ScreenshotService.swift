@@ -13,7 +13,7 @@ enum ScreenshotError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .captureFailed:
-            return "Failed to capture window image. Make sure Screen Recording permission is granted, then restart WindowSizer."
+            return "Failed to capture window image. Make sure Screen Recording permission is granted, then restart SimplShot."
         case .noWindowID:
             return "Could not get window ID for screenshot"
         case .saveFailed:
@@ -29,7 +29,7 @@ class ScreenshotService {
     /// Request screen recording permission.
     /// `CGRequestScreenCaptureAccess()` shows the system prompt but doesn't
     /// always register the app in System Settings. Performing a tiny test
-    /// capture forces macOS to add WindowSizer to the Screen Recording list
+    /// capture forces macOS to add SimplShot to the Screen Recording list
     /// so the user can find and enable it.
     static func ensurePermission() {
         if !CGPreflightScreenCaptureAccess() {
