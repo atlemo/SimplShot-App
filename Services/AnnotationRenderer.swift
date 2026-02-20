@@ -62,7 +62,13 @@ class AnnotationRenderer {
         // 1b. Draw pixelated regions on top of the base image (native CG space, before flip).
         //     Pixelate annotations are rendered here because they need the source pixels.
         for annotation in annotations where annotation.tool == .pixelate {
-            drawPixelate(annotationRect: annotation.boundingRect, from: image, imageHeight: height, in: context)
+            drawPixelate(
+                annotationRect: annotation.boundingRect,
+                scale: annotation.style.pixelationScale,
+                from: image,
+                imageHeight: height,
+                in: context
+            )
         }
 
         // 2. Now flip the coordinate system for annotation drawing.
@@ -181,7 +187,7 @@ class AnnotationRenderer {
     /// Extracts a region of `sourceImage`, pixelates it with CIPixellate, and draws it back.
     /// `annotationRect` is in top-left image-pixel coordinates (matching annotation storage).
     /// The context must be in its default native (bottom-left origin) CG space — call before flipping.
-    private func drawPixelate(annotationRect: CGRect, from sourceImage: CGImage, imageHeight: Int, in context: CGContext) {
+    private func drawPixelate(annotationRect: CGRect, scale: CGFloat, from sourceImage: CGImage, imageHeight: Int, in context: CGContext) {
         let imageBounds = CGRect(x: 0, y: 0, width: sourceImage.width, height: sourceImage.height)
         let pixelRect = annotationRect.intersection(imageBounds)
         guard !pixelRect.isEmpty else { return }
@@ -194,7 +200,7 @@ class AnnotationRenderer {
         let ciImage = CIImage(cgImage: sourceImage).cropped(to: ciRect)
         filter.setValue(ciImage, forKey: kCIInputImageKey)
         filter.setValue(CIVector(x: ciRect.midX, y: ciRect.midY), forKey: kCIInputCenterKey)
-        filter.setValue(20.0 as NSNumber, forKey: kCIInputScaleKey)
+        filter.setValue(max(2.0, scale) as NSNumber, forKey: kCIInputScaleKey)
 
         guard let outputCI = filter.outputImage,
               let cgOut = ciContext.createCGImage(outputCI, from: ciRect)

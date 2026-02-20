@@ -55,6 +55,7 @@ struct AnnotationStyle {
     var strokeColor: Color = .red
     var strokeWidth: CGFloat = 3
     var fontSize: CGFloat = 48
+    var pixelationScale: CGFloat = 20
 
     /// CGColor for use in Core Graphics rendering.
     var cgStrokeColor: CGColor {

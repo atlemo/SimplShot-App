@@ -2,6 +2,8 @@ import SwiftUI
 
 /// The annotation toolbar displayed at the top of the editor.
 struct EditorToolbarView: View {
+    private let toolPillHeight: CGFloat = 36
+
     @Binding var currentTool: AnnotationTool
     @Binding var currentStyle: AnnotationStyle
     @Binding var isCropping: Bool
@@ -66,7 +68,7 @@ struct EditorToolbarView: View {
                             Divider().frame(height: 16)
                             gradientIndicator
                         }
-                        .frame(height: 34)
+                        .frame(height: toolPillHeight)
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -104,10 +106,17 @@ struct EditorToolbarView: View {
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 4)
+        .frame(height: toolPillHeight)
     }
 
+    @ViewBuilder
     private func toolButton(_ tool: AnnotationTool) -> some View {
-        Button {
+        let button = Button {
+            if tool == .pixelate, currentTool == .pixelate {
+                pixelatePopoverVisible.toggle()
+                return
+            }
+            pixelatePopoverVisible = false
             selectTool(tool)
         } label: {
             Group {
@@ -131,6 +140,15 @@ struct EditorToolbarView: View {
         .buttonStyle(.plain)
         .focusable(false)
         .help(tool.label)
+
+        if tool == .pixelate {
+            button
+                .popover(isPresented: $pixelatePopoverVisible, arrowEdge: .bottom) {
+                    pixelatePopoverContent
+                }
+        } else {
+            button
+        }
     }
 
     // MARK: - Style Controls
@@ -147,6 +165,7 @@ struct EditorToolbarView: View {
     @State private var colorPopoverVisible = false
     @State private var sizePopoverVisible = false
     @State private var gradientPopoverVisible = false
+    @State private var pixelatePopoverVisible = false
 
     private var styleControls: some View {
         HStack(spacing: 0) {
@@ -154,7 +173,7 @@ struct EditorToolbarView: View {
             Divider().frame(height: 16)
             sizePicker
         }
-        .frame(height: 34)
+        .frame(height: toolPillHeight)
         .padding(.horizontal, 4)
     }
 
@@ -171,7 +190,7 @@ struct EditorToolbarView: View {
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
-            .frame(width: 40, height: 34)
+            .frame(width: 40, height: toolPillHeight)
         }
         .buttonStyle(.plain)
         .focusable(false)
@@ -214,7 +233,7 @@ struct EditorToolbarView: View {
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
-            .frame(height: 34)
+            .frame(height: toolPillHeight)
             .padding(.horizontal, 8)
         }
         .buttonStyle(.plain)
@@ -261,7 +280,7 @@ struct EditorToolbarView: View {
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(.secondary)
         }
-        .frame(width: 40, height: 34)
+        .frame(width: 40, height: toolPillHeight)
     }
 
     /// Contents of the gradient popover.
@@ -339,6 +358,31 @@ struct EditorToolbarView: View {
         .padding(8)
     }
 
+    private var pixelatePopoverContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Pixelation")
+                .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 8) {
+                Slider(value: pixelationScaleBinding, in: 2...60, step: 1)
+                    .frame(width: 180)
+                Text("\(Int(currentStyle.pixelationScale))")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 28, alignment: .trailing)
+            }
+        }
+        .padding(10)
+    }
+
+    private var pixelationScaleBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentStyle.pixelationScale) },
+            set: { newValue in
+                currentStyle.pixelationScale = CGFloat(newValue)
+                applyPixelationToSelection()
+            }
+        )
+    }
+
     // MARK: - Crop Controls
 
     private var cropControls: some View {
@@ -401,6 +445,14 @@ struct EditorToolbarView: View {
               let idx = annotations.firstIndex(where: { $0.id == id })
         else { return }
         annotations[idx].style = currentStyle
+    }
+
+    private func applyPixelationToSelection() {
+        guard let id = selectedAnnotationID,
+              let idx = annotations.firstIndex(where: { $0.id == id }),
+              annotations[idx].tool == .pixelate
+        else { return }
+        annotations[idx].style.pixelationScale = currentStyle.pixelationScale
     }
 }
 

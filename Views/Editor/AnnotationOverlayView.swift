@@ -73,6 +73,7 @@ struct AnnotationOverlayView: View {
                 sourceImage: sourceImage,
                 imagePixelSize: imagePixelSize,
                 pixelRect: annotation.boundingRect,
+                pixelationScale: annotation.style.pixelationScale,
                 viewSize: CGSize(width: rect.width, height: rect.height)
             )
             .frame(width: rect.width, height: rect.height)
@@ -203,9 +204,8 @@ private struct PixelatePreviewView: View {
     let sourceImage: NSImage?
     let imagePixelSize: CGSize       // CGImage pixel dimensions
     let pixelRect: CGRect            // annotation bounds in image-pixel space (top-left origin)
+    let pixelationScale: CGFloat
     let viewSize: CGSize             // display size in view points
-
-    private let blockSize: CGFloat = 16  // image pixels per mosaic block
 
     var body: some View {
         if let small = makePixelated() {
@@ -255,6 +255,7 @@ private struct PixelatePreviewView: View {
         guard fromRect.width > 0, fromRect.height > 0 else { return nil }
 
         // Destination: one pixel per mosaic block
+        let blockSize = max(2, pixelationScale)
         let smallW = max(1, Int(pixelRect.width  / blockSize))
         let smallH = max(1, Int(pixelRect.height / blockSize))
 
