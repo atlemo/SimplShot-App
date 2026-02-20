@@ -152,15 +152,24 @@ struct EditorView: View {
         .onChange(of: useTemplateBackground) { _, newValue in
             appSettings?.editorUseTemplateBackground = newValue
             if let rawImage {
+                // Shift annotations to compensate for the padding offset that is
+                // added (or removed) when the template background is toggled.
+                let paddingPixels = CGFloat(editorPadding) * displayBackingScale
+                let shift = newValue ? paddingPixels : -paddingPixels
+                shiftAnnotations(by: shift)
                 applyDisplayImage(from: rawImage)
-                // Note: annotations, zoom, and undo stack are preserved when toggling background
             }
         }
-        .onChange(of: editorPadding) { _, newValue in
+        .onChange(of: editorPadding) { oldValue, newValue in
             appSettings?.screenshotTemplate.padding = newValue
             if useTemplateBackground, let rawImage {
+                // Shift annotations by the difference in padding pixels so they
+                // stay anchored to the same spot on the screenshot content.
+                let oldPaddingPixels = CGFloat(oldValue) * displayBackingScale
+                let newPaddingPixels = CGFloat(newValue) * displayBackingScale
+                let shift = newPaddingPixels - oldPaddingPixels
+                shiftAnnotations(by: shift)
                 applyDisplayImage(from: rawImage)
-                // Note: annotations, zoom, and undo stack are preserved when changing padding
             }
         }
         .onChange(of: editorCornerRadius) { _, newValue in
@@ -373,6 +382,23 @@ struct EditorView: View {
         cropRect = CGRect(origin: .zero, size: imagePixelSize)
         isCropping = false
         currentTool = .select
+    }
+
+    // MARK: - Annotation Helpers
+
+    /// Shifts all annotation points by `delta` in both X and Y (image pixel space).
+    /// Used to keep annotations anchored to screenshot content when the template
+    /// padding is added or removed (which expands/shrinks the canvas uniformly).
+    private func shiftAnnotations(by delta: CGFloat) {
+        guard !annotations.isEmpty, delta != 0 else { return }
+        annotations = annotations.map { ann in
+            var shifted = ann
+            shifted.startPoint = CGPoint(x: ann.startPoint.x + delta,
+                                         y: ann.startPoint.y + delta)
+            shifted.endPoint   = CGPoint(x: ann.endPoint.x + delta,
+                                         y: ann.endPoint.y + delta)
+            return shifted
+        }
     }
 
     // MARK: - Delete
