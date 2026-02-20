@@ -232,6 +232,7 @@ struct EditorView: View {
                         .font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
+                .focusable(false)
                 .help("Zoom Out")
 
                 Text("\(Int(displayZoomPercent))%")
@@ -245,6 +246,7 @@ struct EditorView: View {
                         .font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
+                .focusable(false)
                 .help("Zoom In")
 
                 Button {
@@ -254,6 +256,7 @@ struct EditorView: View {
                         .font(.system(size: 10))
                 }
                 .buttonStyle(.plain)
+                .focusable(false)
                 .help("Reset Zoom")
             }
         }

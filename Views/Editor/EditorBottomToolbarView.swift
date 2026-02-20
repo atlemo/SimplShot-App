@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Bottom toolbar for the editor with image adjustment sliders and file action buttons.
 struct EditorBottomToolbarView: View {
+    private let pillHeight: CGFloat = 36
+
     @Binding var padding: Int
     @Binding var cornerRadius: Int
     var useTemplateBackground: Bool
@@ -63,7 +65,7 @@ struct EditorBottomToolbarView: View {
                     .frame(width: 42, alignment: .trailing)
             }
         }
-        .frame(height: 34)
+        .frame(height: pillHeight)
         .padding(.horizontal, 12)
     }
 
@@ -95,10 +97,11 @@ struct EditorBottomToolbarView: View {
 
             Button("Save As\u{2026}", action: onSaveAs)
                 .keyboardShortcut("s", modifiers: [.command, .shift])
+                .padding(.horizontal, 6)
                 .focusable(false)
         }
         .buttonStyle(.plain)
-        .frame(height: 34)
+        .frame(height: pillHeight)
         .padding(.horizontal, 8)
     }
 

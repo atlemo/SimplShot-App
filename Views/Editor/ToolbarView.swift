@@ -228,7 +228,8 @@ struct EditorToolbarView: View {
                 Text(isTextContext
                      ? "\(Int(currentStyle.fontSize))pt"
                      : "\(Int(currentStyle.strokeWidth))pt")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .frame(width: 36, alignment: .trailing)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -250,17 +251,37 @@ struct EditorToolbarView: View {
                     sizePopoverVisible = false
                 }
             } else {
-                sizeOptions(
-                    values: [1, 2, 3, 5, 8],
-                    current: currentStyle.strokeWidth,
-                    label: { "\($0)pt" }
-                ) { value in
-                    currentStyle.strokeWidth = value
-                    applyStyleToSelection()
-                    sizePopoverVisible = false
-                }
+                strokeWidthSliderContent
             }
         }
+    }
+
+    private var strokeWidthSliderContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Stroke")
+                .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 8) {
+                Slider(value: strokeWidthBinding, in: 1...15)
+                    .frame(width: 180)
+                    .focusable(false)
+                    .focusEffectDisabled()
+                Text("\(Int(currentStyle.strokeWidth))px")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 36, alignment: .trailing)
+            }
+            .padding(.vertical, 2)
+        }
+        .padding(12)
+    }
+
+    private var strokeWidthBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentStyle.strokeWidth) },
+            set: { newValue in
+                currentStyle.strokeWidth = CGFloat(newValue.rounded())
+                applyStyleToSelection()
+            }
+        )
     }
 
     // MARK: - Gradient Picker
@@ -363,21 +384,24 @@ struct EditorToolbarView: View {
             Text("Pixelation")
                 .font(.system(size: 12, weight: .medium))
             HStack(spacing: 8) {
-                Slider(value: pixelationScaleBinding, in: 2...60, step: 1)
+                Slider(value: pixelationScaleBinding, in: 2...60)
                     .frame(width: 180)
+                    .focusable(false)
+                    .focusEffectDisabled()
                 Text("\(Int(currentStyle.pixelationScale))")
                     .font(.system(size: 11, design: .monospaced))
                     .frame(width: 28, alignment: .trailing)
             }
+            .padding(.vertical, 2)
         }
-        .padding(10)
+        .padding(12)
     }
 
     private var pixelationScaleBinding: Binding<Double> {
         Binding(
             get: { Double(currentStyle.pixelationScale) },
             set: { newValue in
-                currentStyle.pixelationScale = CGFloat(newValue)
+                currentStyle.pixelationScale = CGFloat(newValue.rounded())
                 applyPixelationToSelection()
             }
         )
