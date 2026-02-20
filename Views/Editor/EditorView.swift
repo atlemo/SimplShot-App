@@ -1,0 +1,519 @@
+import SwiftUI
+import UniformTypeIdentifiers
+
+/// Root view for the screenshot editor window.
+struct EditorView: View {
+    /// The URL of the captured screenshot file.
+    let imageURL: URL
+
+    /// Optional template for applying a background.
+    let template: ScreenshotTemplate?
+
+    /// Optional app settings for reading/writing persisted editor preferences.
+    var appSettings: AppSettings?
+
+    /// Callback when the editor is done (save or discard) — closes the window.
+    var onDismiss: () -> Void = {}
+
+    @State private var image: NSImage?
+    @State private var rawImage: NSImage?
+    @State private var currentDisplayCGImage: CGImage?
+    @State private var imagePixelSize: CGSize = .zero
+    /// The display's backing scale factor (e.g. 2.0 on Retina, 3.0 on 3× displays).
+    /// Used to compute "true size" — where 100% shows the image at its logical point dimensions.
+    @State private var displayBackingScale: CGFloat = NSScreen.main?.backingScaleFactor ?? 2.0
+    @State private var useTemplateBackground: Bool = false
+    /// Local copies of template padding/cornerRadius for live editing in the bottom toolbar.
+    @State private var editorPadding: Int = 80
+    @State private var editorCornerRadius: Int = 24
+
+    // Annotation state
+    @State private var annotations: [Annotation] = []
+    @State private var selectedAnnotationID: UUID?
+    @State private var currentTool: AnnotationTool = .arrow
+    @State private var currentStyle: AnnotationStyle = AnnotationStyle()
+
+    // Crop state
+    @State private var isCropping: Bool = false
+    @State private var cropRect: CGRect = .zero
+
+    // Zoom state
+    @State private var zoomLevel: CGFloat = 1.0  // 1.0 = fit to view
+    @State private var fitScale: CGFloat = 0.5   // computed base scale to fit image
+    @State private var lastViewSize: CGSize = .zero  // cached for re-fitting after image swap
+
+    // Undo
+    @State private var undoStack: [EditorSnapshot] = []
+
+    // Alerts
+    @State private var showTrashAlert: Bool = false
+
+    /// The actual scale applied to the image: fitScale * zoomLevel.
+    /// Units: view-points per image-pixel.
+    private var effectiveScale: CGFloat {
+        fitScale * zoomLevel
+    }
+
+    /// The zoom percentage relative to "true size" (1:1 with the original window).
+    /// True size is when effectiveScale == 1/backingScale.
+    private var displayZoomPercent: CGFloat {
+        let trueSizeScale = 1.0 / displayBackingScale
+        guard trueSizeScale > 0 else { return 100 }
+        return effectiveScale / trueSizeScale * 100
+    }
+
+    private let zoomSteps: [CGFloat] = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0]
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                // Canvas area — GeometryReader always fills available space
+                // so the window frame is respected even before the image loads.
+                GeometryReader { geo in
+                    Group {
+                        if let image {
+                            ScrollView([.horizontal, .vertical]) {
+                                EditorCanvasView(
+                                    image: image,
+                                    imagePixelSize: imagePixelSize,
+                                    scale: effectiveScale,
+                                    showShadow: !useTemplateBackground,
+                                    annotations: $annotations,
+                                    selectedAnnotationID: $selectedAnnotationID,
+                                    currentTool: $currentTool,
+                                    currentStyle: $currentStyle,
+                                    cropRect: $cropRect,
+                                    isCropping: $isCropping,
+                                    onCommit: pushUndo
+                                )
+                                .padding(.top, 60)  // clear space for floating toolbar
+                                .padding(20)
+                            }
+                            .background(Color(nsColor: .controlBackgroundColor))
+                        } else {
+                            ContentUnavailableView("Unable to load image", systemImage: "photo.badge.exclamationmark")
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .onAppear {
+                        lastViewSize = geo.size
+                        updateFitScale(viewSize: geo.size)
+                    }
+                    .onChange(of: geo.size) { _, newSize in
+                        lastViewSize = newSize
+                        updateFitScale(viewSize: newSize)
+                    }
+                }
+
+                // Bottom toolbar with sliders and action buttons
+                EditorBottomToolbarView(
+                    padding: $editorPadding,
+                    cornerRadius: $editorCornerRadius,
+                    useTemplateBackground: useTemplateBackground,
+                    onTrash: { showTrashAlert = true },
+                    onCopy: copyToClipboard,
+                    onSave: saveOverwrite,
+                    onSaveAs: saveAs
+                )
+
+                // Status bar with zoom controls
+                statusBar
+            }
+
+            // Floating glass toolbar overlaid at the top
+            EditorToolbarView(
+                currentTool: $currentTool,
+                currentStyle: $currentStyle,
+                isCropping: $isCropping,
+                selectedAnnotationID: $selectedAnnotationID,
+                annotations: $annotations,
+                canUndo: !undoStack.isEmpty,
+                hasTemplate: template != nil,
+                useTemplateBackground: $useTemplateBackground,
+                onApplyCrop: applyCrop,
+                onCancelCrop: cancelCrop,
+                onUndo: undo
+            )
+        }
+        .onAppear {
+            if let appSettings, let template {
+                useTemplateBackground = appSettings.editorUseTemplateBackground
+                editorPadding = template.padding
+                editorCornerRadius = template.cornerRadius
+            }
+            loadImage()
+        }
+        .onDeleteCommand(perform: deleteSelected)
+        .onExitCommand {
+            if isCropping {
+                cancelCrop()
+            }
+        }
+        .onChange(of: useTemplateBackground) { _, newValue in
+            appSettings?.editorUseTemplateBackground = newValue
+            if let rawImage {
+                applyDisplayImage(from: rawImage)
+                // Note: annotations, zoom, and undo stack are preserved when toggling background
+            }
+        }
+        .onChange(of: editorPadding) { _, newValue in
+            appSettings?.screenshotTemplate.padding = newValue
+            if useTemplateBackground, let rawImage {
+                applyDisplayImage(from: rawImage)
+                // Note: annotations, zoom, and undo stack are preserved when changing padding
+            }
+        }
+        .onChange(of: editorCornerRadius) { _, newValue in
+            appSettings?.screenshotTemplate.cornerRadius = newValue
+            if useTemplateBackground, let rawImage {
+                applyDisplayImage(from: rawImage)
+                // Note: annotations, zoom, and undo stack are preserved when changing corner radius
+            }
+        }
+        .onChange(of: selectedAnnotationID) { _, newID in
+            if let id = newID,
+               let ann = annotations.first(where: { $0.id == id }) {
+                currentStyle = ann.style
+            }
+        }
+        .alert("Delete Screenshot?", isPresented: $showTrashAlert) {
+            Button("Delete", role: .destructive) {
+                trashScreenshot()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The file will be moved to the Trash.")
+        }
+    }
+
+    // MARK: - Status Bar
+
+    private var statusBar: some View {
+        HStack(spacing: 12) {
+            if imagePixelSize != .zero {
+                Text("\(Int(imagePixelSize.width)) x \(Int(imagePixelSize.height)) px")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Text("\(annotations.count) annotation\(annotations.count == 1 ? "" : "s")")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Divider().frame(height: 14)
+
+            // Zoom controls
+            HStack(spacing: 4) {
+                Button {
+                    zoomOut()
+                } label: {
+                    Image(systemName: "minus.magnifyingglass")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .help("Zoom Out")
+
+                Text("\(Int(displayZoomPercent))%")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 40, alignment: .center)
+
+                Button {
+                    zoomIn()
+                } label: {
+                    Image(systemName: "plus.magnifyingglass")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .help("Zoom In")
+
+                Button {
+                    zoomLevel = 1.0
+                } label: {
+                    Text("Fit")
+                        .font(.system(size: 10))
+                }
+                .buttonStyle(.plain)
+                .help("Reset Zoom")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.bar)
+    }
+
+    // MARK: - Zoom
+
+    private func updateFitScale(viewSize: CGSize) {
+        guard imagePixelSize.width > 0, imagePixelSize.height > 0 else { return }
+        let padding: CGFloat = 40  // 20pt padding on each side
+        let availableWidth = max(viewSize.width - padding, 100)
+        let availableHeight = max(viewSize.height - padding, 100)
+        let scaleX = availableWidth / imagePixelSize.width
+        let scaleY = availableHeight / imagePixelSize.height
+
+        // Pick up the current screen's backing scale (handles display changes).
+        displayBackingScale = NSScreen.main?.backingScaleFactor ?? 2.0
+
+        // "True size" scale: 1 image pixel = 1/backingScale view points.
+        // At this scale the image displays at the same size as the original window.
+        let trueSizeScale = 1.0 / displayBackingScale
+
+        // Fit to view, but never scale up beyond true size.
+        fitScale = min(min(scaleX, scaleY), trueSizeScale)
+    }
+
+    private func zoomIn() {
+        if let next = zoomSteps.first(where: { $0 > zoomLevel }) {
+            zoomLevel = next
+        }
+    }
+
+    private func zoomOut() {
+        if let prev = zoomSteps.last(where: { $0 < zoomLevel }) {
+            zoomLevel = prev
+        }
+    }
+
+    // MARK: - Image Loading
+
+    private func loadImage() {
+        guard let nsImage = NSImage(contentsOf: imageURL) else { return }
+        rawImage = nsImage
+        applyDisplayImage(from: nsImage)
+    }
+
+    private func applyDisplayImage(from source: NSImage) {
+        guard let cgSource = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            image = source
+            currentDisplayCGImage = nil
+            imagePixelSize = source.size
+            cropRect = CGRect(origin: .zero, size: source.size)
+            return
+        }
+
+        var displayCG = cgSource
+        if useTemplateBackground, let template {
+            // Build a template with the current editor slider values
+            var editorTemplate = template
+            editorTemplate.padding = editorPadding
+            editorTemplate.cornerRadius = editorCornerRadius
+            let renderer = TemplateRenderer()
+            if let templated = try? renderer.applyTemplate(editorTemplate, to: cgSource, backingScale: displayBackingScale) {
+                displayCG = templated
+            }
+        }
+
+        let size = CGSize(width: displayCG.width, height: displayCG.height)
+        let nsImage = NSImage(size: size)
+        nsImage.addRepresentation(NSBitmapImageRep(cgImage: displayCG))
+        image = nsImage
+        currentDisplayCGImage = displayCG
+        imagePixelSize = size
+        cropRect = CGRect(origin: .zero, size: size)
+    }
+
+    // MARK: - Crop
+
+    private func applyCrop() {
+        // Check if the crop rect is already the full image — nothing to do
+        let fullRect = CGRect(origin: .zero, size: imagePixelSize)
+        guard cropRect != fullRect,
+              !cropRect.isEmpty,
+              let cgImage = currentCGImage()
+        else {
+            isCropping = false
+            currentTool = .select
+            return
+        }
+
+        // Clamp the crop rect to actual image bounds
+        let clampedCrop = cropRect.intersection(CGRect(x: 0, y: 0,
+                                                       width: CGFloat(cgImage.width),
+                                                       height: CGFloat(cgImage.height)))
+        guard !clampedCrop.isEmpty,
+              let croppedCGImage = cgImage.cropping(to: clampedCrop)
+        else {
+            isCropping = false
+            currentTool = .select
+            return
+        }
+
+        pushUndo()
+
+        // Update the displayed image
+        let newSize = NSSize(width: croppedCGImage.width, height: croppedCGImage.height)
+        let newNSImage = NSImage(size: newSize)
+        newNSImage.addRepresentation(NSBitmapImageRep(cgImage: croppedCGImage))
+        image = newNSImage
+        currentDisplayCGImage = croppedCGImage
+        imagePixelSize = CGSize(width: croppedCGImage.width, height: croppedCGImage.height)
+
+        // Shift all annotations so their coordinates are relative to the new top-left
+        let originX = clampedCrop.minX
+        let originY = clampedCrop.minY
+        annotations = annotations.map { ann in
+            var shifted = ann
+            shifted.startPoint = CGPoint(x: ann.startPoint.x - originX,
+                                         y: ann.startPoint.y - originY)
+            shifted.endPoint = CGPoint(x: ann.endPoint.x - originX,
+                                       y: ann.endPoint.y - originY)
+            return shifted
+        }
+
+        // Reset crop rect to full new image
+        cropRect = CGRect(origin: .zero, size: imagePixelSize)
+
+        isCropping = false
+        currentTool = .select
+    }
+
+    private func cancelCrop() {
+        cropRect = CGRect(origin: .zero, size: imagePixelSize)
+        isCropping = false
+        currentTool = .select
+    }
+
+    // MARK: - Delete
+
+    private func deleteSelected() {
+        guard let id = selectedAnnotationID,
+              let idx = annotations.firstIndex(where: { $0.id == id })
+        else { return }
+
+        pushUndo()
+        annotations.remove(at: idx)
+        selectedAnnotationID = nil
+    }
+
+    private func trashScreenshot() {
+        try? FileManager.default.trashItem(at: imageURL, resultingItemURL: nil)
+        onDismiss()
+    }
+
+    // MARK: - Undo
+
+    private func pushUndo() {
+        undoStack.append(EditorSnapshot(
+            annotations: annotations,
+            image: image,
+            imagePixelSize: imagePixelSize,
+            cropRect: cropRect
+        ))
+    }
+
+    private func undo() {
+        guard let snapshot = undoStack.popLast() else { return }
+        annotations = snapshot.annotations
+        if let snapImage = snapshot.image {
+            image = snapImage
+            imagePixelSize = snapshot.imagePixelSize
+            // Re-extract the CGImage from the snapshot's bitmap representation
+            // so currentDisplayCGImage stays consistent with the restored image.
+            currentDisplayCGImage = (snapImage.representations.first as? NSBitmapImageRep)?.cgImage
+                ?? snapImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        }
+        cropRect = snapshot.cropRect ?? CGRect(origin: .zero, size: imagePixelSize)
+        selectedAnnotationID = nil
+    }
+
+    // MARK: - Save
+
+    /// Returns the current CGImage for rendering/export, using the stored reference
+    /// to avoid re-scaling via NSImage.cgImage(forProposedRect:).
+    private func currentCGImage() -> CGImage? {
+        if let cg = currentDisplayCGImage { return cg }
+        return image?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    }
+
+    private func copyToClipboard() {
+        guard let cgImage = currentCGImage() else { return }
+
+        let renderer = AnnotationRenderer()
+        guard let outputImage = try? renderer.render(image: cgImage, annotations: annotations, backingScale: displayBackingScale, cropRect: nil)
+        else { return }
+
+        let size = NSSize(width: outputImage.width, height: outputImage.height)
+        let finalImage = NSImage(size: size)
+        finalImage.addRepresentation(NSBitmapImageRep(cgImage: outputImage))
+
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([finalImage])
+        onDismiss()
+    }
+
+    private func saveOverwrite() {
+        do {
+            try exportAndSave(to: imageURL)
+            onDismiss()
+        } catch {
+            showSaveError(error)
+        }
+    }
+
+    private func saveAs() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = imageURL.lastPathComponent
+        let ext = imageURL.pathExtension.lowercased()
+        let contentType: UTType = ext == "png" ? .png : ext == "heic" ? .heic : .jpeg
+        panel.allowedContentTypes = [contentType]
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try exportAndSave(to: url)
+            onDismiss()
+        } catch {
+            showSaveError(error)
+        }
+    }
+
+    private func exportAndSave(to url: URL) throws {
+        guard let cgImage = currentCGImage() else { return }
+
+        let renderer = AnnotationRenderer()
+
+        // Crop is applied destructively in applyCrop(), so at export time
+        // the image is already the cropped region — no crop rect needed.
+        let outputImage = try renderer.render(
+            image: cgImage,
+            annotations: annotations,
+            backingScale: displayBackingScale,
+            cropRect: nil
+        )
+
+        let ext = url.pathExtension.lowercased()
+        let utType: CFString
+        switch ext {
+        case "png":  utType = UTType.png.identifier as CFString
+        case "heic": utType = UTType.heic.identifier as CFString
+        default:     utType = UTType.jpeg.identifier as CFString
+        }
+
+        var properties: [CFString: Any] = [
+            kCGImagePropertyDPIWidth: 72.0,
+            kCGImagePropertyDPIHeight: 72.0,
+        ]
+        if ext != "png" {
+            properties[kCGImageDestinationLossyCompressionQuality] = 0.9
+        }
+
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, utType, 1, nil) else {
+            throw AnnotationRenderer.RenderError.cannotCreateOutputImage
+        }
+        CGImageDestinationAddImage(destination, outputImage, properties as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw AnnotationRenderer.RenderError.cannotCreateOutputImage
+        }
+    }
+
+    private func showSaveError(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Save Failed"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.runModal()
+    }
+}
