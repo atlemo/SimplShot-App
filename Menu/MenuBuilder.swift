@@ -332,7 +332,8 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            process.arguments = ["-i", "-x", "-t", typeFlag, outputURL.path]
+            // -o = omit window shadow when capturing a window via Spacebar
+            process.arguments = ["-i", "-o", "-x", "-t", typeFlag, outputURL.path]
 
             do {
                 try process.run()
