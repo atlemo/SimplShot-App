@@ -35,12 +35,30 @@ struct AnnotationOverlayView: View {
             ArrowHeadShape(start: start, end: end, lineWidth: annotation.style.strokeWidth)
                 .fill(annotation.style.strokeColor)
 
+        case .freeDraw:
+            FreeDrawShape(points: annotation.points.map(scaled))
+                .stroke(
+                    annotation.style.strokeColor,
+                    style: StrokeStyle(
+                        lineWidth: annotation.style.strokeWidth,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
+
         case .line:
             Path { path in
                 path.move(to: start)
                 path.addLine(to: end)
             }
-            .stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth)
+            .stroke(
+                annotation.style.strokeColor,
+                style: StrokeStyle(
+                    lineWidth: annotation.style.strokeWidth,
+                    lineCap: .round,
+                    lineJoin: .round
+                )
+            )
 
         case .rectangle:
             Rectangle()
@@ -103,9 +121,8 @@ struct AnnotationOverlayView: View {
             HandleDot(center: CGPoint(x: rect.minX, y: rect.maxY))
             HandleDot(center: CGPoint(x: rect.maxX, y: rect.maxY))
 
-        case .text:
-            // Show a single handle at the text anchor
-            HandleDot(center: start)
+        case .freeDraw, .text:
+            EmptyView()
 
         case .select, .crop:
             EmptyView()
@@ -190,6 +207,22 @@ struct ArrowHeadShape: Shape {
             p.addLine(to: p1)
             p.addLine(to: p2)
             p.closeSubpath()
+        }
+    }
+}
+
+// MARK: - Free Draw Shape
+
+struct FreeDrawShape: Shape {
+    let points: [CGPoint]
+
+    func path(in rect: CGRect) -> Path {
+        Path { p in
+            guard let first = points.first else { return }
+            p.move(to: first)
+            for point in points.dropFirst() {
+                p.addLine(to: point)
+            }
         }
     }
 }

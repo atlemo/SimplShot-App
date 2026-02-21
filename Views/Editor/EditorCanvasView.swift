@@ -53,6 +53,8 @@ struct EditorCanvasView: View {
     @State private var dragStartImagePoint: CGPoint = .zero
     /// Which part of the annotation is being dragged
     @State private var dragMode: DragMode = .body
+    /// Ensure we only push one undo snapshot per drag interaction.
+    @State private var didCaptureUndoForCurrentDrag: Bool = false
 
     private var canvasWidth: CGFloat { imagePixelSize.width * scale }
     private var canvasHeight: CGFloat { imagePixelSize.height * scale }
@@ -163,18 +165,29 @@ struct EditorCanvasView: View {
                             dragStartAnnotation = annotations[idx]
                             dragStartImagePoint = startInImage
                             dragMode = mode
+                            didCaptureUndoForCurrentDrag = false
                         }
                         applyDragDelta(currentInImage)
                         return
                     }
                     // Nothing hit — start drawing (only if not select tool)
                     if currentTool != .select && currentTool != .text {
-                        pendingAnnotation = Annotation(
-                            tool: currentTool,
-                            startPoint: startInImage,
-                            endPoint: currentInImage,
-                            style: currentStyle
-                        )
+                        if currentTool == .freeDraw {
+                            pendingAnnotation = Annotation(
+                                tool: currentTool,
+                                startPoint: startInImage,
+                                endPoint: currentInImage,
+                                points: [startInImage, currentInImage],
+                                style: currentStyle
+                            )
+                        } else {
+                            pendingAnnotation = Annotation(
+                                tool: currentTool,
+                                startPoint: startInImage,
+                                endPoint: currentInImage,
+                                style: currentStyle
+                            )
+                        }
                     }
                     return
                 }
@@ -184,7 +197,10 @@ struct EditorCanvasView: View {
                     applyDragDelta(currentInImage)
                 } else if pendingAnnotation != nil {
                     let tool = pendingAnnotation?.tool
-                    if isShiftDown && (tool == .rectangle || tool == .circle),
+                    if tool == .freeDraw {
+                        pendingAnnotation?.points.append(currentInImage)
+                        pendingAnnotation?.endPoint = currentInImage
+                    } else if isShiftDown && (tool == .rectangle || tool == .circle),
                        let start = pendingAnnotation?.startPoint {
                         pendingAnnotation?.endPoint = constrainToSquare(start: start, end: currentInImage)
                     } else {
@@ -201,9 +217,9 @@ struct EditorCanvasView: View {
                 } else if pendingAnnotation != nil, currentTool != .text {
                     // Commit the pending annotation
                     if let annotation = pendingAnnotation {
+                        onCommit()
                         annotations.append(annotation)
                         selectedAnnotationID = annotation.id
-                        onCommit()
                     }
                     pendingAnnotation = nil
                 } else {
@@ -252,6 +268,11 @@ struct EditorCanvasView: View {
               let idx = annotations.firstIndex(where: { $0.id == startAnn.id })
         else { return }
 
+        if !didCaptureUndoForCurrentDrag {
+            onCommit()
+            didCaptureUndoForCurrentDrag = true
+        }
+
         let dx = currentInImage.x - dragStartImagePoint.x
         let dy = currentInImage.y - dragStartImagePoint.y
 
@@ -261,6 +282,11 @@ struct EditorCanvasView: View {
                                                    y: startAnn.startPoint.y + dy)
             annotations[idx].endPoint   = CGPoint(x: startAnn.endPoint.x + dx,
                                                    y: startAnn.endPoint.y + dy)
+            if startAnn.tool == .freeDraw {
+                annotations[idx].points = startAnn.points.map {
+                    CGPoint(x: $0.x + dx, y: $0.y + dy)
+                }
+            }
 
         case .startHandle:
             annotations[idx].startPoint = CGPoint(x: startAnn.startPoint.x + dx,
@@ -284,13 +310,11 @@ struct EditorCanvasView: View {
     }
 
     private func finishSelectDrag() {
-        if isDraggingAnnotation {
-            onCommit()
-        }
         isDraggingAnnotation = false
         dragStartAnnotation = nil
         dragStartImagePoint = .zero
         dragMode = .body
+        didCaptureUndoForCurrentDrag = false
     }
 
     // MARK: - Text Tool
@@ -318,11 +342,12 @@ struct EditorCanvasView: View {
         }
 
         if editingText.isEmpty {
+            onCommit()
             annotations.remove(at: idx)
             selectedAnnotationID = nil
         } else {
-            annotations[idx].text = editingText
             onCommit()
+            annotations[idx].text = editingText
         }
         editingTextID = nil
     }
@@ -412,6 +437,11 @@ struct EditorCanvasView: View {
                     return annotation.id
                 }
 
+            case .freeDraw:
+                if distanceToPolyline(point: point, points: annotation.points) < threshold {
+                    return annotation.id
+                }
+
             case .rectangle, .circle, .pixelate:
                 let rect = annotation.boundingRect.insetBy(dx: -threshold, dy: -threshold)
                 if rect.contains(point) {
@@ -457,6 +487,22 @@ struct EditorCanvasView: View {
         let t = max(0, min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq))
         let proj = CGPoint(x: start.x + t * dx, y: start.y + t * dy)
         return hypot(point.x - proj.x, point.y - proj.y)
+    }
+
+    private func distanceToPolyline(point: CGPoint, points: [CGPoint]) -> CGFloat {
+        guard points.count >= 2 else {
+            if let first = points.first {
+                return hypot(point.x - first.x, point.y - first.y)
+            }
+            return .greatestFiniteMagnitude
+        }
+
+        var best = CGFloat.greatestFiniteMagnitude
+        for i in 1..<points.count {
+            let d = distanceToSegment(point: point, start: points[i - 1], end: points[i])
+            if d < best { best = d }
+        }
+        return best
     }
 
     // MARK: - Coordinate Conversion

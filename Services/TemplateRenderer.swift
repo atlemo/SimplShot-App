@@ -121,9 +121,7 @@ class TemplateRenderer {
 
         // Magic ratios derived from Apple's continuous-corner specification.
         // `c` is how far along the straight edge the curve begins;
-        // `k` is the Bézier handle fraction (relative to r).
         let c: CGFloat = 0.4477  // ≈ 1 - (√2 / 2)  — where the arc departs from the straight side
-        let k: CGFloat = 0.5522  // classic circular-approximation handle fraction
 
         let minX = rect.minX, minY = rect.minY
         let maxX = rect.maxX, maxY = rect.maxY

@@ -5,6 +5,7 @@ import SwiftUI
 enum AnnotationTool: String, CaseIterable, Identifiable {
     case select
     case arrow
+    case freeDraw
     case rectangle
     case circle
     case line
@@ -18,6 +19,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         switch self {
         case .select:    return "Select"
         case .arrow:     return "Arrow"
+        case .freeDraw:  return "Free Drawing"
         case .rectangle: return "Rectangle"
         case .circle:    return "Circle"
         case .line:      return "Line"
@@ -31,6 +33,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         switch self {
         case .select:    return "cursorarrow"
         case .arrow:     return "arrow.up.right"
+        case .freeDraw:  return "pencil.and.scribble"
         case .rectangle: return "rectangle"
         case .circle:    return "circle"
         case .line:      return "line.diagonal"
@@ -89,6 +92,7 @@ struct Annotation: Identifiable {
     var tool: AnnotationTool
     var startPoint: CGPoint    // image-pixel coordinates
     var endPoint: CGPoint      // image-pixel coordinates
+    var points: [CGPoint]      // used by free-draw tool
     var style: AnnotationStyle
     var text: String           // only meaningful for .text tool
 
@@ -97,6 +101,7 @@ struct Annotation: Identifiable {
         tool: AnnotationTool,
         startPoint: CGPoint,
         endPoint: CGPoint,
+        points: [CGPoint] = [],
         style: AnnotationStyle = AnnotationStyle(),
         text: String = ""
     ) {
@@ -104,13 +109,27 @@ struct Annotation: Identifiable {
         self.tool = tool
         self.startPoint = startPoint
         self.endPoint = endPoint
+        self.points = points
         self.style = style
         self.text = text
     }
 
     /// The bounding rect of this annotation in image-pixel coordinates.
     var boundingRect: CGRect {
-        CGRect(
+        if tool == .freeDraw, !points.isEmpty {
+            let xs = points.map(\.x)
+            let ys = points.map(\.y)
+            if let minX = xs.min(), let maxX = xs.max(),
+               let minY = ys.min(), let maxY = ys.max() {
+                return CGRect(
+                    x: minX,
+                    y: minY,
+                    width: max(maxX - minX, 1),
+                    height: max(maxY - minY, 1)
+                )
+            }
+        }
+        return CGRect(
             x: min(startPoint.x, endPoint.x),
             y: min(startPoint.y, endPoint.y),
             width: abs(endPoint.x - startPoint.x),

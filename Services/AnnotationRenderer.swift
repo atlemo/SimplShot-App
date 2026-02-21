@@ -122,6 +122,8 @@ class AnnotationRenderer {
         switch annotation.tool {
         case .arrow:
             drawArrow(from: annotation.startPoint, to: annotation.endPoint, color: color, lineWidth: lineWidth, in: context)
+        case .freeDraw:
+            drawFreeDraw(points: annotation.points, in: context)
         case .line:
             drawLine(from: annotation.startPoint, to: annotation.endPoint, in: context)
         case .rectangle:
@@ -138,6 +140,8 @@ class AnnotationRenderer {
     }
 
     private func drawArrow(from start: CGPoint, to end: CGPoint, color: CGColor, lineWidth: CGFloat, in context: CGContext) {
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
         let angle = atan2(end.y - start.y, end.x - start.x)
         let headLength: CGFloat = max(lineWidth * 5, 16)
         let arrowHalfAngle: CGFloat = .pi / 6  // 30 degrees
@@ -171,8 +175,21 @@ class AnnotationRenderer {
     }
 
     private func drawLine(from start: CGPoint, to end: CGPoint, in context: CGContext) {
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
         context.move(to: start)
         context.addLine(to: end)
+        context.strokePath()
+    }
+
+    private func drawFreeDraw(points: [CGPoint], in context: CGContext) {
+        guard let first = points.first else { return }
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        context.move(to: first)
+        for point in points.dropFirst() {
+            context.addLine(to: point)
+        }
         context.strokePath()
     }
 
