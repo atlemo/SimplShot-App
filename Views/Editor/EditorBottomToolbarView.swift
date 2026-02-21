@@ -4,6 +4,8 @@ import SwiftUI
 struct EditorBottomToolbarView: View {
     private let pillHeight: CGFloat = 36
 
+    let aspectRatios: [AspectRatio]
+    @Binding var selectedAspectRatioID: UUID?
     @Binding var padding: Int
     @Binding var cornerRadius: Int
     var useTemplateBackground: Bool
@@ -37,6 +39,26 @@ struct EditorBottomToolbarView: View {
 
     private var sliders: some View {
         HStack(spacing: 12) {
+            // Aspect ratio selector
+            HStack(spacing: 6) {
+                Image(systemName: "aspectratio")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .help("Aspect Ratio")
+                Picker("", selection: $selectedAspectRatioID) {
+                    Text("Original")
+                        .tag(Optional<UUID>.none)
+                    ForEach(aspectRatios) { ratio in
+                        Text(ratio.label)
+                            .tag(Optional(ratio.id))
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 96)
+            }
+
+            Divider().frame(height: 16)
+
             // Padding slider
             HStack(spacing: 6) {
                 Image(systemName: "inset.filled.center.rectangle")

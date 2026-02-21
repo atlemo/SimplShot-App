@@ -25,6 +25,7 @@ struct EditorView: View {
     /// nil = no background; non-nil = background enabled with that gradient.
     @State private var selectedGradient: BuiltInGradient? = nil
     /// Local copies of template padding/cornerRadius for live editing in the bottom toolbar.
+    @State private var editorAspectRatioID: UUID? = nil
     @State private var editorPadding: Int = 80
     @State private var editorCornerRadius: Int = 24
 
@@ -64,6 +65,13 @@ struct EditorView: View {
     }
 
     private let zoomSteps: [CGFloat] = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0]
+    private var editorAspectRatios: [AspectRatio] {
+        appSettings?.aspectRatios ?? Constants.defaultAspectRatios
+    }
+    private var selectedEditorAspectRatio: AspectRatio? {
+        guard let id = editorAspectRatioID else { return nil }
+        return editorAspectRatios.first(where: { $0.id == id })
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -109,6 +117,8 @@ struct EditorView: View {
 
                 // Bottom toolbar with sliders and action buttons
                 EditorBottomToolbarView(
+                    aspectRatios: editorAspectRatios,
+                    selectedAspectRatioID: $editorAspectRatioID,
                     padding: $editorPadding,
                     cornerRadius: $editorCornerRadius,
                     useTemplateBackground: selectedGradient != nil,
@@ -140,6 +150,7 @@ struct EditorView: View {
         }
         .onAppear {
             if let appSettings, let template {
+                editorAspectRatioID = appSettings.selectedRatioID
                 editorPadding = template.padding
                 editorCornerRadius = template.cornerRadius
                 if appSettings.editorUseTemplateBackground {
@@ -164,10 +175,9 @@ struct EditorView: View {
             appSettings?.editorUseTemplateBackground = isEnabled
             if let rawImage {
                 if wasEnabled != isEnabled {
-                    // Background toggled on/off — shift annotations to compensate for padding.
-                    let paddingPixels = CGFloat(editorPadding) * displayBackingScale
-                    let shift = isEnabled ? paddingPixels : -paddingPixels
-                    shiftAnnotations(by: shift)
+                    let oldOrigin = wasEnabled ? screenshotOriginInTemplatedCanvas(for: rawImage, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio) : .zero
+                    let newOrigin = isEnabled ? screenshotOriginInTemplatedCanvas(for: rawImage, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio) : .zero
+                    shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 }
                 applyDisplayImage(from: rawImage)
             }
@@ -175,12 +185,21 @@ struct EditorView: View {
         .onChange(of: editorPadding) { oldValue, newValue in
             appSettings?.screenshotTemplate.padding = newValue
             if selectedGradient != nil, let rawImage {
-                // Shift annotations by the difference in padding pixels so they
-                // stay anchored to the same spot on the screenshot content.
-                let oldPaddingPixels = CGFloat(oldValue) * displayBackingScale
-                let newPaddingPixels = CGFloat(newValue) * displayBackingScale
-                let shift = newPaddingPixels - oldPaddingPixels
-                shiftAnnotations(by: shift)
+                let oldOrigin = screenshotOriginInTemplatedCanvas(for: rawImage, padding: oldValue, aspectRatio: selectedEditorAspectRatio?.ratio)
+                let newOrigin = screenshotOriginInTemplatedCanvas(for: rawImage, padding: newValue, aspectRatio: selectedEditorAspectRatio?.ratio)
+                shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                applyDisplayImage(from: rawImage)
+            }
+        }
+        .onChange(of: editorAspectRatioID) { oldID, newID in
+            if selectedGradient != nil, let rawImage {
+                // Keep annotations anchored to screenshot content when the
+                // background canvas expands/contracts to match selected ratio.
+                let oldRatio = aspectRatioValue(for: oldID)
+                let newRatio = aspectRatioValue(for: newID)
+                let oldOrigin = screenshotOriginInTemplatedCanvas(for: rawImage, padding: editorPadding, aspectRatio: oldRatio)
+                let newOrigin = screenshotOriginInTemplatedCanvas(for: rawImage, padding: editorPadding, aspectRatio: newRatio)
+                shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 applyDisplayImage(from: rawImage)
             }
         }
@@ -324,7 +343,12 @@ struct EditorView: View {
             editorTemplate.cornerRadius = editorCornerRadius
             editorTemplate.wallpaperSource = .builtInGradient(gradient)
             let renderer = TemplateRenderer()
-            if let templated = try? renderer.applyTemplate(editorTemplate, to: cgSource, backingScale: displayBackingScale) {
+            if let templated = try? renderer.applyTemplate(
+                editorTemplate,
+                to: cgSource,
+                backingScale: displayBackingScale,
+                targetAspectRatio: selectedEditorAspectRatio?.ratio
+            ) {
                 displayCG = templated
             }
         }
@@ -409,21 +433,57 @@ struct EditorView: View {
     /// Shifts all annotation points by `delta` in both X and Y (image pixel space).
     /// Used to keep annotations anchored to screenshot content when the template
     /// padding is added or removed (which expands/shrinks the canvas uniformly).
-    private func shiftAnnotations(by delta: CGFloat) {
-        guard !annotations.isEmpty, delta != 0 else { return }
+    private func shiftAnnotations(by delta: CGPoint) {
+        guard !annotations.isEmpty, delta != .zero else { return }
         annotations = annotations.map { ann in
             var shifted = ann
-            shifted.startPoint = CGPoint(x: ann.startPoint.x + delta,
-                                         y: ann.startPoint.y + delta)
-            shifted.endPoint   = CGPoint(x: ann.endPoint.x + delta,
-                                         y: ann.endPoint.y + delta)
+            shifted.startPoint = CGPoint(x: ann.startPoint.x + delta.x,
+                                         y: ann.startPoint.y + delta.y)
+            shifted.endPoint   = CGPoint(x: ann.endPoint.x + delta.x,
+                                         y: ann.endPoint.y + delta.y)
             if !ann.points.isEmpty {
                 shifted.points = ann.points.map {
-                    CGPoint(x: $0.x + delta, y: $0.y + delta)
+                    CGPoint(x: $0.x + delta.x, y: $0.y + delta.y)
                 }
             }
             return shifted
         }
+    }
+
+    /// Returns the screenshot's top-left origin inside the templated canvas (image-pixel space).
+    private func screenshotOriginInTemplatedCanvas(for source: NSImage, padding: Int, aspectRatio: Double?) -> CGPoint {
+        guard let cg = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return .zero
+        }
+
+        let screenshotW = CGFloat(cg.width)
+        let screenshotH = CGFloat(cg.height)
+        let paddingPixels = CGFloat(padding) * displayBackingScale
+
+        let baseW = screenshotW + paddingPixels * 2
+        let baseH = screenshotH + paddingPixels * 2
+
+        var canvasW = baseW
+        var canvasH = baseH
+
+        if let ratio = aspectRatio, ratio > 0 {
+            let current = baseW / baseH
+            if current < ratio {
+                canvasW = baseH * ratio
+            } else if current > ratio {
+                canvasH = baseW / ratio
+            }
+        }
+
+        return CGPoint(
+            x: (canvasW - screenshotW) / 2,
+            y: (canvasH - screenshotH) / 2
+        )
+    }
+
+    private func aspectRatioValue(for id: UUID?) -> Double? {
+        guard let id else { return nil }
+        return editorAspectRatios.first(where: { $0.id == id })?.ratio
     }
 
     // MARK: - Delete

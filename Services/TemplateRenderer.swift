@@ -20,7 +20,12 @@ enum TemplateRenderError: LocalizedError {
 
 class TemplateRenderer {
 
-    func applyTemplate(_ template: ScreenshotTemplate, to screenshot: CGImage, backingScale: CGFloat = 2.0) throws -> CGImage {
+    func applyTemplate(
+        _ template: ScreenshotTemplate,
+        to screenshot: CGImage,
+        backingScale: CGFloat = 2.0,
+        targetAspectRatio: Double? = nil
+    ) throws -> CGImage {
         let screenshotWidth = screenshot.width
         let screenshotHeight = screenshot.height
 
@@ -28,8 +33,13 @@ class TemplateRenderer {
         // so scale the logical-point values to match.
         let padding = Int(CGFloat(template.padding) * backingScale)
 
-        let canvasWidth = screenshotWidth + padding * 2
-        let canvasHeight = screenshotHeight + padding * 2
+        let baseCanvasWidth = screenshotWidth + padding * 2
+        let baseCanvasHeight = screenshotHeight + padding * 2
+        let (canvasWidth, canvasHeight) = canvasSize(
+            baseWidth: baseCanvasWidth,
+            baseHeight: baseCanvasHeight,
+            targetAspectRatio: targetAspectRatio
+        )
 
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard let context = CGContext(
@@ -56,10 +66,10 @@ class TemplateRenderer {
 
         // 2. Screenshot placement rect
         let screenshotRect = CGRect(
-            x: padding,
-            y: padding,
-            width: screenshotWidth,
-            height: screenshotHeight
+            x: (CGFloat(canvasWidth) - CGFloat(screenshotWidth)) / 2,
+            y: (CGFloat(canvasHeight) - CGFloat(screenshotHeight)) / 2,
+            width: CGFloat(screenshotWidth),
+            height: CGFloat(screenshotHeight)
         )
 
         // Corner radius scaled to match the screenshot's pixel density
@@ -105,6 +115,25 @@ class TemplateRenderer {
             throw TemplateRenderError.cannotCreateOutputImage
         }
         return outputImage
+    }
+
+    private func canvasSize(baseWidth: Int, baseHeight: Int, targetAspectRatio: Double?) -> (Int, Int) {
+        guard let ratio = targetAspectRatio, ratio > 0 else {
+            return (baseWidth, baseHeight)
+        }
+
+        let w = CGFloat(baseWidth)
+        let h = CGFloat(baseHeight)
+        let current = w / h
+
+        if current < CGFloat(ratio) {
+            // Too tall for target ratio -> widen canvas
+            return (Int(ceil(h * CGFloat(ratio))), baseHeight)
+        } else if current > CGFloat(ratio) {
+            // Too wide for target ratio -> increase height
+            return (baseWidth, Int(ceil(w / CGFloat(ratio))))
+        }
+        return (baseWidth, baseHeight)
     }
 
     // MARK: - Private
