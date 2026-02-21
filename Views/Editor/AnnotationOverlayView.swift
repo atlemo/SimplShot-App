@@ -311,13 +311,53 @@ struct FreeDrawShape: Shape {
     let points: [CGPoint]
 
     func path(in rect: CGRect) -> Path {
-        Path { p in
-            guard let first = points.first else { return }
+        let processed = smooth(points: points)
+        return Path { p in
+            guard let first = processed.first else { return }
+            guard processed.count > 1 else {
+                p.move(to: first)
+                p.addLine(to: first)
+                return
+            }
+
             p.move(to: first)
-            for point in points.dropFirst() {
-                p.addLine(to: point)
+            if processed.count == 2 {
+                p.addLine(to: processed[1])
+                return
+            }
+
+            for i in 1..<(processed.count - 1) {
+                let current = processed[i]
+                let next = processed[i + 1]
+                let mid = CGPoint(x: (current.x + next.x) / 2, y: (current.y + next.y) / 2)
+                p.addQuadCurve(to: mid, control: current)
+            }
+            if let last = processed.last {
+                p.addQuadCurve(to: last, control: processed[processed.count - 2])
             }
         }
+    }
+
+    /// Lightweight moving-average smoothing for freer, less jagged strokes.
+    private func smooth(points: [CGPoint]) -> [CGPoint] {
+        guard points.count >= 3 else { return points }
+        var out = points
+        let passCount = 2
+
+        for _ in 0..<passCount {
+            var next = out
+            for i in 1..<(out.count - 1) {
+                let a = out[i - 1]
+                let b = out[i]
+                let c = out[i + 1]
+                next[i] = CGPoint(
+                    x: (a.x + b.x * 2 + c.x) / 4,
+                    y: (a.y + b.y * 2 + c.y) / 4
+                )
+            }
+            out = next
+        }
+        return out
     }
 }
 

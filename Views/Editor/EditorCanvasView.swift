@@ -201,8 +201,15 @@ struct EditorCanvasView: View {
                 } else if pendingAnnotation != nil {
                     let tool = pendingAnnotation?.tool
                     if tool == .freeDraw {
-                        pendingAnnotation?.points.append(currentInImage)
-                        pendingAnnotation?.endPoint = currentInImage
+                        if let last = pendingAnnotation?.points.last {
+                            // Reduce jitter by only storing points that moved enough.
+                            if dist(last, currentInImage) >= 2.0 {
+                                pendingAnnotation?.points.append(currentInImage)
+                            }
+                        } else {
+                            pendingAnnotation?.points.append(currentInImage)
+                        }
+                        pendingAnnotation?.endPoint = pendingAnnotation?.points.last ?? currentInImage
                     } else if tool == .measurement,
                               isShiftDown,
                               let start = pendingAnnotation?.startPoint {

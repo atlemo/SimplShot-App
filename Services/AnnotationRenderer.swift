@@ -301,14 +301,56 @@ class AnnotationRenderer {
     }
 
     private func drawFreeDraw(points: [CGPoint], in context: CGContext) {
-        guard let first = points.first else { return }
+        let processed = smooth(points: points)
+        guard let first = processed.first else { return }
         context.setLineCap(.round)
         context.setLineJoin(.round)
+
+        guard processed.count > 1 else {
+            context.move(to: first)
+            context.addLine(to: first)
+            context.strokePath()
+            return
+        }
+
         context.move(to: first)
-        for point in points.dropFirst() {
-            context.addLine(to: point)
+        if processed.count == 2 {
+            context.addLine(to: processed[1])
+            context.strokePath()
+            return
+        }
+
+        for i in 1..<(processed.count - 1) {
+            let current = processed[i]
+            let next = processed[i + 1]
+            let mid = CGPoint(x: (current.x + next.x) / 2, y: (current.y + next.y) / 2)
+            context.addQuadCurve(to: mid, control: current)
+        }
+        if let last = processed.last {
+            context.addQuadCurve(to: last, control: processed[processed.count - 2])
         }
         context.strokePath()
+    }
+
+    private func smooth(points: [CGPoint]) -> [CGPoint] {
+        guard points.count >= 3 else { return points }
+        var out = points
+        let passCount = 2
+
+        for _ in 0..<passCount {
+            var next = out
+            for i in 1..<(out.count - 1) {
+                let a = out[i - 1]
+                let b = out[i]
+                let c = out[i + 1]
+                next[i] = CGPoint(
+                    x: (a.x + b.x * 2 + c.x) / 4,
+                    y: (a.y + b.y * 2 + c.y) / 4
+                )
+            }
+            out = next
+        }
+        return out
     }
 
     private func drawRectangle(_ rect: CGRect, in context: CGContext) {

@@ -383,6 +383,11 @@ struct EditorView: View {
                                          y: ann.startPoint.y - originY)
             shifted.endPoint = CGPoint(x: ann.endPoint.x - originX,
                                        y: ann.endPoint.y - originY)
+            if !ann.points.isEmpty {
+                shifted.points = ann.points.map {
+                    CGPoint(x: $0.x - originX, y: $0.y - originY)
+                }
+            }
             return shifted
         }
 
@@ -412,6 +417,11 @@ struct EditorView: View {
                                          y: ann.startPoint.y + delta)
             shifted.endPoint   = CGPoint(x: ann.endPoint.x + delta,
                                          y: ann.endPoint.y + delta)
+            if !ann.points.isEmpty {
+                shifted.points = ann.points.map {
+                    CGPoint(x: $0.x + delta, y: $0.y + delta)
+                }
+            }
             return shifted
         }
     }
