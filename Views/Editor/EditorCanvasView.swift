@@ -210,7 +210,7 @@ struct EditorCanvasView: View {
                             pendingAnnotation?.points.append(currentInImage)
                         }
                         pendingAnnotation?.endPoint = pendingAnnotation?.points.last ?? currentInImage
-                    } else if tool == .measurement,
+                    } else if isAngleLockTool(tool),
                               isShiftDown,
                               let start = pendingAnnotation?.startPoint {
                         pendingAnnotation?.endPoint = constrainTo45Degree(start: start, end: currentInImage)
@@ -305,7 +305,7 @@ struct EditorCanvasView: View {
         case .startHandle:
             let newStart = CGPoint(x: startAnn.startPoint.x + dx,
                                    y: startAnn.startPoint.y + dy)
-            if startAnn.tool == .measurement, isShiftDown {
+            if isAngleLockTool(startAnn.tool), isShiftDown {
                 annotations[idx].startPoint = constrainTo45Degree(start: startAnn.endPoint, end: newStart)
             } else {
                 annotations[idx].startPoint = newStart
@@ -314,7 +314,7 @@ struct EditorCanvasView: View {
         case .endHandle:
             let newEnd = CGPoint(x: startAnn.endPoint.x + dx,
                                  y: startAnn.endPoint.y + dy)
-            if startAnn.tool == .measurement, isShiftDown {
+            if isAngleLockTool(startAnn.tool), isShiftDown {
                 annotations[idx].endPoint = constrainTo45Degree(start: startAnn.startPoint, end: newEnd)
             } else {
                 annotations[idx].endPoint = newEnd
@@ -560,6 +560,11 @@ struct EditorCanvasView: View {
             x: start.x + cos(snap) * length,
             y: start.y + sin(snap) * length
         )
+    }
+
+    private func isAngleLockTool(_ tool: AnnotationTool?) -> Bool {
+        guard let tool else { return false }
+        return tool == .measurement || tool == .arrow || tool == .line
     }
 
     private var isShiftDown: Bool {

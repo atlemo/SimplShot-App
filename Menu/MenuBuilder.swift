@@ -233,6 +233,9 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     }
 
     @objc func resizeAndCaptureAction() {
+        guard ensureScreenRecordingPermission(for: "capture screenshots")
+        else { return }
+
         guard let app = menuState.selectedApp else {
             showAlert("No application selected. Please select an application first.")
             return
@@ -321,6 +324,8 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     }
 
     @objc func freeSizeCaptureAction() {
+        guard ensureScreenRecordingPermission(for: "capture an area screenshot") else { return }
+
         // Close the menu before entering interactive capture mode
         menu.cancelTracking()
 
@@ -435,6 +440,10 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     }
 
     @objc func batchCaptureAction() {
+        guard ensureAccessibilityPermission(for: "batch capture app windows"),
+              ensureScreenRecordingPermission(for: "capture screenshots")
+        else { return }
+
         guard let app = menuState.selectedApp else {
             showAlert("No application selected. Please select an application first.")
             return
@@ -486,6 +495,8 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     @discardableResult
     func performResize() -> (AXUIElement, WindowManager.WindowState)? {
+        guard ensureAccessibilityPermission(for: "resize app windows") else { return nil }
+
         guard let app = menuState.selectedApp else {
             showAlert("No application selected. Please select an application first.")
             return nil
@@ -582,6 +593,51 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             NSWorkspace.shared.open(appSettings.screenshotSaveURL)
         } else if response == .alertSecondButtonReturn, let url = editableFileURL {
             EditorWindowController.openEditor(imageURL: url, appSettings: appSettings)
+        }
+    }
+
+    private func ensureAccessibilityPermission(for feature: String) -> Bool {
+        if AccessibilityService.isTrusted { return true }
+        AccessibilityService.promptIfNeeded()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            guard let self else { return }
+            if !AccessibilityService.isTrusted {
+                self.showPermissionAlert(
+                    title: "Accessibility Permission Required",
+                    message: "SimplShot needs Accessibility permission to \(feature).",
+                    openSettings: AccessibilityService.openAccessibilitySettings
+                )
+            }
+        }
+        return AccessibilityService.isTrusted
+    }
+
+    private func ensureScreenRecordingPermission(for feature: String) -> Bool {
+        if AccessibilityService.hasScreenRecordingPermission { return true }
+        ScreenshotService.ensurePermission()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            guard let self else { return }
+            if !AccessibilityService.hasScreenRecordingPermission {
+                self.showPermissionAlert(
+                    title: "Screen Recording Permission Required",
+                    message: "SimplShot needs Screen Recording permission to \(feature).",
+                    openSettings: AccessibilityService.openScreenRecordingSettings
+                )
+            }
+        }
+        return AccessibilityService.hasScreenRecordingPermission
+    }
+
+    private func showPermissionAlert(title: String, message: String, openSettings: () -> Void) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Later")
+        if alert.runModal() == .alertFirstButtonReturn {
+            openSettings()
         }
     }
 

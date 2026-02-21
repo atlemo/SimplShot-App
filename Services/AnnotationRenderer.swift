@@ -153,19 +153,13 @@ class AnnotationRenderer {
         context.setLineJoin(.round)
         let angle = atan2(end.y - start.y, end.x - start.x)
         let headLength: CGFloat = max(lineWidth * 5, 16)
-        let arrowHalfAngle: CGFloat = .pi / 6  // 30 degrees
+        let arrowHalfAngle: CGFloat = .pi / 4  // 45 degrees => 90° chevron tip
 
-        // Shorten the line to the arrowhead base (with 1pt overlap to avoid gaps)
-        let baseOffset = headLength * cos(arrowHalfAngle) - 1
-        let shortenedEnd = CGPoint(
-            x: end.x - baseOffset * cos(angle),
-            y: end.y - baseOffset * sin(angle)
-        )
         context.move(to: start)
-        context.addLine(to: shortenedEnd)
+        context.addLine(to: end)
         context.strokePath()
 
-        // Draw arrowhead triangle (filled, on top)
+        // Draw open chevron arrowhead (two stroked segments)
         let p1 = CGPoint(
             x: end.x - headLength * cos(angle - arrowHalfAngle),
             y: end.y - headLength * sin(angle - arrowHalfAngle)
@@ -175,12 +169,15 @@ class AnnotationRenderer {
             y: end.y - headLength * sin(angle + arrowHalfAngle)
         )
 
-        context.setFillColor(color)
+        context.setStrokeColor(color)
+        context.setLineWidth(lineWidth)
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
         context.move(to: end)
         context.addLine(to: p1)
+        context.move(to: end)
         context.addLine(to: p2)
-        context.closePath()
-        context.fillPath()
+        context.strokePath()
     }
 
     private func drawLine(from start: CGPoint, to end: CGPoint, in context: CGContext) {

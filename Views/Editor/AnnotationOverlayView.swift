@@ -31,10 +31,23 @@ struct AnnotationOverlayView: View {
         switch annotation.tool {
         case .arrow:
             ArrowShape(start: start, end: end, lineWidth: annotation.style.strokeWidth)
-                .stroke(annotation.style.strokeColor, style: StrokeStyle(lineWidth: annotation.style.strokeWidth, lineCap: .round))
-            // Arrowhead as a filled triangle (drawn on top of the shortened line)
+                .stroke(
+                    annotation.style.strokeColor,
+                    style: StrokeStyle(
+                        lineWidth: annotation.style.strokeWidth,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
             ArrowHeadShape(start: start, end: end, lineWidth: annotation.style.strokeWidth)
-                .fill(annotation.style.strokeColor)
+                .stroke(
+                    annotation.style.strokeColor,
+                    style: StrokeStyle(
+                        lineWidth: annotation.style.strokeWidth,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
 
         case .measurement:
             MeasurementLineShape(start: start, end: end, lineWidth: annotation.style.strokeWidth)
@@ -181,16 +194,14 @@ struct AnnotationOverlayView: View {
 // MARK: - Arrow helpers
 
 /// Arrowhead geometry for a given stroke width.
-/// - `headLen`: distance from tip to each base corner
-/// - `arrowAngle`: half-angle of the arrowhead (30°)
-/// - `baseOffset`: distance from tip to the base midpoint along the shaft
-private let arrowHalfAngle: CGFloat = .pi / 6  // 30°
+private let arrowChevronHalfAngle: CGFloat = .pi / 4  // 45° => 90° tip
+private let measurementHalfAngle: CGFloat = .pi / 6   // keep measurement heads as-is
 
 private func arrowHeadLen(for lineWidth: CGFloat) -> CGFloat {
     max(lineWidth * 5, 12)
 }
 
-// MARK: - Arrow Shape (line shortened to stop at the arrowhead base)
+// MARK: - Arrow Shape (shaft to tip)
 
 struct ArrowShape: Shape {
     let start: CGPoint
@@ -198,23 +209,14 @@ struct ArrowShape: Shape {
     let lineWidth: CGFloat
 
     func path(in rect: CGRect) -> Path {
-        let angle = atan2(end.y - start.y, end.x - start.x)
-        let headLen = arrowHeadLen(for: lineWidth)
-        // The triangle base sits at headLen·cos(30°) from the tip.
-        // Subtract a small overlap (1pt) so the line tucks under the filled triangle.
-        let baseOffset = headLen * cos(arrowHalfAngle) - 1
-        let shortenedEnd = CGPoint(
-            x: end.x - baseOffset * cos(angle),
-            y: end.y - baseOffset * sin(angle)
-        )
         return Path { p in
             p.move(to: start)
-            p.addLine(to: shortenedEnd)
+            p.addLine(to: end)
         }
     }
 }
 
-// MARK: - Arrowhead Shape (filled triangle with tip at end point)
+// MARK: - Arrowhead Shape (open chevron with tip at end point)
 
 struct ArrowHeadShape: Shape {
     let start: CGPoint
@@ -226,19 +228,19 @@ struct ArrowHeadShape: Shape {
         let headLen = arrowHeadLen(for: lineWidth)
 
         let p1 = CGPoint(
-            x: end.x - headLen * cos(angle - arrowHalfAngle),
-            y: end.y - headLen * sin(angle - arrowHalfAngle)
+            x: end.x - headLen * cos(angle - arrowChevronHalfAngle),
+            y: end.y - headLen * sin(angle - arrowChevronHalfAngle)
         )
         let p2 = CGPoint(
-            x: end.x - headLen * cos(angle + arrowHalfAngle),
-            y: end.y - headLen * sin(angle + arrowHalfAngle)
+            x: end.x - headLen * cos(angle + arrowChevronHalfAngle),
+            y: end.y - headLen * sin(angle + arrowChevronHalfAngle)
         )
 
         return Path { p in
             p.move(to: end)
             p.addLine(to: p1)
+            p.move(to: end)
             p.addLine(to: p2)
-            p.closeSubpath()
         }
     }
 }
@@ -253,7 +255,7 @@ struct MeasurementLineShape: Shape {
     func path(in rect: CGRect) -> Path {
         let angle = atan2(end.y - start.y, end.x - start.x)
         let headLen = arrowHeadLen(for: lineWidth)
-        let baseOffset = headLen * cos(arrowHalfAngle) - 1
+        let baseOffset = headLen * cos(measurementHalfAngle) - 1
 
         let trimmedStart = CGPoint(
             x: start.x + baseOffset * cos(angle),
@@ -279,8 +281,8 @@ struct MeasurementHeadShape: Shape {
     func path(in rect: CGRect) -> Path {
         let angle = atan2(toward.y - baseCenter.y, toward.x - baseCenter.x)
         let headLen = arrowHeadLen(for: lineWidth)
-        let tipOffset = headLen * cos(arrowHalfAngle)
-        let halfBase = headLen * sin(arrowHalfAngle)
+        let tipOffset = headLen * cos(measurementHalfAngle)
+        let halfBase = headLen * sin(measurementHalfAngle)
 
         let tip = CGPoint(
             x: baseCenter.x + tipOffset * cos(angle),
