@@ -27,6 +27,7 @@ struct EditorCanvasView: View {
     let image: NSImage
     let imagePixelSize: CGSize  // actual CGImage pixel dimensions
     let scale: CGFloat          // view-points per image-pixel (from parent)
+    let displayBackingScale: CGFloat  // monitor backing scale for true 1x measurements
     var showShadow: Bool = false // show a drop shadow around the image
 
     @Binding var annotations: [Annotation]
@@ -81,6 +82,7 @@ struct EditorCanvasView: View {
                 AnnotationOverlayView(
                     annotation: annotation,
                     scale: scale,
+                    displayBackingScale: displayBackingScale,
                     isSelected: annotation.id == selectedAnnotationID && !isDraggingAnnotation,
                     sourceImage: image,
                     imagePixelSize: imagePixelSize
@@ -93,6 +95,7 @@ struct EditorCanvasView: View {
                 AnnotationOverlayView(
                     annotation: pending,
                     scale: scale,
+                    displayBackingScale: displayBackingScale,
                     isSelected: false,
                     sourceImage: image,
                     imagePixelSize: imagePixelSize
@@ -200,6 +203,10 @@ struct EditorCanvasView: View {
                     if tool == .freeDraw {
                         pendingAnnotation?.points.append(currentInImage)
                         pendingAnnotation?.endPoint = currentInImage
+                    } else if tool == .measurement,
+                              isShiftDown,
+                              let start = pendingAnnotation?.startPoint {
+                        pendingAnnotation?.endPoint = constrainTo45Degree(start: start, end: currentInImage)
                     } else if isShiftDown && (tool == .rectangle || tool == .circle),
                        let start = pendingAnnotation?.startPoint {
                         pendingAnnotation?.endPoint = constrainToSquare(start: start, end: currentInImage)
@@ -289,12 +296,22 @@ struct EditorCanvasView: View {
             }
 
         case .startHandle:
-            annotations[idx].startPoint = CGPoint(x: startAnn.startPoint.x + dx,
-                                                   y: startAnn.startPoint.y + dy)
+            let newStart = CGPoint(x: startAnn.startPoint.x + dx,
+                                   y: startAnn.startPoint.y + dy)
+            if startAnn.tool == .measurement, isShiftDown {
+                annotations[idx].startPoint = constrainTo45Degree(start: startAnn.endPoint, end: newStart)
+            } else {
+                annotations[idx].startPoint = newStart
+            }
 
         case .endHandle:
-            annotations[idx].endPoint = CGPoint(x: startAnn.endPoint.x + dx,
-                                                 y: startAnn.endPoint.y + dy)
+            let newEnd = CGPoint(x: startAnn.endPoint.x + dx,
+                                 y: startAnn.endPoint.y + dy)
+            if startAnn.tool == .measurement, isShiftDown {
+                annotations[idx].endPoint = constrainTo45Degree(start: startAnn.startPoint, end: newEnd)
+            } else {
+                annotations[idx].endPoint = newEnd
+            }
 
         case .corner(let minXFixed, let minYFixed):
             let origRect = startAnn.boundingRect
@@ -400,7 +417,7 @@ struct EditorCanvasView: View {
         let r = handleHitRadius / scale
 
         switch annotation.tool {
-        case .arrow, .line:
+        case .arrow, .line, .measurement:
             if dist(point, annotation.startPoint) < r { return .startHandle }
             if dist(point, annotation.endPoint)   < r { return .endHandle }
             return nil
@@ -430,7 +447,7 @@ struct EditorCanvasView: View {
             let threshold: CGFloat = max(annotation.style.strokeWidth * 3, 10)
 
             switch annotation.tool {
-            case .arrow, .line:
+            case .arrow, .line, .measurement:
                 if distanceToSegment(point: point,
                                      start: annotation.startPoint,
                                      end: annotation.endPoint) < threshold {
@@ -520,6 +537,21 @@ struct EditorCanvasView: View {
         return CGPoint(
             x: start.x + copysign(side, dx),
             y: start.y + copysign(side, dy)
+        )
+    }
+
+    /// Constrain end point to nearest 45° direction from start, preserving drag length.
+    private func constrainTo45Degree(start: CGPoint, end: CGPoint) -> CGPoint {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let length = hypot(dx, dy)
+        guard length > 0 else { return start }
+
+        let angle = atan2(dy, dx)
+        let snap = (.pi / 4) * (angle / (.pi / 4)).rounded()
+        return CGPoint(
+            x: start.x + cos(snap) * length,
+            y: start.y + sin(snap) * length
         )
     }
 

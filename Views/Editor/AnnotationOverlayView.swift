@@ -5,6 +5,7 @@ import SwiftUI
 struct AnnotationOverlayView: View {
     let annotation: Annotation
     let scale: CGFloat         // view points per image pixel
+    let displayBackingScale: CGFloat // monitor backing scale (e.g. 2.0 on Retina)
     let isSelected: Bool
     /// Source image for pixelate preview (image-pixel space). Optional; falls back to a mosaic pattern.
     var sourceImage: NSImage? = nil
@@ -34,6 +35,22 @@ struct AnnotationOverlayView: View {
             // Arrowhead as a filled triangle (drawn on top of the shortened line)
             ArrowHeadShape(start: start, end: end, lineWidth: annotation.style.strokeWidth)
                 .fill(annotation.style.strokeColor)
+
+        case .measurement:
+            MeasurementLineShape(start: start, end: end, lineWidth: annotation.style.strokeWidth)
+            .stroke(
+                annotation.style.strokeColor,
+                style: StrokeStyle(
+                    lineWidth: annotation.style.strokeWidth,
+                    lineCap: .round,
+                    lineJoin: .round
+                )
+            )
+            MeasurementHeadShape(baseCenter: end, toward: start, lineWidth: annotation.style.strokeWidth)
+                .fill(annotation.style.strokeColor)
+            MeasurementHeadShape(baseCenter: start, toward: end, lineWidth: annotation.style.strokeWidth)
+                .fill(annotation.style.strokeColor)
+            measurementLabel(start: start, end: end)
 
         case .freeDraw:
             FreeDrawShape(points: annotation.points.map(scaled))
@@ -110,7 +127,7 @@ struct AnnotationOverlayView: View {
         let end = scaled(annotation.endPoint)
 
         switch annotation.tool {
-        case .arrow, .line:
+        case .arrow, .line, .measurement:
             HandleDot(center: start)
             HandleDot(center: end)
 
@@ -143,6 +160,21 @@ struct AnnotationOverlayView: View {
             width: rect.width * scale,
             height: rect.height * scale
         )
+    }
+
+    @ViewBuilder
+    private func measurementLabel(start: CGPoint, end: CGPoint) -> some View {
+        let pixelDistance = hypot(annotation.endPoint.x - annotation.startPoint.x, annotation.endPoint.y - annotation.startPoint.y)
+        let true1xDistance = max(0, pixelDistance / max(displayBackingScale, 1))
+        let label = "\(Int(true1xDistance.rounded())) px"
+        let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
+        Text(label)
+            .font(.system(size: max(10, 11 * scale), weight: .medium, design: .monospaced))
+            .foregroundStyle(.white)
+            .padding(.horizontal, max(6, 7 * scale))
+            .padding(.vertical, max(3, 4 * scale))
+            .background(annotation.style.strokeColor, in: Capsule())
+            .position(mid)
     }
 }
 
@@ -206,6 +238,68 @@ struct ArrowHeadShape: Shape {
             p.move(to: end)
             p.addLine(to: p1)
             p.addLine(to: p2)
+            p.closeSubpath()
+        }
+    }
+}
+
+// MARK: - Measurement Line Shape (shortened on both ends for double heads)
+
+struct MeasurementLineShape: Shape {
+    let start: CGPoint
+    let end: CGPoint
+    let lineWidth: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let angle = atan2(end.y - start.y, end.x - start.x)
+        let headLen = arrowHeadLen(for: lineWidth)
+        let baseOffset = headLen * cos(arrowHalfAngle) - 1
+
+        let trimmedStart = CGPoint(
+            x: start.x + baseOffset * cos(angle),
+            y: start.y + baseOffset * sin(angle)
+        )
+        let trimmedEnd = CGPoint(
+            x: end.x - baseOffset * cos(angle),
+            y: end.y - baseOffset * sin(angle)
+        )
+
+        return Path { p in
+            p.move(to: trimmedStart)
+            p.addLine(to: trimmedEnd)
+        }
+    }
+}
+
+struct MeasurementHeadShape: Shape {
+    let baseCenter: CGPoint
+    let toward: CGPoint
+    let lineWidth: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let angle = atan2(toward.y - baseCenter.y, toward.x - baseCenter.x)
+        let headLen = arrowHeadLen(for: lineWidth)
+        let tipOffset = headLen * cos(arrowHalfAngle)
+        let halfBase = headLen * sin(arrowHalfAngle)
+
+        let tip = CGPoint(
+            x: baseCenter.x + tipOffset * cos(angle),
+            y: baseCenter.y + tipOffset * sin(angle)
+        )
+        let perp = angle + .pi / 2
+        let b1 = CGPoint(
+            x: baseCenter.x + halfBase * cos(perp),
+            y: baseCenter.y + halfBase * sin(perp)
+        )
+        let b2 = CGPoint(
+            x: baseCenter.x - halfBase * cos(perp),
+            y: baseCenter.y - halfBase * sin(perp)
+        )
+
+        return Path { p in
+            p.move(to: b1)
+            p.addLine(to: b2)
+            p.addLine(to: tip)
             p.closeSubpath()
         }
     }

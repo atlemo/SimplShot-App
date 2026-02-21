@@ -19,10 +19,10 @@ struct EditorToolbarView: View {
     var onDone: () -> Void
 
     /// The drawing tools available in the toolbar (excludes .select and .crop which are handled separately).
-    private let drawingTools: [AnnotationTool] = [.freeDraw, .arrow, .rectangle, .circle, .line, .text, .pixelate]
+    private let drawingTools: [AnnotationTool] = [.freeDraw, .arrow, .rectangle, .circle, .line, .text, .measurement, .pixelate]
 
     /// Tools that use color/size style controls.
-    private let stylingTools: [AnnotationTool] = [.arrow, .freeDraw, .rectangle, .circle, .line, .text]
+    private let stylingTools: [AnnotationTool] = [.arrow, .freeDraw, .measurement, .rectangle, .circle, .line, .text]
 
     /// Preset colors for the color picker.
     private let presetColors: [Color] = [

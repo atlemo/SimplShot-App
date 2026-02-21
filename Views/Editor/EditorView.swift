@@ -78,6 +78,7 @@ struct EditorView: View {
                                     image: image,
                                     imagePixelSize: imagePixelSize,
                                     scale: effectiveScale,
+                                    displayBackingScale: displayBackingScale,
                                     showShadow: selectedGradient == nil,
                                     annotations: $annotations,
                                     selectedAnnotationID: $selectedAnnotationID,

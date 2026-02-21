@@ -6,6 +6,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     case select
     case arrow
     case freeDraw
+    case measurement
     case rectangle
     case circle
     case line
@@ -20,6 +21,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .select:    return "Select"
         case .arrow:     return "Arrow"
         case .freeDraw:  return "Free Drawing"
+        case .measurement: return "Measurement"
         case .rectangle: return "Rectangle"
         case .circle:    return "Circle"
         case .line:      return "Line"
@@ -34,6 +36,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .select:    return "cursorarrow"
         case .arrow:     return "arrow.up.right"
         case .freeDraw:  return "pencil.and.scribble"
+        case .measurement: return "ruler"
         case .rectangle: return "rectangle"
         case .circle:    return "circle"
         case .line:      return "line.diagonal"

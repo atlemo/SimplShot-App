@@ -122,6 +122,15 @@ class AnnotationRenderer {
         switch annotation.tool {
         case .arrow:
             drawArrow(from: annotation.startPoint, to: annotation.endPoint, color: color, lineWidth: lineWidth, in: context)
+        case .measurement:
+            drawMeasurement(
+                from: annotation.startPoint,
+                to: annotation.endPoint,
+                color: color,
+                lineWidth: lineWidth,
+                backingScale: backingScale,
+                in: context
+            )
         case .freeDraw:
             drawFreeDraw(points: annotation.points, in: context)
         case .line:
@@ -180,6 +189,115 @@ class AnnotationRenderer {
         context.move(to: start)
         context.addLine(to: end)
         context.strokePath()
+    }
+
+    private func drawMeasurement(from start: CGPoint, to end: CGPoint, color: CGColor, lineWidth: CGFloat, backingScale: CGFloat, in context: CGContext) {
+        drawMeasurementLineWithHeads(from: start, to: end, color: color, lineWidth: lineWidth, in: context)
+
+        let pixelDistance = hypot(end.x - start.x, end.y - start.y)
+        let true1xDistance = max(0, pixelDistance / max(backingScale, 1))
+        let label = "\(Int(true1xDistance.rounded())) px"
+
+        let labelFontSize = max(11 * backingScale, 10)
+        let font = CTFontCreateWithName("SFMono-Medium" as CFString, labelFontSize, nil)
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.white
+        ]
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: label, attributes: attrs))
+        let bounds = CTLineGetBoundsWithOptions(line, [])
+
+        let hPad = 7 * backingScale
+        let vPad = 4 * backingScale
+        let bgWidth = bounds.width + hPad * 2
+        let bgHeight = bounds.height + vPad * 2
+        let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
+        let bgRect = CGRect(x: mid.x - bgWidth / 2, y: mid.y - bgHeight / 2, width: bgWidth, height: bgHeight)
+
+        context.saveGState()
+        context.setFillColor(color)
+        context.addPath(CGPath(roundedRect: bgRect, cornerWidth: bgHeight / 2, cornerHeight: bgHeight / 2, transform: nil))
+        context.fillPath()
+        context.restoreGState()
+
+        context.saveGState()
+        let ascent = CTFontGetAscent(font)
+        let textX = bgRect.minX + hPad
+        let textY = bgRect.minY + vPad + ascent
+        context.translateBy(x: textX, y: textY)
+        context.scaleBy(x: 1, y: -1)
+        context.textPosition = .zero
+        CTLineDraw(line, context)
+        context.restoreGState()
+    }
+
+    private func drawMeasurementLineWithHeads(from start: CGPoint, to end: CGPoint, color: CGColor, lineWidth: CGFloat, in context: CGContext) {
+        let angle = atan2(end.y - start.y, end.x - start.x)
+        let headLength: CGFloat = max(lineWidth * 5, 16)
+        let arrowHalfAngle: CGFloat = .pi / 6
+        let baseOffset = headLength * cos(arrowHalfAngle) - 1
+
+        let trimmedStart = CGPoint(
+            x: start.x + baseOffset * cos(angle),
+            y: start.y + baseOffset * sin(angle)
+        )
+        let trimmedEnd = CGPoint(
+            x: end.x - baseOffset * cos(angle),
+            y: end.y - baseOffset * sin(angle)
+        )
+
+        drawLine(from: trimmedStart, to: trimmedEnd, in: context)
+        drawMeasurementHead(
+            baseCenter: end,
+            toward: start,
+            color: color,
+            headLength: headLength,
+            halfAngle: arrowHalfAngle,
+            in: context
+        )
+        drawMeasurementHead(
+            baseCenter: start,
+            toward: end,
+            color: color,
+            headLength: headLength,
+            halfAngle: arrowHalfAngle,
+            in: context
+        )
+    }
+
+    private func drawMeasurementHead(
+        baseCenter: CGPoint,
+        toward: CGPoint,
+        color: CGColor,
+        headLength: CGFloat,
+        halfAngle: CGFloat,
+        in context: CGContext
+    ) {
+        let angle = atan2(toward.y - baseCenter.y, toward.x - baseCenter.x)
+        let tipOffset = headLength * cos(halfAngle)
+        let halfBase = headLength * sin(halfAngle)
+        let tip = CGPoint(
+            x: baseCenter.x + tipOffset * cos(angle),
+            y: baseCenter.y + tipOffset * sin(angle)
+        )
+        let perp = angle + .pi / 2
+        let b1 = CGPoint(
+            x: baseCenter.x + halfBase * cos(perp),
+            y: baseCenter.y + halfBase * sin(perp)
+        )
+        let b2 = CGPoint(
+            x: baseCenter.x - halfBase * cos(perp),
+            y: baseCenter.y - halfBase * sin(perp)
+        )
+
+        context.saveGState()
+        context.setFillColor(color)
+        context.move(to: b1)
+        context.addLine(to: b2)
+        context.addLine(to: tip)
+        context.closePath()
+        context.fillPath()
+        context.restoreGState()
     }
 
     private func drawFreeDraw(points: [CGPoint], in context: CGContext) {
