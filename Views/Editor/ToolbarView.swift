@@ -417,7 +417,7 @@ struct EditorToolbarView: View {
             Button("Cancel Crop", action: onCancelCrop)
                 .controlSize(.small)
         }
-        .frame(height: 34)
+        .frame(height: toolPillHeight)
         .padding(.horizontal, 8)
     }
 
