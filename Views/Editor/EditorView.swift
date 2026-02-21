@@ -12,6 +12,9 @@ struct EditorView: View {
     /// Optional app settings for reading/writing persisted editor preferences.
     var appSettings: AppSettings?
 
+    /// When true, start with "Original" aspect ratio regardless of app defaults.
+    var preferOriginalAspectRatio: Bool = false
+
     /// Callback when the editor is done (save or discard) — closes the window.
     var onDismiss: () -> Void = {}
 
@@ -81,7 +84,7 @@ struct EditorView: View {
                 GeometryReader { geo in
                     Group {
                         if let image {
-                            ScrollView([.horizontal, .vertical]) {
+                            ScrollView([.horizontal, .vertical], showsIndicators: zoomLevel > 1.0) {
                                 EditorCanvasView(
                                     image: image,
                                     imagePixelSize: imagePixelSize,
@@ -150,7 +153,7 @@ struct EditorView: View {
         }
         .onAppear {
             if let appSettings, let template {
-                editorAspectRatioID = appSettings.selectedRatioID
+                editorAspectRatioID = preferOriginalAspectRatio ? nil : appSettings.selectedRatioID
                 editorPadding = template.padding
                 editorCornerRadius = template.cornerRadius
                 if appSettings.editorUseTemplateBackground {
@@ -289,9 +292,15 @@ struct EditorView: View {
 
     private func updateFitScale(viewSize: CGSize) {
         guard imagePixelSize.width > 0, imagePixelSize.height > 0 else { return }
-        let padding: CGFloat = 40  // 20pt padding on each side
-        let availableWidth = max(viewSize.width - padding, 100)
-        let availableHeight = max(viewSize.height - padding, 100)
+        // Content in the scroll view adds:
+        // - top clear space for floating toolbar
+        // - outer canvas padding
+        let horizontalChrome: CGFloat = 40  // 20pt left + 20pt right
+        let verticalChrome: CGFloat = 100   // 60pt top clearance + 20pt top + 20pt bottom
+        let fitFudge: CGFloat = 2           // avoid off-by-1 scrollbar due rounding
+
+        let availableWidth = max(viewSize.width - horizontalChrome - fitFudge, 100)
+        let availableHeight = max(viewSize.height - verticalChrome - fitFudge, 100)
         let scaleX = availableWidth / imagePixelSize.width
         let scaleY = availableHeight / imagePixelSize.height
 

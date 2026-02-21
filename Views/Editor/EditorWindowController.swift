@@ -11,9 +11,19 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
 
     /// Open the editor for a captured screenshot.
     /// Multiple editors can be open simultaneously.
-    static func openEditor(imageURL: URL, template: ScreenshotTemplate? = nil, appSettings: AppSettings? = nil) {
+    static func openEditor(
+        imageURL: URL,
+        template: ScreenshotTemplate? = nil,
+        appSettings: AppSettings? = nil,
+        preferOriginalAspectRatio: Bool = false
+    ) {
         let open = {
-            let controller = EditorWindowController(imageURL: imageURL, template: template, appSettings: appSettings)
+            let controller = EditorWindowController(
+                imageURL: imageURL,
+                template: template,
+                appSettings: appSettings,
+                preferOriginalAspectRatio: preferOriginalAspectRatio
+            )
             openEditors.insert(controller)
             updateDockIconVisibility()
             controller.showWindow(nil)
@@ -27,7 +37,12 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    private init(imageURL: URL, template: ScreenshotTemplate? = nil, appSettings: AppSettings? = nil) {
+    private init(
+        imageURL: URL,
+        template: ScreenshotTemplate? = nil,
+        appSettings: AppSettings? = nil,
+        preferOriginalAspectRatio: Bool = false
+    ) {
         // Use the user's last saved size, or compute one from the image
         let windowSize = Self.savedWindowSize() ?? Self.windowSize(for: imageURL)
 
@@ -60,7 +75,12 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
 
         // SwiftUI content — prevent the hosting view from shrinking the
         // window to its intrinsic content size.
-        let editorView = EditorView(imageURL: imageURL, template: template, appSettings: appSettings) { [weak self] in
+        let editorView = EditorView(
+            imageURL: imageURL,
+            template: template,
+            appSettings: appSettings,
+            preferOriginalAspectRatio: preferOriginalAspectRatio
+        ) { [weak self] in
             self?.close()
         }
         let hostingView = NSHostingView(rootView: editorView)

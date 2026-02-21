@@ -196,6 +196,12 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(openFileItem)
 
+        let openScreenshotsFolderItem = NSMenuItem(title: "Open Screenshots Folder", action: #selector(openScreenshotsFolderAction), keyEquivalent: "")
+        openScreenshotsFolderItem.target = self
+        openScreenshotsFolderItem.image = NSImage(systemSymbolName: "folder.badge.gearshape", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+        menu.addItem(openScreenshotsFolderItem)
+
         menu.addItem(.separator())
 
         // --- Settings & Quit ---
@@ -342,7 +348,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 .replacingOccurrences(of: ":", with: "-")
                 .replacingOccurrences(of: " ", with: "_")
             let ext = format.fileExtension
-            let filename = "FreeCapture_\(timestamp).\(ext)"
+            let filename = "SimplShot_\(timestamp).\(ext)"
 
             try? FileManager.default.createDirectory(at: saveURL, withIntermediateDirectories: true)
             let outputURL = saveURL.appendingPathComponent(filename)
@@ -378,7 +384,8 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 EditorWindowController.openEditor(
                     imageURL: outputURL,
                     template: template,
-                    appSettings: appSettings
+                    appSettings: appSettings,
+                    preferOriginalAspectRatio: true
                 )
             }
         }
@@ -437,6 +444,10 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             template: appSettings.screenshotTemplate,
             appSettings: appSettings
         )
+    }
+
+    @objc func openScreenshotsFolderAction() {
+        NSWorkspace.shared.open(appSettings.screenshotSaveURL)
     }
 
     @objc func batchCaptureAction() {
