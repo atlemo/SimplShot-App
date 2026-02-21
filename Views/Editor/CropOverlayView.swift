@@ -24,7 +24,11 @@ struct CropOverlayView: View {
 
             // Crop border
             Rectangle()
-                .stroke(Color.white, lineWidth: 1.5)
+                .stroke(Color.black.opacity(0.35), lineWidth: 3)
+                .overlay(
+                    Rectangle()
+                        .stroke(Color.white, lineWidth: 1.5)
+                )
                 .frame(width: viewRect.width, height: viewRect.height)
                 .position(x: viewRect.midX, y: viewRect.midY)
 
@@ -50,6 +54,10 @@ struct CropOverlayView: View {
 
         return RoundedRectangle(cornerRadius: isCorner ? 2 : 1)
             .fill(Color.white)
+            .overlay(
+                RoundedRectangle(cornerRadius: isCorner ? 2 : 1)
+                    .stroke(Color.black.opacity(0.5), lineWidth: 1)
+            )
             .frame(width: isCorner ? handleSize : (edge.isHorizontal ? handleSize * 2 : handleSize),
                    height: isCorner ? handleSize : (edge.isHorizontal ? handleSize : handleSize * 2))
             .position(center)
