@@ -44,6 +44,10 @@ struct AboutSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .tint(.secondary)
+                Text("[Sparkle](https://sparkle-project.org) by the Sparkle Project")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .tint(.secondary)
             }
             .padding(.bottom, 16)
         }
