@@ -14,6 +14,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     let batchCaptureService: BatchCaptureService
 
     var onOpenSettings: (() -> Void)?
+    var onCheckForUpdates: (() -> Void)?
 
     /// Set by AppDelegate so the menu can re-show itself after selection changes.
     weak var statusItem: NSStatusItem?
@@ -205,6 +206,13 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // --- Settings & Quit ---
+        let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        checkForUpdatesItem.target = self
+        checkForUpdatesItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+        checkForUpdatesItem.isEnabled = onCheckForUpdates != nil
+        menu.addItem(checkForUpdatesItem)
+
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)?
@@ -548,6 +556,10 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     @objc private func openSettings() {
         onOpenSettings?()
+    }
+
+    @objc private func checkForUpdates() {
+        onCheckForUpdates?()
     }
 
     @objc private func quitApp() {

@@ -1,5 +1,6 @@
 import AppKit
 import KeyboardShortcuts
+import Sparkle
 import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -13,6 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotkeyService = HotkeyService()
     private let menuState = MenuState()
     private var onboardingWindowController: PermissionOnboardingWindowController?
+    private var updaterController: SPUStandardUpdaterController?
 
     /// Closure provided by SwiftUI to open the Settings scene properly.
     var openSettingsAction: (() -> Void)?
@@ -71,7 +73,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
 
+        setupUpdaterIfPossible()
+        if updaterController != nil {
+            menuBuilder.onCheckForUpdates = { [weak self] in
+                self?.checkForUpdates()
+            }
+        }
         showPermissionOnboardingIfNeeded()
+    }
+
+    private func checkForUpdates() {
+        updaterController?.checkForUpdates(nil)
     }
 
     private func showPermissionOnboardingIfNeeded() {
@@ -86,6 +98,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         onboardingWindowController = controller
         controller.showWindow(nil)
+    }
+
+    private func setupUpdaterIfPossible() {
+        guard updaterController == nil else { return }
+
+        // Sparkle requires a valid appcast feed URL and ed25519 public key in Info.plist.
+        guard
+            let feedURL = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String,
+            !feedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            let publicKey = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String,
+            !publicKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return
+        }
+
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
     }
 }
 
