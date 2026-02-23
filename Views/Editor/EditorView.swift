@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AppKit
 
 /// Root view for the screenshot editor window.
 struct EditorView: View {
@@ -52,6 +53,7 @@ struct EditorView: View {
 
     // Alerts
     @State private var showTrashAlert: Bool = false
+    @State private var deleteKeyMonitor: Any?
 
     /// The actual scale applied to the image: fitScale * zoomLevel.
     /// Units: view-points per image-pixel.
@@ -165,6 +167,10 @@ struct EditorView: View {
                 }
             }
             loadImage()
+            installDeleteKeyMonitorIfNeeded()
+        }
+        .onDisappear {
+            removeDeleteKeyMonitor()
         }
         .onDeleteCommand(perform: deleteSelected)
         .onExitCommand {
@@ -505,6 +511,38 @@ struct EditorView: View {
         pushUndo()
         annotations.remove(at: idx)
         selectedAnnotationID = nil
+    }
+
+    private func installDeleteKeyMonitorIfNeeded() {
+        guard deleteKeyMonitor == nil else { return }
+        deleteKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Backspace/Delete and forward-delete keys
+            let isDeleteKey = event.keyCode == 51 || event.keyCode == 117
+            guard isDeleteKey else { return event }
+
+            // Preserve standard text editing behavior.
+            if let firstResponder = NSApp.keyWindow?.firstResponder {
+                if firstResponder is NSTextView || firstResponder is NSTextField {
+                    return event
+                }
+            }
+
+            // Ignore when using command/option/control modified shortcuts.
+            let blockedModifiers: NSEvent.ModifierFlags = [.command, .option, .control]
+            if !event.modifierFlags.intersection(blockedModifiers).isEmpty {
+                return event
+            }
+
+            deleteSelected()
+            return nil
+        }
+    }
+
+    private func removeDeleteKeyMonitor() {
+        if let monitor = deleteKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            deleteKeyMonitor = nil
+        }
     }
 
     private func trashScreenshot() {
