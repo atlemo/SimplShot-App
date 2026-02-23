@@ -38,87 +38,119 @@ struct GradientDefinition: Codable {
 }
 
 enum BuiltInGradient: String, Codable, CaseIterable, Identifiable {
-    case oceanBlue
-    case sunset
-    case aurora
-    case lavender
-    case midnight
-    case forest
-    case peach
-    case slate
-    case berry
-    case sand
+    case sunsetBlaze
+    case oceanDreams
+    case purpleHaze
+    case forestMist
+    case coralReef
+    case mintFresh
+    case goldenHour
+    case midnightSky
+    case darkEmber
+    case carbonSteel
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .oceanBlue: return "Ocean Blue"
-        case .sunset:    return "Sunset"
-        case .aurora:    return "Aurora"
-        case .lavender:  return "Lavender"
-        case .midnight:  return "Midnight"
-        case .forest:    return "Forest"
-        case .peach:     return "Peach"
-        case .slate:     return "Slate"
-        case .berry:     return "Berry"
-        case .sand:      return "Sand"
+        case .sunsetBlaze: return "Sunset Blaze"
+        case .oceanDreams: return "Ocean Dreams"
+        case .purpleHaze:  return "Purple Haze"
+        case .forestMist:  return "Forest Mist"
+        case .coralReef:   return "Coral Reef"
+        case .mintFresh:   return "Mint Fresh"
+        case .goldenHour:  return "Golden Hour"
+        case .midnightSky: return "Midnight Sky"
+        case .darkEmber:   return "Dark Ember"
+        case .carbonSteel: return "Carbon Steel"
         }
     }
 
     var gradientDefinition: GradientDefinition {
         switch self {
-        case .oceanBlue:
+        case .sunsetBlaze:
             return GradientDefinition(colors: [
-                CodableColor(red: 0.00, green: 0.47, blue: 0.84),
-                CodableColor(red: 0.00, green: 0.78, blue: 0.85),
-            ], angle: 45)
-        case .sunset:
+                CodableColor(red: 1.00, green: 0.42, blue: 0.42),
+                CodableColor(red: 1.00, green: 0.90, blue: 0.43),
+            ], angle: 135)
+        case .oceanDreams:
             return GradientDefinition(colors: [
-                CodableColor(red: 1.00, green: 0.37, blue: 0.33),
-                CodableColor(red: 1.00, green: 0.65, blue: 0.25),
-            ], angle: 235)
-        case .aurora:
+                CodableColor(red: 0.31, green: 0.67, blue: 1.00),
+                CodableColor(red: 0.00, green: 0.95, blue: 1.00),
+            ], angle: 135)
+        case .purpleHaze:
             return GradientDefinition(colors: [
-                CodableColor(red: 0.29, green: 0.84, blue: 0.63),
-                CodableColor(red: 0.15, green: 0.45, blue: 0.82),
-            ], angle: 260)
-        case .lavender:
+                CodableColor(red: 0.66, green: 0.93, blue: 0.92),
+                CodableColor(red: 1.00, green: 0.84, blue: 0.89),
+            ], angle: 135)
+        case .forestMist:
             return GradientDefinition(colors: [
-                CodableColor(red: 0.69, green: 0.49, blue: 0.96),
-                CodableColor(red: 0.94, green: 0.60, blue: 0.84),
-            ], angle: 180)
-        case .midnight:
+                CodableColor(red: 0.40, green: 0.49, blue: 0.92),
+                CodableColor(red: 0.46, green: 0.29, blue: 0.64),
+            ], angle: 135)
+        case .coralReef:
             return GradientDefinition(colors: [
-                CodableColor(red: 0.07, green: 0.07, blue: 0.20),
-                CodableColor(red: 0.20, green: 0.11, blue: 0.38),
-            ], angle: 270)
-        case .forest:
+                CodableColor(red: 0.94, green: 0.58, blue: 0.98),
+                CodableColor(red: 0.96, green: 0.34, blue: 0.42),
+            ], angle: 135)
+        case .mintFresh:
             return GradientDefinition(colors: [
-                CodableColor(red: 0.07, green: 0.30, blue: 0.20),
-                CodableColor(red: 0.18, green: 0.55, blue: 0.34),
-            ], angle: 180)
-        case .peach:
+                CodableColor(red: 0.31, green: 0.67, blue: 1.00),
+                CodableColor(red: 0.26, green: 0.91, blue: 0.48),
+            ], angle: 135)
+        case .goldenHour:
             return GradientDefinition(colors: [
-                CodableColor(red: 1.00, green: 0.70, blue: 0.55),
-                CodableColor(red: 1.00, green: 0.85, blue: 0.70),
-            ], angle: 235)
-        case .slate:
+                CodableColor(red: 0.98, green: 0.55, blue: 1.00),
+                CodableColor(red: 0.17, green: 0.82, blue: 1.00),
+                CodableColor(red: 0.17, green: 1.00, blue: 0.53),
+            ], angle: 135)
+        case .midnightSky:
             return GradientDefinition(colors: [
-                CodableColor(red: 0.35, green: 0.40, blue: 0.50),
-                CodableColor(red: 0.55, green: 0.60, blue: 0.68),
-            ], angle: 180)
-        case .berry:
+                CodableColor(red: 0.10, green: 0.16, blue: 0.50),
+                CodableColor(red: 0.15, green: 0.82, blue: 0.81),
+            ], angle: 135)
+        case .darkEmber:
             return GradientDefinition(colors: [
-                CodableColor(red: 0.55, green: 0.10, blue: 0.40),
-                CodableColor(red: 0.80, green: 0.30, blue: 0.55),
-            ], angle: 235)
-        case .sand:
+                CodableColor(red: 0.17, green: 0.11, blue: 0.24),
+                CodableColor(red: 0.55, green: 0.26, blue: 0.40),
+            ], angle: 135)
+        case .carbonSteel:
             return GradientDefinition(colors: [
-                CodableColor(red: 0.82, green: 0.72, blue: 0.55),
-                CodableColor(red: 0.93, green: 0.87, blue: 0.75),
-            ], angle: 290)
+                CodableColor(red: 0.12, green: 0.16, blue: 0.22),
+                CodableColor(red: 0.22, green: 0.25, blue: 0.32),
+                CodableColor(red: 0.29, green: 0.33, blue: 0.39),
+            ], angle: 135)
         }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        if let mapped = BuiltInGradient(rawValue: raw) {
+            self = mapped
+            return
+        }
+
+        // Backward compatibility for previously saved gradient ids.
+        switch raw {
+        case "oceanBlue": self = .oceanDreams
+        case "sunset": self = .sunsetBlaze
+        case "aurora": self = .mintFresh
+        case "lavender": self = .purpleHaze
+        case "midnight": self = .midnightSky
+        case "forest": self = .forestMist
+        case "peach": self = .goldenHour
+        case "slate": self = .carbonSteel
+        case "berry": self = .coralReef
+        case "sand": self = .darkEmber
+        default:
+            self = .oceanDreams
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 
@@ -135,7 +167,7 @@ struct ScreenshotTemplate: Codable {
 
     static let `default` = ScreenshotTemplate(
         isEnabled: false,
-        wallpaperSource: .builtInGradient(.oceanBlue),
+        wallpaperSource: .builtInGradient(.oceanDreams),
         padding: 80,
         cornerRadius: 24
     )

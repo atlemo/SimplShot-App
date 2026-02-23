@@ -162,7 +162,7 @@ struct EditorView: View {
                     if case .builtInGradient(let gradient) = template.wallpaperSource {
                         selectedGradient = gradient
                     } else {
-                        selectedGradient = .oceanBlue
+                        selectedGradient = .oceanDreams
                     }
                 }
             }
