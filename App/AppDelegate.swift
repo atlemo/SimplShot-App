@@ -1,6 +1,8 @@
 import AppKit
 import KeyboardShortcuts
+#if !APPSTORE
 import Sparkle
+#endif
 import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -14,7 +16,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotkeyService = HotkeyService()
     private let menuState = MenuState()
     private var onboardingWindowController: PermissionOnboardingWindowController?
+#if !APPSTORE
     private var updaterController: SPUStandardUpdaterController?
+#endif
 
     /// Closure provided by SwiftUI to open the Settings scene properly.
     var openSettingsAction: (() -> Void)?
@@ -73,18 +77,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
 
-        setupUpdaterIfPossible()
-        if updaterController != nil {
-            menuBuilder.onCheckForUpdates = { [weak self] in
-                self?.checkForUpdates()
+        #if !APPSTORE
+            setupUpdaterIfPossible()
+            if updaterController != nil {
+                menuBuilder.onCheckForUpdates = { [weak self] in
+                    self?.checkForUpdates()
+                }
             }
-        }
+        #endif
         showPermissionOnboardingIfNeeded()
     }
 
+    #if !APPSTORE
     private func checkForUpdates() {
         updaterController?.checkForUpdates(nil)
     }
+    #endif
 
     private func showPermissionOnboardingIfNeeded() {
         let hasShown = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.hasShownPermissionOnboarding)
@@ -100,6 +108,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         controller.showWindow(nil)
     }
 
+    #if !APPSTORE
     private func setupUpdaterIfPossible() {
         guard updaterController == nil else { return }
 
@@ -119,6 +128,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             userDriverDelegate: nil
         )
     }
+    #endif
 }
 
 private final class PermissionOnboardingWindowController: NSWindowController {

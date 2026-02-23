@@ -206,12 +206,14 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // --- Settings & Quit ---
-        let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
-        checkForUpdatesItem.target = self
-        checkForUpdatesItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
-        checkForUpdatesItem.isEnabled = onCheckForUpdates != nil
-        menu.addItem(checkForUpdatesItem)
+        #if !APPSTORE
+            let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+            checkForUpdatesItem.target = self
+            checkForUpdatesItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+            checkForUpdatesItem.isEnabled = onCheckForUpdates != nil
+            menu.addItem(checkForUpdatesItem)
+        #endif
 
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
