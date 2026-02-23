@@ -386,7 +386,9 @@ class AnnotationRenderer {
     private func drawText(_ text: String, at point: CGPoint, style: AnnotationStyle, backingScale: CGFloat, in context: CGContext) {
         guard !text.isEmpty else { return }
 
-        let fontSize = style.fontSize * backingScale
+        // fontSize is stored in image-pixel space (like annotation coordinates),
+        // so no backingScale multiplication is needed here.
+        let fontSize = style.fontSize
         let font = CTFontCreateWithName("Helvetica Neue Medium" as CFString, fontSize, nil)
         let bgColor = style.cgTextBubbleBackground
 
