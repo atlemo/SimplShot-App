@@ -127,6 +127,7 @@ class AnnotationRenderer {
                 from: annotation.startPoint,
                 to: annotation.endPoint,
                 color: color,
+                strokeIsWhite: annotation.style.isWhite,
                 lineWidth: lineWidth,
                 backingScale: backingScale,
                 in: context
@@ -188,7 +189,7 @@ class AnnotationRenderer {
         context.strokePath()
     }
 
-    private func drawMeasurement(from start: CGPoint, to end: CGPoint, color: CGColor, lineWidth: CGFloat, backingScale: CGFloat, in context: CGContext) {
+    private func drawMeasurement(from start: CGPoint, to end: CGPoint, color: CGColor, strokeIsWhite: Bool, lineWidth: CGFloat, backingScale: CGFloat, in context: CGContext) {
         drawMeasurementLineWithHeads(from: start, to: end, color: color, lineWidth: lineWidth, in: context)
 
         let pixelDistance = hypot(end.x - start.x, end.y - start.y)
@@ -199,7 +200,7 @@ class AnnotationRenderer {
         let font = CTFontCreateWithName("SFMono-Medium" as CFString, labelFontSize, nil)
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.white
+            .foregroundColor: strokeIsWhite ? NSColor.black : NSColor.white
         ]
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: label, attributes: attrs))
         let bounds = CTLineGetBoundsWithOptions(line, [])
@@ -397,21 +398,25 @@ class AnnotationRenderer {
             .foregroundColor: NSColor.white,
         ]
 
-        let attrString = NSAttributedString(string: text, attributes: attributes)
-        let line = CTLineCreateWithAttributedString(attrString)
-        let textBounds = CTLineGetBoundsWithOptions(line, [])
+        // Split on newlines to support multiline text bubbles.
+        let lineStrings = text.components(separatedBy: "\n")
+        let ctLines = lineStrings.map { CTLineCreateWithAttributedString(NSAttributedString(string: $0, attributes: attributes)) }
 
         let hPad = fontSize * 0.55
         let vPad = fontSize * 0.25
         let ascent = CTFontGetAscent(font)
         let descent = CTFontGetDescent(font)
-        let textHeight = ascent + descent
+        let lineHeight = ascent + descent
+        let lineSpacing = fontSize * 0.22  // matches EditorCanvasView hit-test estimate
 
-        let bgWidth = textBounds.width + hPad * 2
-        let bgHeight = textHeight + vPad * 2
-        let cornerRadius = bgHeight / 2
+        let maxLineWidth = ctLines.map { CTLineGetBoundsWithOptions($0, []).width }.max() ?? 0
+        let lineCount = CGFloat(lineStrings.count)
 
-        // point is the center of the pill (matching the SwiftUI .position behavior)
+        let bgWidth = maxLineWidth + hPad * 2
+        let bgHeight = lineCount * lineHeight + max(0, lineCount - 1) * lineSpacing + vPad * 2
+        let cornerRadius = fontSize * 0.45  // matches SwiftUI RoundedRectangle
+
+        // point is the center of the bubble (matching the SwiftUI .position behavior)
         let bgRect = CGRect(
             x: point.x - bgWidth / 2,
             y: point.y - bgHeight / 2,
@@ -419,7 +424,7 @@ class AnnotationRenderer {
             height: bgHeight
         )
 
-        // Draw background pill
+        // Draw background rounded rect
         context.saveGState()
         context.setFillColor(bgColor)
         let pillPath = CGPath(roundedRect: bgRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
@@ -427,15 +432,19 @@ class AnnotationRenderer {
         context.fillPath()
         context.restoreGState()
 
-        // Draw white text centered in the pill.
+        // Draw each line of text centered horizontally.
         // The context is flipped (top-left origin); un-flip locally for text rendering.
-        context.saveGState()
-        let textX = bgRect.minX + hPad
-        let textY = bgRect.minY + vPad + ascent
-        context.translateBy(x: textX, y: textY)
-        context.scaleBy(x: 1, y: -1)
-        context.textPosition = .zero
-        CTLineDraw(line, context)
-        context.restoreGState()
+        for (i, ctLine) in ctLines.enumerated() {
+            let lineWidth = CTLineGetBoundsWithOptions(ctLine, []).width
+            // Center each line within the bubble
+            let textX = bgRect.minX + hPad + (maxLineWidth - lineWidth) / 2
+            let textY = bgRect.minY + vPad + ascent + CGFloat(i) * (lineHeight + lineSpacing)
+            context.saveGState()
+            context.translateBy(x: textX, y: textY)
+            context.scaleBy(x: 1, y: -1)
+            context.textPosition = .zero
+            CTLineDraw(ctLine, context)
+            context.restoreGState()
+        }
     }
 }

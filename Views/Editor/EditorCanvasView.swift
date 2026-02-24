@@ -45,7 +45,8 @@ struct EditorCanvasView: View {
     /// For text editing
     @State private var editingTextID: UUID?
     @State private var editingText: String = ""
-    @FocusState private var isTextFieldFocused: Bool
+    /// Measured content size reported back by GrowingTextField
+    @State private var editingContentSize: CGSize = .zero
     /// Drag state for moving / reshaping selected annotations
     @State private var isDraggingAnnotation: Bool = false
     /// Pre-drag snapshot of the annotation being moved/resized
@@ -112,25 +113,30 @@ struct EditorCanvasView: View {
                     x: ann.startPoint.x * scale,
                     y: ann.startPoint.y * scale
                 )
-                TextField("Type here", text: $editingText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: scaledFontSize, weight: .medium))
-                    .foregroundStyle(.white)
-                    .tint(.white)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, scaledFontSize * 0.55)
-                    .padding(.vertical, scaledFontSize * 0.25)
-                    .frame(minWidth: 100)
-                    .fixedSize()
-                    .background(Capsule().fill(ann.style.textBubbleBackground))
-                    .overlay(Capsule().stroke(.white, lineWidth: 2))
-                    .padding(2)
-                    .overlay(Capsule().stroke(ann.style.textBubbleBackground, lineWidth: 2))
-                    .focused($isTextFieldFocused)
-                    .position(x: pos.x, y: pos.y)
-                    .onSubmit {
-                        commitTextEdit()
-                    }
+                let contentW = max(editingContentSize.width, scaledFontSize * 2)
+                let contentH = max(editingContentSize.height, scaledFontSize * 1.2)
+                GrowingTextField(
+                    text: $editingText,
+                    fontSize: scaledFontSize,
+                    onSizeChange: { editingContentSize = $0 }
+                )
+                .frame(width: contentW, height: contentH)
+                .padding(.horizontal, scaledFontSize * 0.55)
+                .padding(.vertical, scaledFontSize * 0.25)
+                .background(
+                    RoundedRectangle(cornerRadius: scaledFontSize * 0.45, style: .continuous)
+                        .fill(ann.style.textBubbleBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: scaledFontSize * 0.45, style: .continuous)
+                        .stroke(.white, lineWidth: 2)
+                )
+                .padding(2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: scaledFontSize * 0.45, style: .continuous)
+                        .stroke(ann.style.textBubbleBackground, lineWidth: 2)
+                )
+                .position(x: pos.x, y: pos.y)
             }
 
             // Crop overlay — on top, handles its own gestures
@@ -355,7 +361,7 @@ struct EditorCanvasView: View {
         selectedAnnotationID = annotation.id
         editingTextID = annotation.id
         editingText = ""
-        isTextFieldFocused = true
+        editingContentSize = .zero
     }
 
     private func commitTextEdit() {
@@ -374,6 +380,7 @@ struct EditorCanvasView: View {
             annotations[idx].text = editingText
         }
         editingTextID = nil
+        editingContentSize = .zero
     }
 
     /// Begin inline editing of an existing text annotation.
@@ -381,7 +388,26 @@ struct EditorCanvasView: View {
         selectedAnnotationID = id
         editingTextID = id
         editingText = text
-        isTextFieldFocused = true
+        // Pre-compute the content size from the existing text so the bubble
+        // shows at the correct size immediately (no zero-size flash).
+        if let ann = annotations.first(where: { $0.id == id }) {
+            editingContentSize = measureTextContentSize(text: text, fontSize: ann.style.fontSize * scale)
+        } else {
+            editingContentSize = .zero
+        }
+    }
+
+    /// Measures the natural (unwrapped) size of `text` rendered with the given font size.
+    private func measureTextContentSize(text: String, fontSize: CGFloat) -> CGSize {
+        guard !text.isEmpty else { return .zero }
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font]
+        let lines = text.components(separatedBy: "\n")
+        let maxW = lines.map { line -> CGFloat in
+            (line.isEmpty ? " " : line as NSString).size(withAttributes: attrs).width
+        }.max() ?? 0
+        let lineH = font.ascender + abs(font.descender)
+        return CGSize(width: ceil(maxW), height: ceil(CGFloat(lines.count) * lineH))
     }
 
     /// Double-tap on a text annotation to edit it.
@@ -476,8 +502,12 @@ struct EditorCanvasView: View {
                 let fs = annotation.style.fontSize
                 let hPad = fs * 0.55
                 let vPad = fs * 0.25
-                let estWidth = max(CGFloat(annotation.text.count) * fs * 0.6, 40) + hPad * 2
-                let estHeight = fs + vPad * 2
+                let lines = annotation.text.components(separatedBy: .newlines)
+                let lineCount = max(lines.count, 1)
+                let widestLineChars = max(lines.map { $0.count }.max() ?? 0, 1)
+                let lineSpacing = fs * 0.22
+                let estWidth = max(CGFloat(widestLineChars) * fs * 0.6, 40) + hPad * 2
+                let estHeight = CGFloat(lineCount) * fs + CGFloat(max(0, lineCount - 1)) * lineSpacing + vPad * 2
                 let textRect = CGRect(
                     x: annotation.startPoint.x - estWidth / 2,
                     y: annotation.startPoint.y - estHeight / 2,
@@ -569,5 +599,99 @@ struct EditorCanvasView: View {
 
     private var isShiftDown: Bool {
         NSEvent.modifierFlags.contains(.shift)
+    }
+
+}
+
+// MARK: - Growing Text Field
+
+/// An NSTextView-backed input that grows horizontally as the user types and
+/// only breaks to a new line on an explicit Return key press.
+/// The content size is reported via `onSizeChange` so the parent can frame it.
+private struct GrowingTextField: NSViewRepresentable {
+    @Binding var text: String
+    let fontSize: CGFloat
+    var onSizeChange: (CGSize) -> Void = { _ in }
+
+    func makeNSView(context: Context) -> NSTextView {
+        let tv = NSTextView()
+        tv.delegate = context.coordinator
+        tv.textColor = .white
+        tv.backgroundColor = .clear
+        tv.drawsBackground = false
+        tv.isRichText = false
+        tv.allowsUndo = false
+        tv.isAutomaticSpellingCorrectionEnabled = false
+        tv.isAutomaticQuoteSubstitutionEnabled = false
+        tv.isAutomaticDashSubstitutionEnabled = false
+        tv.isGrammarCheckingEnabled = false
+        // Use left alignment: centering within an infinite-width container pushes
+        // text to a huge X offset and clips it. Visual centering comes from equal
+        // horizontal padding in the SwiftUI bubble wrapper instead.
+        let paraStyle = NSMutableParagraphStyle()
+        paraStyle.alignment = .left
+        tv.defaultParagraphStyle = paraStyle
+        tv.typingAttributes = [
+            .paragraphStyle: paraStyle,
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .medium),
+            .foregroundColor: NSColor.white,
+        ]
+
+        // Disable line wrapping so the view grows horizontally instead.
+        tv.textContainer?.widthTracksTextView = false
+        tv.textContainer?.containerSize = NSSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        tv.isHorizontallyResizable = true
+        tv.isVerticallyResizable = true
+        tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
+                            height: CGFloat.greatestFiniteMagnitude)
+
+        // Grab focus as soon as the view is inserted into the window.
+        DispatchQueue.main.async {
+            tv.window?.makeFirstResponder(tv)
+        }
+        return tv
+    }
+
+    func updateNSView(_ tv: NSTextView, context: Context) {
+        if tv.string != text {
+            tv.string = text
+        }
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        let paraStyle = NSMutableParagraphStyle()
+        paraStyle.alignment = .left
+        tv.typingAttributes = [
+            .paragraphStyle: paraStyle,
+            .font: font,
+            .foregroundColor: NSColor.white,
+        ]
+        context.coordinator.reportSize(tv)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: GrowingTextField
+        init(_ parent: GrowingTextField) { self.parent = parent }
+
+        func textDidChange(_ notification: Notification) {
+            guard let tv = notification.object as? NSTextView else { return }
+            parent.text = tv.string
+            reportSize(tv)
+        }
+
+        func reportSize(_ tv: NSTextView) {
+            guard let lm = tv.layoutManager, let tc = tv.textContainer else { return }
+            lm.ensureLayout(for: tc)
+            let used = lm.usedRect(for: tc).size
+            let minH = tv.font?.pointSize ?? parent.fontSize
+            let size = CGSize(width: ceil(used.width), height: ceil(max(used.height, minH)))
+            // Defer to avoid "modifying state during view update" — reportSize is
+            // called from updateNSView which runs inside a SwiftUI layout pass.
+            let callback = parent.onSizeChange
+            DispatchQueue.main.async { callback(size) }
+        }
     }
 }

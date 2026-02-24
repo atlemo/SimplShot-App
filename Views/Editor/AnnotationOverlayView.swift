@@ -104,17 +104,35 @@ struct AnnotationOverlayView: View {
 
         case .text:
             let scaledFontSize = annotation.style.fontSize * scale
-            Text(annotation.text)
-                .font(.system(size: scaledFontSize, weight: .medium))
-                .foregroundColor(.white)
-                .padding(.horizontal, scaledFontSize * 0.55)
-                .padding(.vertical, scaledFontSize * 0.25)
-                .background(
-                    Capsule()
-                        .fill(annotation.style.textBubbleBackground)
-                )
-                .fixedSize()
-                .position(x: start.x, y: start.y)
+            let cornerRadius = scaledFontSize * 0.45
+            let borderWidth = max(2, 2 * scale)
+            let textLines = annotation.text.components(separatedBy: "\n")
+            VStack(alignment: .center, spacing: scaledFontSize * 0.22) {
+                ForEach(textLines.indices, id: \.self) { i in
+                    Text(textLines[i].isEmpty ? " " : textLines[i])
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+            .font(.system(size: scaledFontSize, weight: .medium))
+            .foregroundColor(.white)
+            .padding(.horizontal, scaledFontSize * 0.55)
+            .padding(.vertical, scaledFontSize * 0.25)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(annotation.style.textBubbleBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(isSelected ? Color.white : Color.clear, lineWidth: borderWidth)
+            )
+            .padding(isSelected ? borderWidth : 0)
+            .overlay(
+                RoundedRectangle(cornerRadius: isSelected ? cornerRadius + borderWidth : cornerRadius, style: .continuous)
+                    .stroke(isSelected ? annotation.style.textBubbleBackground : Color.clear, lineWidth: borderWidth)
+            )
+            .fixedSize()
+            .position(x: start.x, y: start.y)
 
         case .pixelate:
             PixelatePreviewView(
@@ -183,7 +201,7 @@ struct AnnotationOverlayView: View {
         let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
         Text(label)
             .font(.system(size: max(10, 11 * scale), weight: .medium, design: .monospaced))
-            .foregroundStyle(.white)
+            .foregroundStyle(annotation.style.isWhite ? .black : .white)
             .padding(.horizontal, max(6, 7 * scale))
             .padding(.vertical, max(3, 4 * scale))
             .background(annotation.style.strokeColor, in: Capsule())

@@ -241,19 +241,39 @@ struct EditorToolbarView: View {
         .focusable(false)
         .popover(isPresented: $sizePopoverVisible, arrowEdge: .bottom) {
             if isTextContext {
-                sizeOptions(
-                    values: [14, 18, 24, 36, 48],
-                    current: currentStyle.fontSize,
-                    label: { "\($0)pt" }
-                ) { value in
-                    currentStyle.fontSize = value
-                    applyStyleToSelection()
-                    sizePopoverVisible = false
-                }
+                fontSizeSliderContent
             } else {
                 strokeWidthSliderContent
             }
         }
+    }
+
+    private var fontSizeSliderContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Font Size")
+                .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 8) {
+                Slider(value: fontSizeBinding, in: 14...74)
+                    .frame(width: 180)
+                    .focusable(false)
+                    .focusEffectDisabled()
+                Text("\(Int(currentStyle.fontSize))pt")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 36, alignment: .trailing)
+            }
+            .padding(.vertical, 2)
+        }
+        .padding(12)
+    }
+
+    private var fontSizeBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentStyle.fontSize) },
+            set: { newValue in
+                currentStyle.fontSize = CGFloat(newValue.rounded())
+                applyStyleToSelection()
+            }
+        )
     }
 
     private var strokeWidthSliderContent: some View {

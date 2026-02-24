@@ -25,7 +25,6 @@ enum ScreenshotError: LocalizedError {
 }
 
 class ScreenshotService {
-
     /// Request screen recording permission.
     /// `CGRequestScreenCaptureAccess()` shows the system prompt but doesn't
     /// always register the app in System Settings. Performing a tiny test
@@ -39,6 +38,20 @@ class ScreenshotService {
         // the Screen Recording privacy list even if permission is denied.
         _Concurrency.Task {
             try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        }
+    }
+
+    /// Confirms Screen Recording access using both TCC preflight and a
+    /// ScreenCaptureKit query. This avoids false negatives from preflight alone.
+    static func confirmScreenRecordingPermission() async -> Bool {
+        if CGPreflightScreenCaptureAccess() {
+            return true
+        }
+        do {
+            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            return true
+        } catch {
+            return false
         }
     }
 

@@ -340,7 +340,11 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     }
 
     @objc func freeSizeCaptureAction() {
-        guard ensureScreenRecordingPermission(for: "capture an area screenshot") else { return }
+        // Don't hard-block here based on a single preflight read; on some systems
+        // TCC state can be stale momentarily even when permission is already granted.
+        // We attempt capture first, then show a permission warning only if it fails
+        // and access is still missing.
+        ScreenshotService.ensurePermission()
 
         // Close the menu before entering interactive capture mode
         menu.cancelTracking()
@@ -387,8 +391,21 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 return
             }
 
-            // If the user pressed Escape, screencapture exits without writing the file
-            guard FileManager.default.fileExists(atPath: outputURL.path) else { return }
+            // If nothing was written, either the user cancelled or permission is missing.
+            // Only show a warning when permission is actually not granted.
+            guard FileManager.default.fileExists(atPath: outputURL.path) else {
+                let hasPermission = await ScreenshotService.confirmScreenRecordingPermission()
+                if !hasPermission {
+                    await MainActor.run { [self] in
+                        showPermissionAlert(
+                            title: "Screen Recording Permission Required",
+                            message: "SimplShot needs Screen Recording permission to capture an area screenshot.",
+                            openSettings: AccessibilityService.openScreenRecordingSettings
+                        )
+                    }
+                }
+                return
+            }
 
             await MainActor.run { [self] in
                 EditorWindowController.openEditor(
