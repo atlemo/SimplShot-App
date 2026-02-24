@@ -1,6 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import AppKit
+#if !APPSTORE
+import WebP
+#endif
 
 /// Root view for the screenshot editor window.
 struct EditorView: View {
@@ -614,7 +617,15 @@ struct EditorView: View {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = imageURL.lastPathComponent
         let ext = imageURL.pathExtension.lowercased()
-        let contentType: UTType = ext == "png" ? .png : ext == "heic" ? .heic : .jpeg
+        let contentType: UTType
+        switch ext {
+        case "png":  contentType = .png
+        case "heic": contentType = .heic
+        #if !APPSTORE
+        case "webp": contentType = .webP
+        #endif
+        default:     contentType = .jpeg
+        }
         panel.allowedContentTypes = [contentType]
         panel.canCreateDirectories = true
 
@@ -643,6 +654,17 @@ struct EditorView: View {
         )
 
         let ext = url.pathExtension.lowercased()
+
+        #if !APPSTORE
+        // WebP encoding requires the swift-webp library; CGImageDestination
+        // does not support WebP encoding on macOS.
+        if ext == "webp" {
+            let data = try WebPEncoder().encode(outputImage, config: .preset(.photo, quality: 80))
+            try data.write(to: url)
+            return
+        }
+        #endif
+
         let utType: CFString
         switch ext {
         case "png":  utType = UTType.png.identifier as CFString

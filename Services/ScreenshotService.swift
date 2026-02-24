@@ -3,6 +3,9 @@ import CoreGraphics
 import ImageIO
 import ScreenCaptureKit
 import UniformTypeIdentifiers
+#if !APPSTORE
+import WebP
+#endif
 
 enum ScreenshotError: LocalizedError {
     case captureFailed
@@ -88,6 +91,16 @@ class ScreenshotService {
         // Write using CGImageDestination — this writes the raw pixel data
         // at 72 DPI (matching macOS native screenshot behaviour) so the
         // reported image dimensions equal the actual pixel count.
+        #if !APPSTORE
+        // WebP encoding requires the swift-webp library; CGImageDestination
+        // does not support WebP encoding on macOS.
+        if format == .webp {
+            let data = try WebPEncoder().encode(finalImage, config: .preset(.photo, quality: 80))
+            try data.write(to: filePath)
+            return filePath
+        }
+        #endif
+
         let utType: CFString
         var properties: [CFString: Any] = [
             kCGImagePropertyDPIWidth: 72.0,
@@ -103,6 +116,11 @@ class ScreenshotService {
         case .heic:
             utType = UTType.heic.identifier as CFString
             properties[kCGImageDestinationLossyCompressionQuality] = 0.9
+        #if !APPSTORE
+        case .webp:
+            // WebP is handled by the early return above; this is unreachable.
+            utType = UTType.png.identifier as CFString
+        #endif
         }
 
         guard let destination = CGImageDestinationCreateWithURL(
@@ -158,6 +176,19 @@ class ScreenshotService {
         )
         return (image, scale)
     }
+
+    #if !APPSTORE
+    /// Re-encodes an image file at `sourceURL` as WebP and writes it to `destinationURL`.
+    /// Used when `screencapture` writes PNG for area captures and we need WebP output.
+    static func convertToWebP(sourceURL: URL, destinationURL: URL) throws {
+        guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            throw ScreenshotError.saveFailed
+        }
+        let data = try WebPEncoder().encode(cgImage, config: .preset(.photo, quality: 80))
+        try data.write(to: destinationURL)
+    }
+    #endif
 
     private static func timestampString() -> String {
         let formatter = DateFormatter()

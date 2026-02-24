@@ -50,7 +50,7 @@ struct GeneralSettingsView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
-                .frame(width: 160)
+                .frame(width: 210)
             }
 
             Divider().padding(.horizontal)
@@ -79,7 +79,7 @@ struct GeneralSettingsView: View {
                         granted: screenRecordingGranted,
                         action: { AccessibilityService.openScreenRecordingSettings() }
                     )
-                }
+}
             }
         }
         .padding(.vertical, 12)
@@ -128,6 +128,7 @@ struct GeneralSettingsView: View {
                 .font(.system(size: 13))
             Text(label)
                 .font(.system(size: 13))
+            Spacer()
             if !granted {
                 Button("Grant…", action: action)
                     .controlSize(.small)

@@ -5,20 +5,34 @@ enum ScreenshotFormat: String, Codable, CaseIterable {
     case png
     case jpeg
     case heic
+    #if !APPSTORE
+    case webp
+    #endif
 
     var fileExtension: String {
         switch self {
-        case .png: return "png"
+        case .png:  return "png"
         case .jpeg: return "jpeg"
         case .heic: return "heic"
+        #if !APPSTORE
+        case .webp: return "webp"
+        #endif
         }
     }
-    var displayName: String { rawValue.uppercased() }
+    /// Uses rawValue.uppercased() for all cases except WebP which needs mixed case.
+    var displayName: String {
+        rawValue == "webp" ? "WebP" : rawValue.uppercased()
+    }
+    /// Type flag for the `screencapture` CLI. WebP is not supported by
+    /// screencapture — area captures use PNG and convert afterwards.
     var screencaptureType: String {
         switch self {
-        case .png: return "png"
+        case .png:  return "png"
         case .jpeg: return "jpg"
         case .heic: return "heic"
+        #if !APPSTORE
+        case .webp: return "png"
+        #endif
         }
     }
 }

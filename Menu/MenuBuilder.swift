@@ -353,7 +353,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         let saveURL = appSettings.screenshotSaveURL
         let template = appSettings.screenshotTemplate
 
-        Task {
+        Task(priority: .medium) {
             // Brief pause so the menu fully dismisses before the crosshair appears
             try? await Task.sleep(for: .milliseconds(200))
 
@@ -361,11 +361,16 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
                 .replacingOccurrences(of: ":", with: "-")
                 .replacingOccurrences(of: " ", with: "_")
-            let ext = format.fileExtension
-            let filename = "SimplShot_\(timestamp).\(ext)"
 
             try? FileManager.default.createDirectory(at: saveURL, withIntermediateDirectories: true)
-            let outputURL = saveURL.appendingPathComponent(filename)
+
+            // screencapture doesn't support WebP; capture as PNG then convert.
+            let captureExt = format == .webp ? "png" : format.fileExtension
+            let captureFilename = format == .webp
+                ? "SimplShot_\(timestamp)_tmp.\(captureExt)"
+                : "SimplShot_\(timestamp).\(captureExt)"
+            let captureURL = saveURL.appendingPathComponent(captureFilename)
+            let outputURL = saveURL.appendingPathComponent("SimplShot_\(timestamp).\(format.fileExtension)")
 
             // -i = interactive crosshair selection, -t = type, -x = no sound
             let typeFlag: String
@@ -373,17 +378,26 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             case .png:  typeFlag = "png"
             case .jpeg: typeFlag = "jpg"
             case .heic: typeFlag = "heic"
+            case .webp: typeFlag = "png"
             }
 
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
             // -o = omit window shadow when capturing a window via Spacebar
-            process.arguments = ["-i", "-o", "-x", "-t", typeFlag, outputURL.path]
+            process.arguments = ["-i", "-o", "-x", "-t", typeFlag, captureURL.path]
 
+            // Use terminationHandler + continuation instead of waitUntilExit() so
+            // we don't block a cooperative thread (which caused a priority inversion
+            // warning: User-interactive Task waiting on a Default-QoS subprocess).
             do {
-                try process.run()
-                // Wait for user to finish drawing the region
-                process.waitUntilExit()
+                try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                    process.terminationHandler = { _ in cont.resume() }
+                    do {
+                        try process.run()
+                    } catch {
+                        cont.resume(throwing: error)
+                    }
+                }
             } catch {
                 await MainActor.run {
                     self.showAlert("Free capture failed: \(error.localizedDescription)")
@@ -393,7 +407,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
             // If nothing was written, either the user cancelled or permission is missing.
             // Only show a warning when permission is actually not granted.
-            guard FileManager.default.fileExists(atPath: outputURL.path) else {
+            guard FileManager.default.fileExists(atPath: captureURL.path) else {
                 let hasPermission = await ScreenshotService.confirmScreenRecordingPermission()
                 if !hasPermission {
                     await MainActor.run { [self] in
@@ -407,9 +421,24 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 return
             }
 
+            // Convert PNG → WebP for area captures when WebP format is selected.
+            var finalURL = captureURL
+            if format == .webp {
+                do {
+                    try ScreenshotService.convertToWebP(sourceURL: captureURL, destinationURL: outputURL)
+                    try? FileManager.default.removeItem(at: captureURL)
+                    finalURL = outputURL
+                } catch {
+                    // Conversion failed — rename the temp PNG to a clean filename.
+                    let pngURL = saveURL.appendingPathComponent("SimplShot_\(timestamp).png")
+                    try? FileManager.default.moveItem(at: captureURL, to: pngURL)
+                    finalURL = pngURL
+                }
+            }
+
             await MainActor.run { [self] in
                 EditorWindowController.openEditor(
-                    imageURL: outputURL,
+                    imageURL: finalURL,
                     template: template,
                     appSettings: appSettings,
                     preferOriginalAspectRatio: true
