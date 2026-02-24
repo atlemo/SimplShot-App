@@ -21,6 +21,11 @@ struct AboutSettingsView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
 
+            Text("[www.simplshot.com](https://www.simplshot.com)")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .tint(.primary)
+
             Text("Version \(appVersion)")
                 .font(.callout)
                 .foregroundStyle(.secondary)
