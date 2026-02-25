@@ -65,7 +65,8 @@ struct AnnotationOverlayView: View {
                 style: StrokeStyle(
                     lineWidth: annotation.style.strokeWidth,
                     lineCap: .round,
-                    lineJoin: .round
+                    lineJoin: .round,
+                    dash: [0, annotation.style.strokeWidth * 4]
                 )
             )
             MeasurementHeadShape(baseCenter: end, toward: start, lineWidth: annotation.style.strokeWidth)

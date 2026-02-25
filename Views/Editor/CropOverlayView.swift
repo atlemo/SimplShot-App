@@ -2,10 +2,12 @@ import SwiftUI
 
 /// Displays a crop rectangle with draggable edges/corners over the canvas.
 /// `cropRect` is in **image-pixel coordinates**; `scale` maps to view coords.
+/// `cropBoundsRect` constrains the draggable area (screenshot content only when
+/// a background gradient is active, full image otherwise).
 struct CropOverlayView: View {
     @Binding var cropRect: CGRect
-    let imageSize: CGSize       // in image pixels
     let scale: CGFloat          // view points per image pixel
+    let cropBoundsRect: CGRect  // allowed crop area in image pixels
 
     /// Snapshot of cropRect when a handle drag begins.
     @State private var dragStartRect: CGRect? = nil
@@ -130,11 +132,11 @@ struct CropOverlayView: View {
             rect.size.width = max(rect.size.width + dx, minSize)
         }
 
-        // Clamp to image bounds
-        rect.origin.x = max(rect.origin.x, 0)
-        rect.origin.y = max(rect.origin.y, 0)
-        rect.size.width = min(rect.size.width, imageSize.width - rect.origin.x)
-        rect.size.height = min(rect.size.height, imageSize.height - rect.origin.y)
+        // Clamp to allowed crop bounds (screenshot area only when gradient is active)
+        rect.origin.x = max(rect.origin.x, cropBoundsRect.minX)
+        rect.origin.y = max(rect.origin.y, cropBoundsRect.minY)
+        rect.size.width = min(rect.size.width, cropBoundsRect.maxX - rect.origin.x)
+        rect.size.height = min(rect.size.height, cropBoundsRect.maxY - rect.origin.y)
 
         if rect.width >= minSize, rect.height >= minSize {
             cropRect = rect

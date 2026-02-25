@@ -324,7 +324,9 @@ class AnnotationRenderer {
             y: end.y - baseOffset * sin(angle)
         )
 
+        context.setLineDash(phase: 0, lengths: [0, lineWidth * 4])
         drawLine(from: trimmedStart, to: trimmedEnd, in: context)
+        context.setLineDash(phase: 0, lengths: [])
         drawMeasurementHead(
             baseCenter: end,
             toward: start,

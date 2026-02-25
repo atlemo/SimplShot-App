@@ -202,6 +202,7 @@ struct EditorToolbarView: View {
                     .foregroundStyle(.secondary)
             }
             .frame(width: 40, height: toolPillHeight)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .focusable(false)
@@ -247,6 +248,7 @@ struct EditorToolbarView: View {
             }
             .frame(height: toolPillHeight)
             .padding(.horizontal, 8)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .focusable(false)
@@ -493,28 +495,31 @@ struct EditorToolbarView: View {
     // MARK: - Undo / Done Buttons
 
     private var doneButton: some View {
-        Button("Done", action: onDone)
-            .buttonStyle(.plain)
-            .keyboardShortcut("s", modifiers: .command)
-            .focusable(false)
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(.white)
-            .frame(height: 34)
-            .padding(.horizontal, 14)
-            .background(Color.accentColor, in: Capsule())
+        Button(action: onDone) {
+            Text("Done")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+                .frame(height: 34)
+                .padding(.horizontal, 14)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("s", modifiers: .command)
+        .focusable(false)
+        .background(Color.accentColor, in: Capsule())
     }
 
     private var undoButton: some View {
         Button(action: onUndo) {
             Image(systemName: "arrow.uturn.backward")
-                .frame(width: 28, height: 28)
+                .frame(width: 28, height: 34)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help("Undo")
         .keyboardShortcut("z", modifiers: .command)
         .disabled(!canUndo)
         .focusable(false)
-        .frame(height: 34)
         .padding(.horizontal, 4)
     }
 
@@ -576,7 +581,8 @@ private struct ArrowStylePreview: View {
 
             case .triangle:
                 let ang = atan2(e.y - s.y, e.x - s.x), hl: CGFloat = 7, ha = CGFloat.pi / 4
-                let base = CGPoint(x: e.x - hl * cos(ang), y: e.y - hl * sin(ang))
+                let depth = hl * cos(ha)
+                let base = CGPoint(x: e.x - depth * cos(ang), y: e.y - depth * sin(ang))
                 var shaft = Path(); shaft.move(to: s); shaft.addLine(to: base)
                 ctx.stroke(shaft, with: .color(color), style: StrokeStyle(lineWidth: lw, lineCap: .round))
                 let p1 = CGPoint(x: e.x - hl * cos(ang - ha), y: e.y - hl * sin(ang - ha))

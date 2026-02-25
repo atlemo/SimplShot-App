@@ -97,7 +97,8 @@ struct EditorBottomToolbarView: View {
         HStack(spacing: 4) {
             Button(action: onTrash) {
                 Image(systemName: "trash")
-                    .frame(width: 28, height: 26)
+                    .frame(width: 28, height: pillHeight)
+                    .contentShape(Rectangle())
             }
             .help("Delete Screenshot")
             .focusable(false)
@@ -108,7 +109,8 @@ struct EditorBottomToolbarView: View {
 
             Button(action: onCopy) {
                 Image(systemName: "document.on.document")
-                    .frame(width: 28, height: 26)
+                    .frame(width: 28, height: pillHeight)
+                    .contentShape(Rectangle())
             }
             .help("Copy to Clipboard")
             .focusable(false)
@@ -117,10 +119,14 @@ struct EditorBottomToolbarView: View {
                 .frame(height: 16)
                 .padding(.horizontal, 2)
 
-            Button("Save As\u{2026}", action: onSaveAs)
-                .keyboardShortcut("s", modifiers: [.command, .shift])
-                .padding(.horizontal, 6)
-                .focusable(false)
+            Button(action: onSaveAs) {
+                Text("Save As\u{2026}")
+                    .padding(.horizontal, 6)
+                    .frame(height: pillHeight)
+                    .contentShape(Rectangle())
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])
+            .focusable(false)
         }
         .buttonStyle(.plain)
         .frame(height: pillHeight)

@@ -163,22 +163,32 @@ struct Annotation: Identifiable {
 // MARK: - Undo Support
 
 /// Snapshot of the editor state for undo/redo.
-/// Captures both annotations and the current image (since crop is applied destructively).
+/// Captures annotations, the rendered display image, and the non-destructive crop rect.
 struct EditorSnapshot {
     let annotations: [Annotation]
     let image: NSImage?
+    let rawImage: NSImage?
+    let selectedGradientRawValue: String?
     let imagePixelSize: CGSize
     let cropRect: CGRect?
+    /// The current crop in raw screenshot pixel space (non-destructive crop state).
+    let screenshotCropRect: CGRect?
 
     init(
         annotations: [Annotation],
         image: NSImage? = nil,
+        rawImage: NSImage? = nil,
+        selectedGradientRawValue: String? = nil,
         imagePixelSize: CGSize = .zero,
-        cropRect: CGRect? = nil
+        cropRect: CGRect? = nil,
+        screenshotCropRect: CGRect? = nil
     ) {
         self.annotations = annotations
         self.image = image
+        self.rawImage = rawImage
+        self.selectedGradientRawValue = selectedGradientRawValue
         self.imagePixelSize = imagePixelSize
         self.cropRect = cropRect
+        self.screenshotCropRect = screenshotCropRect
     }
 }

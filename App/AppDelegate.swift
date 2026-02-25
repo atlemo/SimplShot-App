@@ -85,6 +85,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         #endif
+        // Always run the SCK registration query so this app stays visible in
+        // System Settings → Screen Recording, even after a rebuild resets the entry.
+        ScreenshotService.ensurePermission()
         showPermissionOnboardingIfNeeded()
     }
 
@@ -95,11 +98,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     #endif
 
     private func showPermissionOnboardingIfNeeded() {
-        let hasShown = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.hasShownPermissionOnboarding)
         let missingPermissions = !AccessibilityService.isTrusted || !AccessibilityService.hasScreenRecordingPermission
+        #if DEBUG
+        // In debug builds always show the onboarding when a permission is missing,
+        // so the developer doesn't get stuck after a bundle-ID change or TCC reset.
+        guard missingPermissions else { return }
+        #else
+        let hasShown = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.hasShownPermissionOnboarding)
         guard !hasShown, missingPermissions else { return }
-
         UserDefaults.standard.set(true, forKey: Constants.UserDefaultsKeys.hasShownPermissionOnboarding)
+        #endif
 
         let controller = PermissionOnboardingWindowController { [weak self] in
             self?.onboardingWindowController = nil
@@ -183,6 +191,7 @@ private struct PermissionOnboardingView: View {
 
     @State private var hasAccessibility = AccessibilityService.isTrusted
     @State private var hasScreenRecording = AccessibilityService.hasScreenRecordingPermission
+    @State private var screenRecordingRequestedOnce = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -204,17 +213,7 @@ private struct PermissionOnboardingView: View {
                 AccessibilityService.openAccessibilitySettings()
             }
 
-            permissionCard(
-                title: "Screen Recording",
-                granted: hasScreenRecording,
-                description: "Needed to capture screenshots.",
-                primaryActionTitle: "Enable Screen Recording"
-            ) {
-                ScreenshotService.ensurePermission()
-                refreshSoon()
-            } secondaryAction: {
-                AccessibilityService.openScreenRecordingSettings()
-            }
+            screenRecordingCard
 
             Spacer()
 
@@ -230,6 +229,64 @@ private struct PermissionOnboardingView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshStatus()
         }
+    }
+
+    @ViewBuilder
+    private var screenRecordingCard: some View {
+        // After the user has gone through the grant flow, macOS only applies the
+        // permission after a restart — show a clear nudge instead of leaving the
+        // status stuck on "Missing".
+        let awaitingRestart = screenRecordingRequestedOnce && !hasScreenRecording
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Screen Recording")
+                    .font(.headline)
+                Spacer()
+                if awaitingRestart {
+                    Text("Restart Required")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.blue)
+                } else {
+                    Text(hasScreenRecording ? "Granted" : "Missing")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(hasScreenRecording ? .green : .orange)
+                }
+            }
+            Text("Needed to capture screenshots.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            HStack {
+                if hasScreenRecording {
+                    Text("Ready")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.green)
+                } else if awaitingRestart {
+                    Button("Restart Now") { relaunch() }
+                    Button("Open Settings") { AccessibilityService.openScreenRecordingSettings() }
+                } else {
+                    Button("Enable Screen Recording") {
+                        ScreenshotService.ensurePermission()
+                        screenRecordingRequestedOnce = true
+                        refreshSoon()
+                    }
+                    Button("Open Settings") { AccessibilityService.openScreenRecordingSettings() }
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+    }
+
+    private func relaunch() {
+        let url = Bundle.main.bundleURL
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in }
+        NSApp.terminate(nil)
     }
 
     private func permissionCard(

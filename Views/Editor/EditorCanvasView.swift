@@ -36,6 +36,9 @@ struct EditorCanvasView: View {
     @Binding var currentStyle: AnnotationStyle
     @Binding var cropRect: CGRect
     @Binding var isCropping: Bool
+    /// The allowed crop area in image-pixel space. When a background gradient is
+    /// active this is the screenshot content region; otherwise the full image.
+    var cropBoundsRect: CGRect? = nil
 
     /// Called when the user finishes creating or modifying an annotation (for undo).
     var onCommit: () -> Void = {}
@@ -143,8 +146,8 @@ struct EditorCanvasView: View {
             if isCropping {
                 CropOverlayView(
                     cropRect: $cropRect,
-                    imageSize: imagePixelSize,
-                    scale: scale
+                    scale: scale,
+                    cropBoundsRect: cropBoundsRect ?? CGRect(origin: .zero, size: imagePixelSize)
                 )
             }
         }
@@ -481,9 +484,17 @@ struct EditorCanvasView: View {
 
             switch annotation.tool {
             case .arrow, .line, .measurement:
-                if distanceToSegment(point: point,
-                                     start: annotation.startPoint,
-                                     end: annotation.endPoint) < threshold {
+                let hitDist: CGFloat
+                if annotation.tool == .arrow && annotation.style.arrowStyle == .curved {
+                    hitDist = distanceToCurvedArrow(point: point,
+                                                    start: annotation.startPoint,
+                                                    end: annotation.endPoint)
+                } else {
+                    hitDist = distanceToSegment(point: point,
+                                                start: annotation.startPoint,
+                                                end: annotation.endPoint)
+                }
+                if hitDist < threshold {
                     return annotation.id
                 }
 
@@ -541,6 +552,28 @@ struct EditorCanvasView: View {
         let t = max(0, min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq))
         let proj = CGPoint(x: start.x + t * dx, y: start.y + t * dy)
         return hypot(point.x - proj.x, point.y - proj.y)
+    }
+
+    /// Samples the quadratic bezier used by the curved arrow style and returns
+    /// the minimum distance from `point` to any segment of the sampled polyline.
+    private func distanceToCurvedArrow(point: CGPoint, start: CGPoint, end: CGPoint) -> CGFloat {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let cp = CGPoint(x: (start.x + end.x) / 2 + dy * 0.3,
+                         y: (start.y + end.y) / 2 - dx * 0.3)
+        let steps = 20
+        var best = CGFloat.greatestFiniteMagnitude
+        var prev = start
+        for i in 1...steps {
+            let t = CGFloat(i) / CGFloat(steps)
+            let mt = 1 - t
+            let curr = CGPoint(x: mt * mt * start.x + 2 * mt * t * cp.x + t * t * end.x,
+                               y: mt * mt * start.y + 2 * mt * t * cp.y + t * t * end.y)
+            let d = distanceToSegment(point: point, start: prev, end: curr)
+            if d < best { best = d }
+            prev = curr
+        }
+        return best
     }
 
     private func distanceToPolyline(point: CGPoint, points: [CGPoint]) -> CGFloat {

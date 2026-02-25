@@ -45,6 +45,9 @@ struct EditorView: View {
     // Crop state
     @State private var isCropping: Bool = false
     @State private var cropRect: CGRect = .zero
+    /// Non-destructive crop in raw screenshot pixel space.
+    /// Applied before the gradient so rawImage is never mutated by crop.
+    @State private var screenshotCropRect: CGRect = .zero
 
     // Zoom state
     @State private var zoomLevel: CGFloat = 1.0  // 1.0 = fit to view
@@ -70,6 +73,21 @@ struct EditorView: View {
         let trueSizeScale = 1.0 / displayBackingScale
         guard trueSizeScale > 0 else { return 100 }
         return effectiveScale / trueSizeScale * 100
+    }
+
+    /// The screenshot content's bounding rect inside the display canvas, in image-pixel space.
+    /// When a gradient is active this is the inset screenshot region; otherwise the full canvas.
+    private var screenshotBoundsInDisplay: CGRect {
+        if selectedGradient != nil, !screenshotCropRect.isEmpty {
+            let offset = screenshotOriginInTemplatedCanvas(
+                screenshotPixelSize: screenshotCropRect.size,
+                padding: editorPadding,
+                aspectRatio: selectedEditorAspectRatio?.ratio
+            )
+            return CGRect(x: offset.x, y: offset.y,
+                          width: screenshotCropRect.width, height: screenshotCropRect.height)
+        }
+        return CGRect(origin: .zero, size: imagePixelSize)
     }
 
     private let zoomSteps: [CGFloat] = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0]
@@ -102,6 +120,7 @@ struct EditorView: View {
                                     currentStyle: $currentStyle,
                                     cropRect: $cropRect,
                                     isCropping: $isCropping,
+                                    cropBoundsRect: screenshotBoundsInDisplay,
                                     onCommit: pushUndo
                                 )
                                 .padding(.top, 60)  // clear space for floating toolbar
@@ -187,8 +206,9 @@ struct EditorView: View {
             appSettings?.editorUseTemplateBackground = isEnabled
             if let rawImage {
                 if wasEnabled != isEnabled {
-                    let oldOrigin = wasEnabled ? screenshotOriginInTemplatedCanvas(for: rawImage, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio) : .zero
-                    let newOrigin = isEnabled ? screenshotOriginInTemplatedCanvas(for: rawImage, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio) : .zero
+                    let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
+                    let oldOrigin = wasEnabled ? screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio) : .zero
+                    let newOrigin = isEnabled ? screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio) : .zero
                     shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 }
                 applyDisplayImage(from: rawImage)
@@ -197,8 +217,9 @@ struct EditorView: View {
         .onChange(of: editorPadding) { oldValue, newValue in
             appSettings?.screenshotTemplate.padding = newValue
             if selectedGradient != nil, let rawImage {
-                let oldOrigin = screenshotOriginInTemplatedCanvas(for: rawImage, padding: oldValue, aspectRatio: selectedEditorAspectRatio?.ratio)
-                let newOrigin = screenshotOriginInTemplatedCanvas(for: rawImage, padding: newValue, aspectRatio: selectedEditorAspectRatio?.ratio)
+                let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
+                let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: oldValue, aspectRatio: selectedEditorAspectRatio?.ratio)
+                let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: newValue, aspectRatio: selectedEditorAspectRatio?.ratio)
                 shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 applyDisplayImage(from: rawImage)
             }
@@ -207,10 +228,11 @@ struct EditorView: View {
             if selectedGradient != nil, let rawImage {
                 // Keep annotations anchored to screenshot content when the
                 // background canvas expands/contracts to match selected ratio.
+                let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
                 let oldRatio = aspectRatioValue(for: oldID)
                 let newRatio = aspectRatioValue(for: newID)
-                let oldOrigin = screenshotOriginInTemplatedCanvas(for: rawImage, padding: editorPadding, aspectRatio: oldRatio)
-                let newOrigin = screenshotOriginInTemplatedCanvas(for: rawImage, padding: editorPadding, aspectRatio: newRatio)
+                let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: oldRatio)
+                let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: newRatio)
                 shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 applyDisplayImage(from: rawImage)
             }
@@ -219,6 +241,13 @@ struct EditorView: View {
             appSettings?.screenshotTemplate.cornerRadius = newValue
             if selectedGradient != nil, let rawImage {
                 applyDisplayImage(from: rawImage)
+            }
+        }
+        .onChange(of: isCropping) { _, newValue in
+            // When entering crop mode, initialize the crop rect to the screenshot
+            // content area so the user can't accidentally start outside it.
+            if newValue {
+                cropRect = screenshotBoundsInDisplay
             }
         }
         .onChange(of: selectedAnnotationID) { _, newID in
@@ -341,6 +370,11 @@ struct EditorView: View {
     private func loadImage() {
         guard let nsImage = NSImage(contentsOf: imageURL) else { return }
         rawImage = nsImage
+        // Initialize the crop to the full raw image bounds (non-destructive crop starts at full size).
+        if let cg = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            screenshotCropRect = CGRect(x: 0, y: 0,
+                                        width: CGFloat(cg.width), height: CGFloat(cg.height))
+        }
         applyDisplayImage(from: nsImage)
     }
 
@@ -353,9 +387,22 @@ struct EditorView: View {
             return
         }
 
-        var displayCG = cgSource
+        // Apply non-destructive crop to the raw screenshot before compositing.
+        var croppedCG = cgSource
+        if !screenshotCropRect.isEmpty {
+            let fullBounds = CGRect(x: 0, y: 0,
+                                    width: CGFloat(cgSource.width), height: CGFloat(cgSource.height))
+            let clampedCrop = screenshotCropRect.intersection(fullBounds)
+            if !clampedCrop.isEmpty, clampedCrop != fullBounds,
+               let cropped = cgSource.cropping(to: clampedCrop) {
+                croppedCG = cropped
+            }
+        }
+
+        var displayCG = croppedCG
         if let gradient = selectedGradient, let template {
-            // Build a template with the current editor slider values and selected gradient
+            // Build a template with the current editor slider values and selected gradient,
+            // applied to the already-cropped screenshot (never the raw+gradient composite).
             var editorTemplate = template
             editorTemplate.padding = editorPadding
             editorTemplate.cornerRadius = editorCornerRadius
@@ -363,7 +410,7 @@ struct EditorView: View {
             let renderer = TemplateRenderer()
             if let templated = try? renderer.applyTemplate(
                 editorTemplate,
-                to: cgSource,
+                to: croppedCG,
                 backingScale: displayBackingScale,
                 targetAspectRatio: selectedEditorAspectRatio?.ratio
             ) {
@@ -383,24 +430,54 @@ struct EditorView: View {
     // MARK: - Crop
 
     private func applyCrop() {
-        // Check if the crop rect is already the full image — nothing to do
-        let fullRect = CGRect(origin: .zero, size: imagePixelSize)
-        guard cropRect != fullRect,
-              !cropRect.isEmpty,
-              let cgImage = currentCGImage()
+        // Compute the gradient offset so we can convert display-space cropRect
+        // back to raw screenshot pixel space.
+        let gradientOffset: CGPoint
+        if selectedGradient != nil, !screenshotCropRect.isEmpty {
+            gradientOffset = screenshotOriginInTemplatedCanvas(
+                screenshotPixelSize: screenshotCropRect.size,
+                padding: editorPadding,
+                aspectRatio: selectedEditorAspectRatio?.ratio
+            )
+        } else {
+            gradientOffset = .zero
+        }
+
+        // Convert the display-space crop rect to raw-screenshot-relative coords.
+        let rawRelativeCrop = CGRect(
+            x: cropRect.minX - gradientOffset.x,
+            y: cropRect.minY - gradientOffset.y,
+            width: cropRect.width,
+            height: cropRect.height
+        )
+
+        // No-op if the crop covers the full current screenshot.
+        let currentScreenshotBounds = CGRect(origin: .zero, size: screenshotCropRect.size)
+        guard rawRelativeCrop != currentScreenshotBounds,
+              !rawRelativeCrop.isEmpty
         else {
             isCropping = false
             currentTool = .select
             return
         }
 
-        // Clamp the crop rect to actual image bounds
-        let clampedCrop = cropRect.intersection(CGRect(x: 0, y: 0,
-                                                       width: CGFloat(cgImage.width),
-                                                       height: CGFloat(cgImage.height)))
-        guard !clampedCrop.isEmpty,
-              let croppedCGImage = cgImage.cropping(to: clampedCrop)
-        else {
+        // Clamp to current screenshot bounds.
+        let clampedRawRelative = rawRelativeCrop.intersection(currentScreenshotBounds)
+        guard !clampedRawRelative.isEmpty else {
+            isCropping = false
+            currentTool = .select
+            return
+        }
+
+        // Build the new screenshotCropRect in original raw image pixel space.
+        let newScreenshotCropRect = CGRect(
+            x: screenshotCropRect.minX + clampedRawRelative.minX,
+            y: screenshotCropRect.minY + clampedRawRelative.minY,
+            width: clampedRawRelative.width,
+            height: clampedRawRelative.height
+        )
+
+        guard newScreenshotCropRect != screenshotCropRect else {
             isCropping = false
             currentTool = .select
             return
@@ -408,33 +485,31 @@ struct EditorView: View {
 
         pushUndo()
 
-        // Update the displayed image
-        let newSize = NSSize(width: croppedCGImage.width, height: croppedCGImage.height)
-        let newNSImage = NSImage(size: newSize)
-        newNSImage.addRepresentation(NSBitmapImageRep(cgImage: croppedCGImage))
-        image = newNSImage
-        currentDisplayCGImage = croppedCGImage
-        imagePixelSize = CGSize(width: croppedCGImage.width, height: croppedCGImage.height)
-
-        // Shift all annotations so their coordinates are relative to the new top-left
-        let originX = clampedCrop.minX
-        let originY = clampedCrop.minY
-        annotations = annotations.map { ann in
-            var shifted = ann
-            shifted.startPoint = CGPoint(x: ann.startPoint.x - originX,
-                                         y: ann.startPoint.y - originY)
-            shifted.endPoint = CGPoint(x: ann.endPoint.x - originX,
-                                       y: ann.endPoint.y - originY)
-            if !ann.points.isEmpty {
-                shifted.points = ann.points.map {
-                    CGPoint(x: $0.x - originX, y: $0.y - originY)
-                }
-            }
-            return shifted
+        // Compute annotation shift: accounts for both crop origin movement and
+        // any change in the gradient offset (which can shift if aspect ratio is used).
+        let newGradientOffset: CGPoint
+        if selectedGradient != nil {
+            newGradientOffset = screenshotOriginInTemplatedCanvas(
+                screenshotPixelSize: newScreenshotCropRect.size,
+                padding: editorPadding,
+                aspectRatio: selectedEditorAspectRatio?.ratio
+            )
+        } else {
+            newGradientOffset = .zero
         }
 
-        // Reset crop rect to full new image
-        cropRect = CGRect(origin: .zero, size: imagePixelSize)
+        let annotationShift = CGPoint(
+            x: (newGradientOffset.x - gradientOffset.x) - clampedRawRelative.minX,
+            y: (newGradientOffset.y - gradientOffset.y) - clampedRawRelative.minY
+        )
+        shiftAnnotations(by: annotationShift)
+
+        // Update the non-destructive crop rect and re-render.
+        // rawImage is never modified — gradient + crop are applied in applyDisplayImage.
+        screenshotCropRect = newScreenshotCropRect
+        if let rawImg = rawImage {
+            applyDisplayImage(from: rawImg)
+        }
 
         isCropping = false
         currentTool = .select
@@ -469,13 +544,10 @@ struct EditorView: View {
     }
 
     /// Returns the screenshot's top-left origin inside the templated canvas (image-pixel space).
-    private func screenshotOriginInTemplatedCanvas(for source: NSImage, padding: Int, aspectRatio: Double?) -> CGPoint {
-        guard let cg = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            return .zero
-        }
-
-        let screenshotW = CGFloat(cg.width)
-        let screenshotH = CGFloat(cg.height)
+    /// `screenshotPixelSize` must be the actual CGImage pixel dimensions of the (possibly cropped) screenshot.
+    private func screenshotOriginInTemplatedCanvas(screenshotPixelSize: CGSize, padding: Int, aspectRatio: Double?) -> CGPoint {
+        let screenshotW = screenshotPixelSize.width
+        let screenshotH = screenshotPixelSize.height
         let paddingPixels = CGFloat(padding) * displayBackingScale
 
         let baseW = screenshotW + paddingPixels * 2
@@ -559,14 +631,21 @@ struct EditorView: View {
         undoStack.append(EditorSnapshot(
             annotations: annotations,
             image: image,
+            rawImage: rawImage,
+            selectedGradientRawValue: selectedGradient?.rawValue,
             imagePixelSize: imagePixelSize,
-            cropRect: cropRect
+            cropRect: cropRect,
+            screenshotCropRect: screenshotCropRect
         ))
     }
 
     private func undo() {
         guard let snapshot = undoStack.popLast() else { return }
         annotations = snapshot.annotations
+        // Restore the non-destructive crop rect before re-rendering.
+        if let scRect = snapshot.screenshotCropRect {
+            screenshotCropRect = scRect
+        }
         if let snapImage = snapshot.image {
             image = snapImage
             imagePixelSize = snapshot.imagePixelSize
@@ -575,6 +654,8 @@ struct EditorView: View {
             currentDisplayCGImage = (snapImage.representations.first as? NSBitmapImageRep)?.cgImage
                 ?? snapImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
         }
+        rawImage = snapshot.rawImage
+        selectedGradient = snapshot.selectedGradientRawValue.flatMap { BuiltInGradient(rawValue: $0) }
         cropRect = snapshot.cropRect ?? CGRect(origin: .zero, size: imagePixelSize)
         selectedAnnotationID = nil
     }
@@ -595,12 +676,24 @@ struct EditorView: View {
         guard let outputImage = try? renderer.render(image: cgImage, annotations: annotations, backingScale: displayBackingScale, cropRect: nil)
         else { return }
 
+        let bitmapRep = NSBitmapImageRep(cgImage: outputImage)
         let size = NSSize(width: outputImage.width, height: outputImage.height)
         let finalImage = NSImage(size: size)
-        finalImage.addRepresentation(NSBitmapImageRep(cgImage: outputImage))
+        finalImage.addRepresentation(bitmapRep)
 
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects([finalImage])
+
+        // Write a named temp file alongside the image so apps (e.g. Slack) derive
+        // the filename from the file URL instead of defaulting to "image".
+        if let pngData = bitmapRep.representation(using: .png, properties: [:]) {
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("SimplShot_pasted.png")
+            try? pngData.write(to: tempURL)
+            NSPasteboard.general.writeObjects([NSURL(fileURLWithPath: tempURL.path), finalImage])
+        } else {
+            NSPasteboard.general.writeObjects([finalImage])
+        }
+
         onDismiss()
     }
 
