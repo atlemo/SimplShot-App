@@ -55,6 +55,24 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Arrow Style
+
+enum ArrowStyle: String, CaseIterable {
+    case chevron   // open V arrowhead (default)
+    case triangle  // filled solid triangle tip
+    case curved    // arc shaft with filled triangle tip
+    case sketch    // hand-drawn: S-curve shaft with wide chevron
+
+    var label: String {
+        switch self {
+        case .chevron:  return "Arrow"
+        case .triangle: return "Filled"
+        case .curved:   return "Curved"
+        case .sketch:   return "Sketch"
+        }
+    }
+}
+
 // MARK: - Annotation Style
 
 struct AnnotationStyle {
@@ -62,6 +80,7 @@ struct AnnotationStyle {
     var strokeWidth: CGFloat = 3
     var fontSize: CGFloat = 48
     var pixelationScale: CGFloat = 20
+    var arrowStyle: ArrowStyle = .chevron
 
     /// CGColor for use in Core Graphics rendering.
     var cgStrokeColor: CGColor {

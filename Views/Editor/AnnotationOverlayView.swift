@@ -30,24 +30,33 @@ struct AnnotationOverlayView: View {
 
         switch annotation.tool {
         case .arrow:
-            ArrowShape(start: start, end: end, lineWidth: annotation.style.strokeWidth)
-                .stroke(
-                    annotation.style.strokeColor,
-                    style: StrokeStyle(
-                        lineWidth: annotation.style.strokeWidth,
-                        lineCap: .round,
-                        lineJoin: .round
-                    )
-                )
-            ArrowHeadShape(start: start, end: end, lineWidth: annotation.style.strokeWidth)
-                .stroke(
-                    annotation.style.strokeColor,
-                    style: StrokeStyle(
-                        lineWidth: annotation.style.strokeWidth,
-                        lineCap: .round,
-                        lineJoin: .round
-                    )
-                )
+            let sw   = annotation.style.strokeWidth
+            let col  = annotation.style.strokeColor
+            let ss   = StrokeStyle(lineWidth: sw, lineCap: .round, lineJoin: .round)
+            if annotation.style.arrowStyle == .curved {
+                let dx = end.x - start.x; let dy = end.y - start.y
+                let cp = CGPoint(x: (start.x + end.x) / 2 + dy * 0.3,
+                                 y: (start.y + end.y) / 2 - dx * 0.3)
+                // Shaft stops at triangle base; lineWidth passed so shape can compute it
+                ArrowCurvedShaftShape(start: start, end: end, lineWidth: sw).stroke(col, style: ss)
+                ArrowFilledTriangleHead(start: start, end: end, lineWidth: sw, controlPoint: cp).fill(col)
+            } else if annotation.style.arrowStyle == .sketch {
+                ArrowSketchShaftShape(start: start, end: end).stroke(col, style: ss)
+                ArrowSketchHeadShape(start: start, end: end, lineWidth: sw).stroke(col, style: ss)
+            } else if annotation.style.arrowStyle == .triangle {
+                // Shaft ends at the triangle's base center: tip − headLen·cos(halfAngle)·direction
+                let angle = atan2(end.y - start.y, end.x - start.x)
+                let headLen = arrowHeadLen(for: sw)
+                let depth = headLen * cos(CGFloat.pi / 4)   // ≈ 0.707 × headLen
+                let base = CGPoint(x: end.x - depth * cos(angle),
+                                   y: end.y - depth * sin(angle))
+                ArrowShape(start: start, end: base, lineWidth: sw).stroke(col, style: ss)
+                ArrowFilledTriangleHead(start: start, end: end, lineWidth: sw).fill(col)
+            } else {
+                // .chevron (default)
+                ArrowShape(start: start, end: end, lineWidth: sw).stroke(col, style: ss)
+                ArrowHeadShape(start: start, end: end, lineWidth: sw).stroke(col, style: ss)
+            }
 
         case .measurement:
             MeasurementLineShape(start: start, end: end, lineWidth: annotation.style.strokeWidth)
@@ -287,6 +296,105 @@ struct MeasurementLineShape: Shape {
         return Path { p in
             p.move(to: trimmedStart)
             p.addLine(to: trimmedEnd)
+        }
+    }
+}
+
+// MARK: - Arrow style: curved shaft (quadratic bezier)
+
+struct ArrowCurvedShaftShape: Shape {
+    let start: CGPoint
+    let end: CGPoint
+    let lineWidth: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let control = CGPoint(x: (start.x + end.x) / 2 + dy * 0.3,
+                              y: (start.y + end.y) / 2 - dx * 0.3)
+        // Stop the shaft at the triangle base so the round cap
+        // is hidden behind the filled head rather than poking past the tip.
+        let tangentAngle = atan2(end.y - control.y, end.x - control.x)
+        let headLen = arrowHeadLen(for: lineWidth)
+        let depth = headLen * cos(CGFloat.pi / 4)   // end shaft at triangle's base center
+        let shaftEnd = CGPoint(x: end.x - depth * cos(tangentAngle),
+                               y: end.y - depth * sin(tangentAngle))
+        return Path { p in
+            p.move(to: start)
+            p.addQuadCurve(to: shaftEnd, control: control)
+        }
+    }
+}
+
+// MARK: - Arrow style: filled triangle head (used by .triangle and .curved)
+
+struct ArrowFilledTriangleHead: Shape {
+    let start: CGPoint
+    let end: CGPoint
+    let lineWidth: CGFloat
+    /// When set, the head direction uses the tangent from this control point (curved arrows).
+    var controlPoint: CGPoint? = nil
+
+    func path(in rect: CGRect) -> Path {
+        let angle: CGFloat
+        if let cp = controlPoint {
+            angle = atan2(end.y - cp.y, end.x - cp.x)
+        } else {
+            angle = atan2(end.y - start.y, end.x - start.x)
+        }
+        let headLen = arrowHeadLen(for: lineWidth)
+        let halfAngle: CGFloat = .pi / 4
+        let p1 = CGPoint(x: end.x - headLen * cos(angle - halfAngle),
+                         y: end.y - headLen * sin(angle - halfAngle))
+        let p2 = CGPoint(x: end.x - headLen * cos(angle + halfAngle),
+                         y: end.y - headLen * sin(angle + halfAngle))
+        return Path { p in
+            p.move(to: end)
+            p.addLine(to: p1)
+            p.addLine(to: p2)
+            p.closeSubpath()
+        }
+    }
+}
+
+// MARK: - Arrow style: sketch shaft (subtle S-curve cubic bezier)
+
+struct ArrowSketchShaftShape: Shape {
+    let start: CGPoint
+    let end: CGPoint
+
+    func path(in rect: CGRect) -> Path {
+        let angle = atan2(end.y - start.y, end.x - start.x)
+        let len   = hypot(end.x - start.x, end.y - start.y)
+        let cp1 = CGPoint(x: start.x + cos(angle) * len * 0.3 + (-sin(angle)) * len * 0.07,
+                          y: start.y + sin(angle) * len * 0.3 +   cos(angle)  * len * 0.07)
+        let cp2 = CGPoint(x: start.x + cos(angle) * len * 0.7 - (-sin(angle)) * len * 0.05,
+                          y: start.y + sin(angle) * len * 0.7 -   cos(angle)  * len * 0.05)
+        return Path { p in
+            p.move(to: start)
+            p.addCurve(to: end, control1: cp1, control2: cp2)
+        }
+    }
+}
+
+// MARK: - Arrow style: sketch head (wide open chevron)
+
+struct ArrowSketchHeadShape: Shape {
+    let start: CGPoint
+    let end: CGPoint
+    let lineWidth: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let angle   = atan2(end.y - start.y, end.x - start.x)
+        let headLen = max(lineWidth * 7, 20)
+        let halfAngle: CGFloat = .pi / 5   // 36° → 72° total, wider than chevron
+        let p1 = CGPoint(x: end.x - headLen * cos(angle - halfAngle),
+                         y: end.y - headLen * sin(angle - halfAngle))
+        let p2 = CGPoint(x: end.x - headLen * cos(angle + halfAngle),
+                         y: end.y - headLen * sin(angle + halfAngle))
+        return Path { p in
+            p.move(to: end); p.addLine(to: p1)
+            p.move(to: end); p.addLine(to: p2)
         }
     }
 }

@@ -116,7 +116,12 @@ struct EditorToolbarView: View {
                 pixelatePopoverVisible.toggle()
                 return
             }
+            if tool == .arrow, currentTool == .arrow {
+                arrowStylePopoverVisible.toggle()
+                return
+            }
             pixelatePopoverVisible = false
+            arrowStylePopoverVisible = false
             selectTool(tool)
         } label: {
             Group {
@@ -146,6 +151,11 @@ struct EditorToolbarView: View {
                 .popover(isPresented: $pixelatePopoverVisible, arrowEdge: .bottom) {
                     pixelatePopoverContent
                 }
+        } else if tool == .arrow {
+            button
+                .popover(isPresented: $arrowStylePopoverVisible, arrowEdge: .bottom) {
+                    arrowStylePopoverContent
+                }
         } else {
             button
         }
@@ -166,6 +176,7 @@ struct EditorToolbarView: View {
     @State private var sizePopoverVisible = false
     @State private var gradientPopoverVisible = false
     @State private var pixelatePopoverVisible = false
+    @State private var arrowStylePopoverVisible = false
 
     private var styleControls: some View {
         HStack(spacing: 0) {
@@ -399,6 +410,44 @@ struct EditorToolbarView: View {
         .padding(8)
     }
 
+    // MARK: - Arrow Style Picker
+
+    private var arrowStylePopoverContent: some View {
+        HStack(spacing: 2) {
+            ForEach(ArrowStyle.allCases, id: \.self) { style in
+                let isSelected = currentStyle.arrowStyle == style
+                Button {
+                    currentStyle.arrowStyle = style
+                    applyArrowStyleToSelection()
+                    arrowStylePopoverVisible = false
+                } label: {
+                    VStack(spacing: 4) {
+                        ArrowStylePreview(style: style, isSelected: isSelected)
+                        Text(style.label)
+                            .font(.system(size: 10))
+                            .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(8)
+    }
+
+    private func applyArrowStyleToSelection() {
+        guard let id = selectedAnnotationID,
+              let idx = annotations.firstIndex(where: { $0.id == id }),
+              annotations[idx].tool == .arrow
+        else { return }
+        annotations[idx].style.arrowStyle = currentStyle.arrowStyle
+    }
+
     private var pixelatePopoverContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Pixelation")
@@ -497,6 +546,75 @@ struct EditorToolbarView: View {
               annotations[idx].tool == .pixelate
         else { return }
         annotations[idx].style.pixelationScale = currentStyle.pixelationScale
+    }
+}
+
+// MARK: - Arrow style mini-preview (used inside the popover)
+
+private struct ArrowStylePreview: View {
+    let style: ArrowStyle
+    let isSelected: Bool
+
+    var body: some View {
+        Canvas { ctx, size in
+            let s = CGPoint(x: 6, y: size.height * 0.62)
+            let e = CGPoint(x: size.width - 6, y: size.height * 0.38)
+            let color = isSelected ? Color.accentColor : Color.primary
+            let lw: CGFloat = 1.5
+
+            switch style {
+            case .chevron:
+                var path = Path(); path.move(to: s); path.addLine(to: e)
+                ctx.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: lw, lineCap: .round))
+                let ang = atan2(e.y - s.y, e.x - s.x), hl: CGFloat = 8, ha = CGFloat.pi / 4
+                let p1 = CGPoint(x: e.x - hl * cos(ang - ha), y: e.y - hl * sin(ang - ha))
+                let p2 = CGPoint(x: e.x - hl * cos(ang + ha), y: e.y - hl * sin(ang + ha))
+                var head = Path()
+                head.move(to: e); head.addLine(to: p1)
+                head.move(to: e); head.addLine(to: p2)
+                ctx.stroke(head, with: .color(color), style: StrokeStyle(lineWidth: lw, lineCap: .round))
+
+            case .triangle:
+                let ang = atan2(e.y - s.y, e.x - s.x), hl: CGFloat = 7, ha = CGFloat.pi / 4
+                let base = CGPoint(x: e.x - hl * cos(ang), y: e.y - hl * sin(ang))
+                var shaft = Path(); shaft.move(to: s); shaft.addLine(to: base)
+                ctx.stroke(shaft, with: .color(color), style: StrokeStyle(lineWidth: lw, lineCap: .round))
+                let p1 = CGPoint(x: e.x - hl * cos(ang - ha), y: e.y - hl * sin(ang - ha))
+                let p2 = CGPoint(x: e.x - hl * cos(ang + ha), y: e.y - hl * sin(ang + ha))
+                var tri = Path(); tri.move(to: e); tri.addLine(to: p1); tri.addLine(to: p2); tri.closeSubpath()
+                ctx.fill(tri, with: .color(color))
+
+            case .curved:
+                let dx = e.x - s.x, dy = e.y - s.y
+                let cp = CGPoint(x: (s.x + e.x) / 2 + dy * 0.3, y: (s.y + e.y) / 2 - dx * 0.3)
+                var shaft = Path(); shaft.move(to: s); shaft.addQuadCurve(to: e, control: cp)
+                ctx.stroke(shaft, with: .color(color), style: StrokeStyle(lineWidth: lw, lineCap: .round))
+                let ang = atan2(e.y - cp.y, e.x - cp.x), hl: CGFloat = 7, ha = CGFloat.pi / 5
+                let p1 = CGPoint(x: e.x - hl * cos(ang - ha), y: e.y - hl * sin(ang - ha))
+                let p2 = CGPoint(x: e.x - hl * cos(ang + ha), y: e.y - hl * sin(ang + ha))
+                var tri = Path(); tri.move(to: e); tri.addLine(to: p1); tri.addLine(to: p2); tri.closeSubpath()
+                ctx.fill(tri, with: .color(color))
+
+            case .sketch:
+                let ang = atan2(e.y - s.y, e.x - s.x)
+                let len = hypot(e.x - s.x, e.y - s.y)
+                let ca = cos(ang), sa = sin(ang)
+                let cp1 = CGPoint(x: s.x + ca*len*0.3 + (-sa)*len*0.07,
+                                  y: s.y + sa*len*0.3 + ca*len*0.07)
+                let cp2 = CGPoint(x: s.x + ca*len*0.7 - (-sa)*len*0.05,
+                                  y: s.y + sa*len*0.7 - ca*len*0.05)
+                var shaft = Path(); shaft.move(to: s); shaft.addCurve(to: e, control1: cp1, control2: cp2)
+                ctx.stroke(shaft, with: .color(color), style: StrokeStyle(lineWidth: lw, lineCap: .round))
+                let hl: CGFloat = 10, ha = CGFloat.pi / 5
+                let p1 = CGPoint(x: e.x - hl * cos(ang - ha), y: e.y - hl * sin(ang - ha))
+                let p2 = CGPoint(x: e.x - hl * cos(ang + ha), y: e.y - hl * sin(ang + ha))
+                var head = Path()
+                head.move(to: e); head.addLine(to: p1)
+                head.move(to: e); head.addLine(to: p2)
+                ctx.stroke(head, with: .color(color), style: StrokeStyle(lineWidth: lw, lineCap: .round))
+            }
+        }
+        .frame(width: 44, height: 26)
     }
 }
 

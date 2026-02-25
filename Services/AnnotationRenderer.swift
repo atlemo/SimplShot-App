@@ -121,7 +121,8 @@ class AnnotationRenderer {
 
         switch annotation.tool {
         case .arrow:
-            drawArrow(from: annotation.startPoint, to: annotation.endPoint, color: color, lineWidth: lineWidth, in: context)
+            drawArrow(from: annotation.startPoint, to: annotation.endPoint,
+                      arrowStyle: annotation.style.arrowStyle, color: color, lineWidth: lineWidth, in: context)
         case .measurement:
             drawMeasurement(
                 from: annotation.startPoint,
@@ -149,35 +150,114 @@ class AnnotationRenderer {
         context.restoreGState()
     }
 
-    private func drawArrow(from start: CGPoint, to end: CGPoint, color: CGColor, lineWidth: CGFloat, in context: CGContext) {
+    private func drawArrow(from start: CGPoint, to end: CGPoint, arrowStyle: ArrowStyle, color: CGColor, lineWidth: CGFloat, in context: CGContext) {
         context.setLineCap(.round)
         context.setLineJoin(.round)
+        switch arrowStyle {
+        case .chevron:  drawArrowChevron(from: start, to: end, lineWidth: lineWidth, in: context)
+        case .triangle: drawArrowTriangle(from: start, to: end, color: color, lineWidth: lineWidth, in: context)
+        case .curved:   drawArrowCurved(from: start, to: end, color: color, lineWidth: lineWidth, in: context)
+        case .sketch:   drawArrowSketch(from: start, to: end, lineWidth: lineWidth, in: context)
+        }
+    }
+
+    // Open V arrowhead (original style)
+    private func drawArrowChevron(from start: CGPoint, to end: CGPoint, lineWidth: CGFloat, in context: CGContext) {
         let angle = atan2(end.y - start.y, end.x - start.x)
         let headLength: CGFloat = max(lineWidth * 5, 16)
-        let arrowHalfAngle: CGFloat = .pi / 4  // 45 degrees => 90° chevron tip
+        let halfAngle: CGFloat = .pi / 4
 
         context.move(to: start)
         context.addLine(to: end)
         context.strokePath()
 
-        // Draw open chevron arrowhead (two stroked segments)
-        let p1 = CGPoint(
-            x: end.x - headLength * cos(angle - arrowHalfAngle),
-            y: end.y - headLength * sin(angle - arrowHalfAngle)
-        )
-        let p2 = CGPoint(
-            x: end.x - headLength * cos(angle + arrowHalfAngle),
-            y: end.y - headLength * sin(angle + arrowHalfAngle)
-        )
+        let p1 = CGPoint(x: end.x - headLength * cos(angle - halfAngle),
+                         y: end.y - headLength * sin(angle - halfAngle))
+        let p2 = CGPoint(x: end.x - headLength * cos(angle + halfAngle),
+                         y: end.y - headLength * sin(angle + halfAngle))
+        context.move(to: end); context.addLine(to: p1)
+        context.move(to: end); context.addLine(to: p2)
+        context.strokePath()
+    }
 
-        context.setStrokeColor(color)
-        context.setLineWidth(lineWidth)
-        context.setLineCap(.round)
-        context.setLineJoin(.round)
+    // Straight shaft + filled solid triangle tip
+    private func drawArrowTriangle(from start: CGPoint, to end: CGPoint, color: CGColor, lineWidth: CGFloat, in context: CGContext) {
+        let angle = atan2(end.y - start.y, end.x - start.x)
+        let headLength: CGFloat = max(lineWidth * 5, 16)
+        let halfAngle: CGFloat = .pi / 4
+
+        let p1 = CGPoint(x: end.x - headLength * cos(angle - halfAngle),
+                         y: end.y - headLength * sin(angle - halfAngle))
+        let p2 = CGPoint(x: end.x - headLength * cos(angle + halfAngle),
+                         y: end.y - headLength * sin(angle + halfAngle))
+        // Shaft ends at the triangle's base center: tip − headLength·cos(45°)·direction
+        let depth = headLength * cos(halfAngle)
+        let baseCenter = CGPoint(x: end.x - depth * cos(angle),
+                                 y: end.y - depth * sin(angle))
+        context.move(to: start)
+        context.addLine(to: baseCenter)
+        context.strokePath()
+
+        context.setFillColor(color)
         context.move(to: end)
         context.addLine(to: p1)
-        context.move(to: end)
         context.addLine(to: p2)
+        context.closePath()
+        context.fillPath()
+    }
+
+    // Quadratic-bezier arc shaft + filled triangle aligned to tangent
+    private func drawArrowCurved(from start: CGPoint, to end: CGPoint, color: CGColor, lineWidth: CGFloat, in context: CGContext) {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let control = CGPoint(x: (start.x + end.x) / 2 + dy * 0.3,
+                              y: (start.y + end.y) / 2 - dx * 0.3)
+
+        // Arrow direction = tangent at t=1 of the bezier = end − control
+        let angle = atan2(end.y - control.y, end.x - control.x)
+        let headLength: CGFloat = max(lineWidth * 5, 16)
+        let halfAngle: CGFloat = .pi / 5   // 36° → 72° total, slightly narrower
+
+        // Shaft ends at the triangle's base center: tip − headLength·cos(halfAngle)·direction
+        let depth = headLength * cos(halfAngle)
+        let shaftEnd = CGPoint(x: end.x - depth * cos(angle),
+                               y: end.y - depth * sin(angle))
+        context.move(to: start)
+        context.addQuadCurve(to: shaftEnd, control: control)
+        context.strokePath()
+
+        let p1 = CGPoint(x: end.x - headLength * cos(angle - halfAngle),
+                         y: end.y - headLength * sin(angle - halfAngle))
+        let p2 = CGPoint(x: end.x - headLength * cos(angle + halfAngle),
+                         y: end.y - headLength * sin(angle + halfAngle))
+        context.setFillColor(color)
+        context.move(to: end)
+        context.addLine(to: p1)
+        context.addLine(to: p2)
+        context.closePath()
+        context.fillPath()
+    }
+
+    // Subtle S-curve shaft + wide open chevron (hand-drawn feel)
+    private func drawArrowSketch(from start: CGPoint, to end: CGPoint, lineWidth: CGFloat, in context: CGContext) {
+        let angle = atan2(end.y - start.y, end.x - start.x)
+        let len = hypot(end.x - start.x, end.y - start.y)
+        let cp1 = CGPoint(x: start.x + cos(angle) * len * 0.3 + (-sin(angle)) * len * 0.07,
+                          y: start.y + sin(angle) * len * 0.3 +   cos(angle)  * len * 0.07)
+        let cp2 = CGPoint(x: start.x + cos(angle) * len * 0.7 - (-sin(angle)) * len * 0.05,
+                          y: start.y + sin(angle) * len * 0.7 -   cos(angle)  * len * 0.05)
+        context.move(to: start)
+        context.addCurve(to: end, control1: cp1, control2: cp2)
+        context.strokePath()
+
+        let headLength: CGFloat = max(lineWidth * 7, 20)
+        let halfAngle: CGFloat = .pi / 5   // wider for sketch look
+        let p1 = CGPoint(x: end.x - headLength * cos(angle - halfAngle),
+                         y: end.y - headLength * sin(angle - halfAngle))
+        let p2 = CGPoint(x: end.x - headLength * cos(angle + halfAngle),
+                         y: end.y - headLength * sin(angle + halfAngle))
+        context.move(to: end); context.addLine(to: p1)
+        context.move(to: end); context.addLine(to: p2)
         context.strokePath()
     }
 
