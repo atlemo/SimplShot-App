@@ -105,7 +105,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         widthHeader.isEnabled = false
         menu.addItem(widthHeader)
 
-        for preset in appSettings.widthPresets {
+        for preset in appSettings.enabledWidthPresets {
             let hasCustomName = preset.label != "\(preset.width)px"
             let title = hasCustomName ? "\(preset.label) — \(preset.width)px" : preset.label
             let item = NSMenuItem(title: title, action: #selector(selectWidth(_:)), keyEquivalent: "")
@@ -125,7 +125,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         ratioHeader.isEnabled = false
         menu.addItem(ratioHeader)
 
-        for ratio in appSettings.aspectRatios {
+        for ratio in appSettings.enabledAspectRatios {
             let item = NSMenuItem(title: ratio.label, action: #selector(selectRatio(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = ratio.id  // store UUID
@@ -526,7 +526,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         // Bring the app to the front so windows are fully visible for capture
         app.activate()
 
-        let presets = appSettings.widthPresets
+        let presets = appSettings.enabledWidthPresets
         let format = appSettings.screenshotFormat
         let saveURL = appSettings.screenshotSaveURL
         let appName = app.name

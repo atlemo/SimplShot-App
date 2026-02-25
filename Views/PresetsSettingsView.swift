@@ -17,7 +17,18 @@ struct PresetsSettingsView: View {
                 List {
                     ForEach(appSettings.widthPresets) { preset in
                         HStack {
+                            Toggle("", isOn: Binding(
+                                get: { preset.isEnabled },
+                                set: { newValue in
+                                    if let idx = appSettings.widthPresets.firstIndex(where: { $0.id == preset.id }) {
+                                        appSettings.widthPresets[idx].isEnabled = newValue
+                                    }
+                                }
+                            ))
+                            .toggleStyle(.checkbox)
+                            .labelsHidden()
                             Text(preset.label)
+                                .foregroundStyle(preset.isEnabled ? .primary : .secondary)
                             Spacer()
                             if preset.isBuiltIn {
                                 Text("Built-in")
@@ -67,7 +78,18 @@ struct PresetsSettingsView: View {
                 List {
                     ForEach(appSettings.aspectRatios) { ratio in
                         HStack {
+                            Toggle("", isOn: Binding(
+                                get: { ratio.isEnabled },
+                                set: { newValue in
+                                    if let idx = appSettings.aspectRatios.firstIndex(where: { $0.id == ratio.id }) {
+                                        appSettings.aspectRatios[idx].isEnabled = newValue
+                                    }
+                                }
+                            ))
+                            .toggleStyle(.checkbox)
+                            .labelsHidden()
                             Text(ratio.label)
+                                .foregroundStyle(ratio.isEnabled ? .primary : .secondary)
                             Spacer()
                             if ratio.isBuiltIn {
                                 Text("Built-in")

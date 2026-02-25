@@ -102,6 +102,13 @@ class AppSettings {
         aspectRatios.first { $0.id == selectedRatioID }
     }
 
+    var enabledWidthPresets: [WidthPreset] {
+        widthPresets.filter(\.isEnabled)
+    }
+    var enabledAspectRatios: [AspectRatio] {
+        aspectRatios.filter(\.isEnabled)
+    }
+
     init() {
         // Load login item state from system
         self.startAtLogin = SMAppService.mainApp.status == .enabled

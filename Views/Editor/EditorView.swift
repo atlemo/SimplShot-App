@@ -92,7 +92,7 @@ struct EditorView: View {
 
     private let zoomSteps: [CGFloat] = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0]
     private var editorAspectRatios: [AspectRatio] {
-        appSettings?.aspectRatios ?? Constants.defaultAspectRatios
+        appSettings?.enabledAspectRatios ?? Constants.defaultAspectRatios
     }
     private var selectedEditorAspectRatio: AspectRatio? {
         guard let id = editorAspectRatioID else { return nil }
