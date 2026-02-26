@@ -82,6 +82,20 @@ class WindowManager {
         return true
     }
 
+    /// Centers a window on the screen it currently occupies.
+    func centerOnScreen(_ window: AXUIElement) {
+        guard let state = getWindowState(window) else { return }
+        let windowRect = CGRect(origin: state.position, size: state.size)
+        let screen = NSScreen.screenContaining(axRect: windowRect) ?? NSScreen.main!
+        let screenFrame = screen.frameInAXCoordinates
+
+        let centeredOrigin = CGPoint(
+            x: screenFrame.midX - state.size.width / 2,
+            y: screenFrame.midY - state.size.height / 2
+        )
+        _ = setPosition(of: window, to: centeredOrigin)
+    }
+
     func restore(_ window: AXUIElement, to state: WindowState) -> Bool {
         let posOk = setPosition(of: window, to: state.position)
         let sizeOk = setSize(of: window, to: state.size)

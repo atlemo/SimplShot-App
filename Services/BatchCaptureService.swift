@@ -54,9 +54,10 @@ class BatchCaptureService {
             let height = aspectRatio.height(forWidth: preset.width)
             let targetSize = CGSize(width: CGFloat(preset.width), height: CGFloat(height))
 
-            // Resize all windows to this preset first
+            // Resize and center all windows to this preset
             for window in windows {
                 _ = windowManager.resize(window, to: targetSize)
+                windowManager.centerOnScreen(window)
             }
 
             // Wait for resize to settle
