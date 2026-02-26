@@ -48,6 +48,8 @@ struct EditorView: View {
     /// Non-destructive crop in raw screenshot pixel space.
     /// Applied before the gradient so rawImage is never mutated by crop.
     @State private var screenshotCropRect: CGRect = .zero
+    /// Saved crop rect before entering crop mode, so cancel restores it.
+    @State private var preCropScreenshotCropRect: CGRect = .zero
 
     // Zoom state
     @State private var zoomLevel: CGFloat = 1.0  // 1.0 = fit to view
@@ -244,10 +246,8 @@ struct EditorView: View {
             }
         }
         .onChange(of: isCropping) { _, newValue in
-            // When entering crop mode, initialize the crop rect to the screenshot
-            // content area so the user can't accidentally start outside it.
             if newValue {
-                cropRect = screenshotBoundsInDisplay
+                enterCropMode()
             }
         }
         .onChange(of: selectedAnnotationID) { _, newID in
@@ -515,7 +515,108 @@ struct EditorView: View {
         currentTool = .select
     }
 
+    /// Expands the display to the full uncropped image and positions the crop rect
+    /// over the previously-cropped region so the user can readjust from the original.
+    private func enterCropMode() {
+        guard let rawImg = rawImage,
+              let cg = rawImg.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else {
+            cropRect = screenshotBoundsInDisplay
+            return
+        }
+
+        // Remember the current crop so cancel can restore it.
+        preCropScreenshotCropRect = screenshotCropRect
+
+        let fullBounds = CGRect(x: 0, y: 0,
+                                width: CGFloat(cg.width), height: CGFloat(cg.height))
+
+        // Compute the old gradient offset (before expanding).
+        let oldGradientOffset: CGPoint
+        if selectedGradient != nil, !screenshotCropRect.isEmpty {
+            oldGradientOffset = screenshotOriginInTemplatedCanvas(
+                screenshotPixelSize: screenshotCropRect.size,
+                padding: editorPadding,
+                aspectRatio: selectedEditorAspectRatio?.ratio
+            )
+        } else {
+            oldGradientOffset = .zero
+        }
+
+        // Expand to full image.
+        screenshotCropRect = fullBounds
+        applyDisplayImage(from: rawImg)
+
+        // Compute the new gradient offset (after expanding to full image).
+        let newGradientOffset: CGPoint
+        if selectedGradient != nil {
+            newGradientOffset = screenshotOriginInTemplatedCanvas(
+                screenshotPixelSize: fullBounds.size,
+                padding: editorPadding,
+                aspectRatio: selectedEditorAspectRatio?.ratio
+            )
+        } else {
+            newGradientOffset = .zero
+        }
+
+        // Shift annotations so they stay anchored to the screenshot content.
+        let annotationShift = CGPoint(
+            x: (newGradientOffset.x - oldGradientOffset.x) + preCropScreenshotCropRect.minX,
+            y: (newGradientOffset.y - oldGradientOffset.y) + preCropScreenshotCropRect.minY
+        )
+        if annotationShift.x != 0 || annotationShift.y != 0 {
+            shiftAnnotations(by: annotationShift)
+        }
+
+        // Position the crop rect over the old cropped region in the new display.
+        cropRect = CGRect(
+            x: newGradientOffset.x + preCropScreenshotCropRect.minX,
+            y: newGradientOffset.y + preCropScreenshotCropRect.minY,
+            width: preCropScreenshotCropRect.width,
+            height: preCropScreenshotCropRect.height
+        )
+    }
+
     private func cancelCrop() {
+        // Compute gradient offset for the full image (current crop-mode state).
+        let fullGradientOffset: CGPoint
+        if selectedGradient != nil, !screenshotCropRect.isEmpty {
+            fullGradientOffset = screenshotOriginInTemplatedCanvas(
+                screenshotPixelSize: screenshotCropRect.size,
+                padding: editorPadding,
+                aspectRatio: selectedEditorAspectRatio?.ratio
+            )
+        } else {
+            fullGradientOffset = .zero
+        }
+
+        // Restore the pre-crop-mode crop and re-render.
+        screenshotCropRect = preCropScreenshotCropRect
+        if let rawImg = rawImage {
+            applyDisplayImage(from: rawImg)
+        }
+
+        // Compute gradient offset for the restored crop.
+        let restoredGradientOffset: CGPoint
+        if selectedGradient != nil, !screenshotCropRect.isEmpty {
+            restoredGradientOffset = screenshotOriginInTemplatedCanvas(
+                screenshotPixelSize: screenshotCropRect.size,
+                padding: editorPadding,
+                aspectRatio: selectedEditorAspectRatio?.ratio
+            )
+        } else {
+            restoredGradientOffset = .zero
+        }
+
+        // Shift annotations back to match the restored display.
+        let annotationShift = CGPoint(
+            x: (restoredGradientOffset.x - fullGradientOffset.x) - preCropScreenshotCropRect.minX,
+            y: (restoredGradientOffset.y - fullGradientOffset.y) - preCropScreenshotCropRect.minY
+        )
+        if annotationShift.x != 0 || annotationShift.y != 0 {
+            shiftAnnotations(by: annotationShift)
+        }
+
         cropRect = CGRect(origin: .zero, size: imagePixelSize)
         isCropping = false
         currentTool = .select
