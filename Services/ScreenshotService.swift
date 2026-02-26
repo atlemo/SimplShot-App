@@ -165,9 +165,9 @@ class ScreenshotService {
         config.ignoreShadowsSingleWindow = true
 
         // Keep transparent corners — backgroundColor defaults to clear,
-        // shouldBeOpaque defaults to false. This gives us proper alpha
-        // in the rounded corner pixels (unlike CGWindowListCreateImage
-        // which produced opaque black corners).
+        // shouldBeOpaque defaults to false. Native rounded-corner alpha is
+        // neutralised in TemplateRenderer by filling the squircle with opaque
+        // white before drawing the screenshot, so no artifacts leak through.
 
         // 4. Capture and return (image + backing scale)
         let image = try await SCScreenshotManager.captureImage(

@@ -99,11 +99,17 @@ class TemplateRenderer {
 
         // 4. Draw the screenshot clipped to a rounded rect (if needed).
         if cornerRadius > 0 {
+            // Pre-process: eliminate native macOS rounded-corner transparency
+            // by sampling edge colors and filling the corner regions before
+            // compositing. This makes the image fully opaque so the squircle
+            // clip produces perfectly clean corners.
+            let opaqueScreenshot = flattenNativeCorners(screenshot, backingScale: backingScale)
+
             context.saveGState()
             let clipPath = squirclePath(in: screenshotRect, cornerRadius: cornerRadius)
             context.addPath(clipPath)
             context.clip()
-            context.draw(screenshot, in: screenshotRect)
+            context.draw(opaqueScreenshot, in: screenshotRect)
             context.restoreGState()
         } else {
             // No corner radius — draw clean on top of shadow pass.
@@ -200,6 +206,117 @@ class TemplateRenderer {
 
         path.closeSubpath()
         return path
+    }
+
+    /// Makes the screenshot fully opaque by sampling edge colors near each corner
+    /// and filling the native macOS rounded-corner transparent area with those colors.
+    /// The screenshot is then composited on top, so the semi-transparent corner pixels
+    /// blend against a matching color instead of showing black/transparent artifacts.
+    private func flattenNativeCorners(_ image: CGImage, backingScale: CGFloat) -> CGImage {
+        let width = image.width
+        let height = image.height
+
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return image
+        }
+
+        let imageRect = CGRect(x: 0, y: 0, width: width, height: height)
+
+        // macOS native window corner radius is ~10pt; use a generous 20pt
+        // fill region so the sampled color fully covers any transparent fringe.
+        let nativeRadius = Int(ceil(20.0 * backingScale))
+
+        // Sample at 1px from each edge to get the true edge color,
+        // avoiding window controls (close/minimize/zoom) that sit further in.
+        let sampleOffset = 1
+
+        // Draw the image so we can read pixel data.
+        context.draw(image, in: imageRect)
+
+        guard let data = context.data else { return image }
+        let bytesPerRow = context.bytesPerRow
+
+        // Read an RGBA pixel from the data buffer.
+        // In the data buffer, row 0 = visual top of the image.
+        func sampleColor(x: Int, y: Int) -> (CGFloat, CGFloat, CGFloat) {
+            let cx = max(0, min(x, width - 1))
+            let cy = max(0, min(y, height - 1))
+            let offset = cy * bytesPerRow + cx * 4
+            let ptr = data.advanced(by: offset).assumingMemoryBound(to: UInt8.self)
+            let a = CGFloat(ptr[3]) / 255.0
+            guard a > 0 else { return (0, 0, 0) }
+            return (CGFloat(ptr[0]) / 255.0 / a,
+                    CGFloat(ptr[1]) / 255.0 / a,
+                    CGFloat(ptr[2]) / 255.0 / a)
+        }
+
+        // Sample from each edge, just 1px in from the corner along the
+        // straight edge (past the transparent corner arc).
+        // Data buffer: row 0 (low y) = screen top, high y = screen bottom.
+        // We sample along the edge at the nativeRadius offset so we're
+        // past the curved transparent region but still on the edge color.
+        let edgeInset = nativeRadius + 2
+        let topLeft     = sampleColor(x: sampleOffset, y: edgeInset)
+        let topRight    = sampleColor(x: width - 1 - sampleOffset, y: edgeInset)
+        let bottomLeft  = sampleColor(x: sampleOffset, y: height - 1 - edgeInset)
+        let bottomRight = sampleColor(x: width - 1 - sampleOffset, y: height - 1 - edgeInset)
+
+        // Clear the context and fill corner regions with the sampled colors.
+        context.clear(imageRect)
+
+        let nr = CGFloat(nativeRadius)
+        let corners: [(CGRect, (CGFloat, CGFloat, CGFloat))] = [
+            // CG fill: high y = screen top, low y = screen bottom
+            (CGRect(x: 0, y: CGFloat(height) - nr, width: nr, height: nr), topLeft),
+            (CGRect(x: CGFloat(width) - nr, y: CGFloat(height) - nr, width: nr, height: nr), topRight),
+            (CGRect(x: 0, y: 0, width: nr, height: nr), bottomLeft),
+            (CGRect(x: CGFloat(width) - nr, y: 0, width: nr, height: nr), bottomRight),
+        ]
+        for (rect, color) in corners {
+            context.setFillColor(red: color.0, green: color.1, blue: color.2, alpha: 1.0)
+            context.fill(rect)
+        }
+
+        // Redraw the screenshot on top — semi-transparent corner pixels now
+        // composite against the matching sampled colors.
+        context.draw(image, in: imageRect)
+
+        // Force full opacity on corner regions so no residual transparency
+        // leaks through and causes black fringing under the squircle clip.
+        let rawPtr = data.assumingMemoryBound(to: UInt8.self)
+        for (rect, _) in corners {
+            // Convert CG fill rect back to data-buffer rows (inverted y).
+            let dataMinY = height - Int(rect.maxY)
+            let dataMaxY = height - Int(rect.minY)
+            let dataMinX = Int(rect.minX)
+            let dataMaxX = Int(rect.maxX)
+            for row in max(0, dataMinY)..<min(height, dataMaxY) {
+                for col in max(0, dataMinX)..<min(width, dataMaxX) {
+                    let pixelOffset = row * bytesPerRow + col * 4
+                    let a = rawPtr[pixelOffset + 3]
+                    if a < 255 {
+                        // Un-premultiply, then write as fully opaque
+                        let af = CGFloat(a) / 255.0
+                        if af > 0 {
+                            rawPtr[pixelOffset + 0] = UInt8(min(255, CGFloat(rawPtr[pixelOffset + 0]) / af))
+                            rawPtr[pixelOffset + 1] = UInt8(min(255, CGFloat(rawPtr[pixelOffset + 1]) / af))
+                            rawPtr[pixelOffset + 2] = UInt8(min(255, CGFloat(rawPtr[pixelOffset + 2]) / af))
+                        }
+                        rawPtr[pixelOffset + 3] = 255
+                    }
+                }
+            }
+        }
+
+        return context.makeImage() ?? image
     }
 
     private func drawGradient(
