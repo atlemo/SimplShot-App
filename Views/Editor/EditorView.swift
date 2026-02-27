@@ -251,6 +251,9 @@ struct EditorView: View {
                 applyDisplayImage(from: rawImage)
             }
         }
+        .onChange(of: imagePixelSize) { _, _ in
+            updateFitScale(viewSize: lastViewSize)
+        }
         .onChange(of: isCropping) { _, newValue in
             if newValue {
                 enterCropMode()
