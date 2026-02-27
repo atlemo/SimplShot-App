@@ -14,8 +14,19 @@ enum Constants {
         AspectRatio(widthComponent: 1, heightComponent: 1, isBuiltIn: true),
     ]
 
-    static let defaultScreenshotURL: URL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Desktop/SimplShot Screenshots")
+    static let defaultScreenshotURL: URL = {
+#if APPSTORE
+        // App Sandbox does not allow writing to ~/Desktop without a TCC prompt.
+        // The Downloads folder is always accessible via the
+        // com.apple.security.files.downloads.read-write entitlement.
+        let base = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
+        return base.appendingPathComponent("SimplShot Screenshots")
+#else
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Desktop/SimplShot Screenshots")
+#endif
+    }()
 
     enum UserDefaultsKeys {
         static let widthPresets = "widthPresets"

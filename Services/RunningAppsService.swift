@@ -1,3 +1,4 @@
+#if !APPSTORE
 import AppKit
 import ApplicationServices
 
@@ -53,3 +54,4 @@ class RunningAppsService {
         return pids
     }
 }
+#endif

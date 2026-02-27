@@ -4,7 +4,9 @@ import KeyboardShortcuts
 
 struct GeneralSettingsView: View {
     @Bindable var appSettings: AppSettings
+#if !APPSTORE
     @State private var accessibilityGranted = AccessibilityService.isTrusted
+#endif
     @State private var screenRecordingGranted = AccessibilityService.hasScreenRecordingPermission
 
     private let labelWidth: CGFloat = 140
@@ -58,8 +60,10 @@ struct GeneralSettingsView: View {
             // --- Keyboard Shortcuts ---
             settingsRow("Keyboard shortcuts:") {
                 VStack(alignment: .leading, spacing: 12) {
+#if !APPSTORE
                     shortcutRow("Capture", shortcut: .resizeAndCapture)
                     shortcutRow("Capture all widths", shortcut: .batchCapture)
+#endif
                     shortcutRow("Capture area", shortcut: .freeSizeCapture)
                 }
             }
@@ -68,18 +72,20 @@ struct GeneralSettingsView: View {
 
             // --- Permissions ---
             settingsRow("Permissions:") {
-                    VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 10) {
+#if !APPSTORE
                     permissionRow(
                         label: "Accessibility",
                         granted: accessibilityGranted,
                         action: { AccessibilityService.openAccessibilitySettings() }
                     )
+#endif
                     permissionRow(
                         label: "Screen Recording",
                         granted: screenRecordingGranted,
                         action: { AccessibilityService.openScreenRecordingSettings() }
                     )
-}
+                }
             }
         }
         .padding(.vertical, 12)
@@ -140,7 +146,9 @@ struct GeneralSettingsView: View {
     // MARK: - Helpers
 
     private func refreshPermissions() {
+#if !APPSTORE
         accessibilityGranted = AccessibilityService.isTrusted
+#endif
         screenRecordingGranted = AccessibilityService.hasScreenRecordingPermission
     }
 }

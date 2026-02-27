@@ -1,3 +1,4 @@
+#if !APPSTORE
 import AppKit
 import ApplicationServices
 
@@ -15,3 +16,4 @@ struct AppTarget: Identifiable {
         }
     }
 }
+#endif

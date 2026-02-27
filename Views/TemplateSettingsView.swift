@@ -11,7 +11,7 @@ struct TemplateSettingsView: View {
             settingsRow("Preview:") {
                 TemplatePreviewView(
                     template: appSettings.screenshotTemplate,
-                    aspectRatio: appSettings.selectedAspectRatio?.ratio ?? (16.0 / 9.0)
+                    aspectRatio: previewAspectRatio
                 )
                 .frame(height: 140)
             }
@@ -112,6 +112,14 @@ struct TemplateSettingsView: View {
     }
 
     // MARK: - Helpers
+
+    private var previewAspectRatio: Double {
+#if !APPSTORE
+        appSettings.selectedAspectRatio?.ratio ?? (16.0 / 9.0)
+#else
+        16.0 / 9.0
+#endif
+    }
 
     private var paddingBinding: Binding<Double> {
         Binding(

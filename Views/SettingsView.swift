@@ -7,8 +7,10 @@ struct SettingsView: View {
         TabView {
             GeneralSettingsView(appSettings: appSettings)
                 .tabItem { Label("General", systemImage: "gear") }
+#if !APPSTORE
             PresetsSettingsView(appSettings: appSettings)
                 .tabItem { Label("Sizes", systemImage: "ruler") }
+#endif
             TemplateSettingsView(appSettings: appSettings)
                 .tabItem { Label("Background", systemImage: "photo") }
             AboutSettingsView()

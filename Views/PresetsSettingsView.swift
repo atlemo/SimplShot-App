@@ -1,3 +1,4 @@
+#if !APPSTORE
 import SwiftUI
 
 struct PresetsSettingsView: View {
@@ -150,3 +151,4 @@ struct PresetsSettingsView: View {
         }
     }
 }
+#endif

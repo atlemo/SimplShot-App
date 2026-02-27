@@ -1,3 +1,4 @@
+#if !APPSTORE
 import Foundation
 import ApplicationServices
 
@@ -97,3 +98,4 @@ class BatchCaptureService {
         return capturedFiles
     }
 }
+#endif

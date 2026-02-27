@@ -1,8 +1,11 @@
 import AppKit
-import ApplicationServices
 import CoreGraphics
+#if !APPSTORE
+import ApplicationServices
+#endif
 
 enum AccessibilityService {
+#if !APPSTORE
     static var isTrusted: Bool {
         AXIsProcessTrusted()
     }
@@ -18,6 +21,7 @@ enum AccessibilityService {
             NSWorkspace.shared.open(url)
         }
     }
+#endif
 
     /// Checks screen recording permission.
     static var hasScreenRecordingPermission: Bool {

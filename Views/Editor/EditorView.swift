@@ -94,7 +94,11 @@ struct EditorView: View {
 
     private let zoomSteps: [CGFloat] = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0]
     private var editorAspectRatios: [AspectRatio] {
+#if !APPSTORE
         appSettings?.enabledAspectRatios ?? Constants.defaultAspectRatios
+#else
+        Constants.defaultAspectRatios
+#endif
     }
     private var selectedEditorAspectRatio: AspectRatio? {
         guard let id = editorAspectRatioID else { return nil }
@@ -179,7 +183,9 @@ struct EditorView: View {
         }
         .onAppear {
             if let appSettings, let template {
+#if !APPSTORE
                 editorAspectRatioID = preferOriginalAspectRatio ? nil : appSettings.selectedRatioID
+#endif
                 editorPadding = template.padding
                 editorCornerRadius = template.cornerRadius
                 if appSettings.editorUseTemplateBackground {

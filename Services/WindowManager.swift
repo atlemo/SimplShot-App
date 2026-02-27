@@ -1,3 +1,4 @@
+#if !APPSTORE
 import AppKit
 import ApplicationServices
 
@@ -114,13 +115,41 @@ class WindowManager {
 
     // MARK: - CGWindowID
 
-    /// Returns the CGWindowID for an AX window element, retrying briefly if
-    /// the private API returns an error (which can happen right after a resize
-    /// while macOS is settling the window state).
+    /// Returns the CGWindowID for an AX window element by cross-referencing
+    /// the window's PID and on-screen bounds against the public CGWindowList API.
+    /// Retrying is handled by the async `windowIDWithRetry(for:)` wrapper.
     func windowID(for window: AXUIElement) -> CGWindowID? {
-        var windowID: CGWindowID = 0
-        if _AXUIElementGetWindow(window, &windowID) == .success {
-            return windowID
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(window, &pid) == .success,
+              let position = getPosition(of: window),
+              let size = getSize(of: window) else { return nil }
+        return Self.cgWindowID(pid: pid, position: position, size: size)
+    }
+
+    /// Looks up a CGWindowID by matching PID and bounds in the CGWindowList.
+    /// Uses a 2-point tolerance to accommodate float/int rounding between AX
+    /// coordinates and the integer-pixel CGWindowList bounds.
+    private static func cgWindowID(pid: pid_t, position: CGPoint, size: CGSize) -> CGWindowID? {
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[CFString: AnyObject]] else { return nil }
+
+        for entry in list {
+            guard let entryPID = entry[kCGWindowOwnerPID] as? pid_t, entryPID == pid,
+                  let boundsRef = entry[kCGWindowBounds] as CFTypeRef?,
+                  let wid = entry[kCGWindowNumber] as? CGWindowID, wid != 0
+            else { continue }
+
+            var bounds = CGRect.zero
+            guard CGRectMakeWithDictionaryRepresentation(boundsRef as! CFDictionary, &bounds) else { continue }
+
+            if abs(bounds.origin.x - position.x) <= 2 &&
+               abs(bounds.origin.y - position.y) <= 2 &&
+               abs(bounds.size.width - size.width) <= 2 &&
+               abs(bounds.size.height - size.height) <= 2 {
+                return wid
+            }
         }
         return nil
     }
@@ -175,11 +204,14 @@ class WindowManager {
 
         // 3. Must have a valid CGWindowID right now.
         //    Finder's desktop window (and similar pseudo-windows in other apps)
-        //    passes the subrole check but _AXUIElementGetWindow always fails for it.
-        //    This is the most reliable gate: if we can't get an ID before any resize
-        //    happens, we will never be able to capture it.
-        var wid: CGWindowID = 0
-        guard _AXUIElementGetWindow(window, &wid) == .success, wid != 0 else {
+        //    passes the subrole check but never appears in CGWindowList with
+        //    excludeDesktopElements, so this gate naturally rejects them.
+        //    If we can't match a window ID here, ScreenCaptureKit can't capture it.
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(window, &pid) == .success,
+              let position = getPosition(of: window),
+              let size = getSize(of: window),
+              Self.cgWindowID(pid: pid, position: position, size: size) != nil else {
             return false
         }
 
@@ -220,7 +252,5 @@ class WindowManager {
         return AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, value) == .success
     }
 }
+#endif
 
-// Private API declaration — stable since macOS 10.5, used by Rectangle, yabai, Amethyst
-@_silgen_name("_AXUIElementGetWindow")
-func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMutablePointer<CGWindowID>) -> AXError

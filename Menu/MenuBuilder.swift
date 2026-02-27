@@ -1,5 +1,7 @@
 import AppKit
+#if !APPSTORE
 import ApplicationServices
+#endif
 import KeyboardShortcuts
 import UniformTypeIdentifiers
 
@@ -8,42 +10,64 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     let menu = NSMenu()
     let menuState: MenuState
     let appSettings: AppSettings
+    let screenshotService: ScreenshotService
+#if !APPSTORE
     let runningAppsService: RunningAppsService
     let windowManager: WindowManager
-    let screenshotService: ScreenshotService
     let batchCaptureService: BatchCaptureService
+#endif
 
     var onOpenSettings: (() -> Void)?
+#if !APPSTORE
     var onCheckForUpdates: (() -> Void)?
+#endif
 
     /// Set by AppDelegate so the menu can re-show itself after selection changes.
     weak var statusItem: NSStatusItem?
 
+#if !APPSTORE
     /// When true, `menuWillOpen` skips the app-list refresh (used during reopen).
     private var skipNextRefresh = false
+#endif
 
+#if !APPSTORE
     init(
         menuState: MenuState,
         appSettings: AppSettings,
+        screenshotService: ScreenshotService,
         runningAppsService: RunningAppsService,
         windowManager: WindowManager,
-        screenshotService: ScreenshotService,
         batchCaptureService: BatchCaptureService
     ) {
         self.menuState = menuState
         self.appSettings = appSettings
+        self.screenshotService = screenshotService
         self.runningAppsService = runningAppsService
         self.windowManager = windowManager
-        self.screenshotService = screenshotService
         self.batchCaptureService = batchCaptureService
         super.init()
         menu.autoenablesItems = false
         menu.delegate = self
     }
+#else
+    init(
+        menuState: MenuState,
+        appSettings: AppSettings,
+        screenshotService: ScreenshotService
+    ) {
+        self.menuState = menuState
+        self.appSettings = appSettings
+        self.screenshotService = screenshotService
+        super.init()
+        menu.autoenablesItems = false
+        menu.delegate = self
+    }
+#endif
 
     // MARK: - NSMenuDelegate
 
     func menuWillOpen(_ menu: NSMenu) {
+#if !APPSTORE
         if skipNextRefresh {
             skipNextRefresh = false
             return
@@ -64,7 +88,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 $0.bundleIdentifier == lastBundleID
             }
         }
-
+#endif
         rebuildMenu()
     }
 
@@ -73,6 +97,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     func rebuildMenu() {
         menu.removeAllItems()
 
+#if !APPSTORE
         // --- Application picker ---
         let appTitle = menuState.selectedApp?.name ?? "Select Application..."
         let appItem = NSMenuItem(title: appTitle, action: nil, keyEquivalent: "")
@@ -152,7 +177,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        // --- Actions ---
+        // --- Resize & Capture actions ---
         let canCapture = menuState.canResize && appSettings.selectedWidthPreset != nil && appSettings.selectedAspectRatio != nil
 
         let appName = menuState.selectedApp?.name
@@ -173,7 +198,9 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         batchItem.image = NSImage(systemSymbolName: "camera.fill", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(batchItem)
+#endif
 
+        // --- Capture Area (available in all builds) ---
         let freeSizeItem = NSMenuItem(title: "Capture Area", action: #selector(freeSizeCaptureAction), keyEquivalent: "")
         freeSizeItem.target = self
         freeSizeItem.isEnabled = true
@@ -206,14 +233,14 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // --- Settings & Quit ---
-        #if !APPSTORE
-            let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
-            checkForUpdatesItem.target = self
-            checkForUpdatesItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
-            checkForUpdatesItem.isEnabled = onCheckForUpdates != nil
-            menu.addItem(checkForUpdatesItem)
-        #endif
+#if !APPSTORE
+        let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        checkForUpdatesItem.target = self
+        checkForUpdatesItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+        checkForUpdatesItem.isEnabled = onCheckForUpdates != nil
+        menu.addItem(checkForUpdatesItem)
+#endif
 
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
@@ -228,6 +255,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     // MARK: - Actions
 
+#if !APPSTORE
     @objc private func selectApp(_ sender: NSMenuItem) {
         guard let pid = sender.representedObject as? pid_t else { return }
         menuState.selectedApp = menuState.availableApps.first { $0.id == pid }
@@ -338,6 +366,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             }
         }
     }
+#endif
 
     @objc func freeSizeCaptureAction() {
         // Don't hard-block here based on a single preflight read; on some systems
@@ -365,12 +394,23 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             try? FileManager.default.createDirectory(at: saveURL, withIntermediateDirectories: true)
 
             // screencapture doesn't support WebP; capture as PNG then convert.
+#if !APPSTORE
             let captureExt = format == .webp ? "png" : format.fileExtension
             let captureFilename = format == .webp
                 ? "SimplShot_\(timestamp)_tmp.\(captureExt)"
                 : "SimplShot_\(timestamp).\(captureExt)"
-            let captureURL = saveURL.appendingPathComponent(captureFilename)
             let outputURL = saveURL.appendingPathComponent("SimplShot_\(timestamp).\(format.fileExtension)")
+#else
+            let captureFilename = "SimplShot_\(timestamp).\(format.fileExtension)"
+#endif
+#if !APPSTORE
+            let captureURL = saveURL.appendingPathComponent(captureFilename)
+#else
+            // In the App Sandbox, screencapture (a system subprocess) cannot write to the
+            // app's container path. Capture to the shared temp directory instead, then
+            // move the file into the final save location from within the app itself.
+            let captureURL = FileManager.default.temporaryDirectory.appendingPathComponent(captureFilename)
+#endif
 
             // -i = interactive crosshair selection, -t = type, -x = no sound
             let typeFlag: String
@@ -378,7 +418,9 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             case .png:  typeFlag = "png"
             case .jpeg: typeFlag = "jpg"
             case .heic: typeFlag = "heic"
+#if !APPSTORE
             case .webp: typeFlag = "png"
+#endif
             }
 
             let process = Process()
@@ -421,6 +463,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 return
             }
 
+#if !APPSTORE
             // Convert PNG → WebP for area captures when WebP format is selected.
             var finalURL = captureURL
             if format == .webp {
@@ -435,6 +478,13 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                     finalURL = pngURL
                 }
             }
+#else
+            // Move from temp dir to the configured save location.
+            let destURL = saveURL.appendingPathComponent(captureFilename)
+            try? FileManager.default.createDirectory(at: saveURL, withIntermediateDirectories: true)
+            try? FileManager.default.moveItem(at: captureURL, to: destURL)
+            let finalURL = destURL
+#endif
 
             await MainActor.run { [self] in
                 EditorWindowController.openEditor(
@@ -506,6 +556,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         NSWorkspace.shared.open(appSettings.screenshotSaveURL)
     }
 
+#if !APPSTORE
     @objc func batchCaptureAction() {
         guard ensureAccessibilityPermission(for: "batch capture app windows"),
               ensureScreenRecordingPermission(for: "capture screenshots")
@@ -601,19 +652,23 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         }
         return (firstWindow, WindowManager.WindowState(position: .zero, size: targetSize))
     }
+#endif
 
     @objc private func openSettings() {
         onOpenSettings?()
     }
 
+#if !APPSTORE
     @objc private func checkForUpdates() {
         onCheckForUpdates?()
     }
+#endif
 
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
     }
 
+#if !APPSTORE
     // MARK: - Auto-resize
 
     /// Automatically resize when both a width and aspect ratio are selected.
@@ -636,6 +691,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             button.performClick(nil)
         }
     }
+#endif
 
     // MARK: - Helpers
 
@@ -667,6 +723,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         }
     }
 
+#if !APPSTORE
     private func ensureAccessibilityPermission(for feature: String) -> Bool {
         if AccessibilityService.isTrusted { return true }
         AccessibilityService.promptIfNeeded()
@@ -682,6 +739,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         }
         return AccessibilityService.isTrusted
     }
+#endif
 
     private func ensureScreenRecordingPermission(for feature: String) -> Bool {
         if AccessibilityService.hasScreenRecordingPermission { return true }
@@ -723,6 +781,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     // MARK: - Errors
 
+#if !APPSTORE
     private enum CaptureError: LocalizedError {
         case noWindowID(index: Int)
 
@@ -733,4 +792,5 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             }
         }
     }
+#endif
 }

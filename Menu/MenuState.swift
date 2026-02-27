@@ -1,8 +1,11 @@
 import Foundation
+#if !APPSTORE
 import ApplicationServices
+#endif
 
 @Observable
 class MenuState {
+#if !APPSTORE
     var availableApps: [AppTarget] = []
     var selectedApp: AppTarget? {
         didSet {
@@ -22,4 +25,5 @@ class MenuState {
     var lastSelectedBundleID: String? {
         UserDefaults.standard.string(forKey: Constants.UserDefaultsKeys.selectedAppBundleID)
     }
+#endif
 }

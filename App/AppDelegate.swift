@@ -9,10 +9,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     let appSettings = AppSettings()
     private var menuBuilder: MenuBuilder!
-    private let windowManager = WindowManager()
     private let screenshotService = ScreenshotService()
+#if !APPSTORE
+    private let windowManager = WindowManager()
     private let runningAppsService = RunningAppsService()
     private var batchCaptureService: BatchCaptureService!
+#endif
     private let hotkeyService = HotkeyService()
     private let menuState = MenuState()
     private var onboardingWindowController: PermissionOnboardingWindowController?
@@ -24,21 +26,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var openSettingsAction: (() -> Void)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+#if !APPSTORE
         // Set up batch capture service
         batchCaptureService = BatchCaptureService(
             windowManager: windowManager,
             screenshotService: screenshotService
         )
+#endif
 
         // Set up menu builder
+#if !APPSTORE
         menuBuilder = MenuBuilder(
             menuState: menuState,
             appSettings: appSettings,
+            screenshotService: screenshotService,
             runningAppsService: runningAppsService,
             windowManager: windowManager,
-            screenshotService: screenshotService,
             batchCaptureService: batchCaptureService
         )
+#else
+        menuBuilder = MenuBuilder(
+            menuState: menuState,
+            appSettings: appSettings,
+            screenshotService: screenshotService
+        )
+#endif
         menuBuilder.onOpenSettings = { [weak self] in
             NSApp.activate(ignoringOtherApps: true)
             if let action = self?.openSettingsAction {
@@ -65,6 +77,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menuBuilder.statusItem = statusItem
 
         // Register global hotkeys
+#if !APPSTORE
         hotkeyService.register(
             onResizeAndCapture: { [weak self] in
                 self?.menuBuilder.resizeAndCaptureAction()
@@ -76,32 +89,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.menuBuilder.freeSizeCaptureAction()
             }
         )
-
-        #if !APPSTORE
-            setupUpdaterIfPossible()
-            if updaterController != nil {
-                menuBuilder.onCheckForUpdates = { [weak self] in
-                    self?.checkForUpdates()
-                }
+#else
+        hotkeyService.register(
+            onFreeSizeCapture: { [weak self] in
+                self?.menuBuilder.freeSizeCaptureAction()
             }
-        #endif
+        )
+#endif
+
+#if !APPSTORE
+        setupUpdaterIfPossible()
+        if updaterController != nil {
+            menuBuilder.onCheckForUpdates = { [weak self] in
+                self?.checkForUpdates()
+            }
+        }
+#endif
         // Always run the SCK registration query so this app stays visible in
         // System Settings → Screen Recording, even after a rebuild resets the entry.
         ScreenshotService.ensurePermission()
         showPermissionOnboardingIfNeeded()
     }
 
-    #if !APPSTORE
+#if !APPSTORE
     private func checkForUpdates() {
         updaterController?.checkForUpdates(nil)
     }
-    #endif
+#endif
 
     private func showPermissionOnboardingIfNeeded() {
+#if APPSTORE
+        // AppStore build only needs Screen Recording
+        let missingPermissions = !AccessibilityService.hasScreenRecordingPermission
+#else
         let missingPermissions = !AccessibilityService.isTrusted || !AccessibilityService.hasScreenRecordingPermission
+#endif
         #if DEBUG
-        // In debug builds always show the onboarding when a permission is missing,
-        // so the developer doesn't get stuck after a bundle-ID change or TCC reset.
         guard missingPermissions else { return }
         #else
         let hasShown = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.hasShownPermissionOnboarding)
@@ -116,7 +139,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         controller.showWindow(nil)
     }
 
-    #if !APPSTORE
+#if !APPSTORE
     private func setupUpdaterIfPossible() {
         guard updaterController == nil else { return }
 
@@ -136,7 +159,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             userDriverDelegate: nil
         )
     }
-    #endif
+#endif
 }
 
 private final class PermissionOnboardingWindowController: NSWindowController {
@@ -189,7 +212,9 @@ private final class PermissionOnboardingWindowController: NSWindowController {
 private struct PermissionOnboardingView: View {
     var onDone: () -> Void
 
+#if !APPSTORE
     @State private var hasAccessibility = AccessibilityService.isTrusted
+#endif
     @State private var hasScreenRecording = AccessibilityService.hasScreenRecordingPermission
     @State private var screenRecordingRequestedOnce = false
 
@@ -198,9 +223,10 @@ private struct PermissionOnboardingView: View {
             Text("Permissions Setup")
                 .font(.title2.weight(.semibold))
 
-            Text("SimplShot needs a couple of macOS permissions. Granting them now avoids failed captures later.")
+            Text("SimplShot needs a macOS permission to capture screenshots. Granting it now avoids failed captures later.")
                 .foregroundStyle(.secondary)
 
+#if !APPSTORE
             permissionCard(
                 title: "Accessibility",
                 granted: hasAccessibility,
@@ -212,6 +238,7 @@ private struct PermissionOnboardingView: View {
             } secondaryAction: {
                 AccessibilityService.openAccessibilitySettings()
             }
+#endif
 
             screenRecordingCard
 
@@ -220,8 +247,13 @@ private struct PermissionOnboardingView: View {
             HStack {
                 Button("Refresh Status", action: refreshStatus)
                 Spacer()
+#if !APPSTORE
                 Button(hasAccessibility && hasScreenRecording ? "Done" : "Continue Later", action: onDone)
                     .keyboardShortcut(.defaultAction)
+#else
+                Button(hasScreenRecording ? "Done" : "Continue Later", action: onDone)
+                    .keyboardShortcut(.defaultAction)
+#endif
             }
         }
         .padding(20)
@@ -289,6 +321,7 @@ private struct PermissionOnboardingView: View {
         NSApp.terminate(nil)
     }
 
+#if !APPSTORE
     private func permissionCard(
         title: String,
         granted: Bool,
@@ -326,6 +359,7 @@ private struct PermissionOnboardingView: View {
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
     }
+#endif
 
     private func refreshSoon() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
@@ -334,7 +368,9 @@ private struct PermissionOnboardingView: View {
     }
 
     private func refreshStatus() {
+#if !APPSTORE
         hasAccessibility = AccessibilityService.isTrusted
+#endif
         hasScreenRecording = AccessibilityService.hasScreenRecordingPermission
     }
 }

@@ -39,12 +39,41 @@ enum ScreenshotFormat: String, Codable, CaseIterable {
 
 @Observable
 class AppSettings {
+#if !APPSTORE
     var widthPresets: [WidthPreset] {
         didSet { savePresets() }
     }
     var aspectRatios: [AspectRatio] {
         didSet { saveRatios() }
     }
+    var selectedWidthID: UUID? {
+        didSet {
+            if let id = selectedWidthID {
+                UserDefaults.standard.set(id.uuidString, forKey: Constants.UserDefaultsKeys.selectedWidthID)
+            }
+        }
+    }
+    var selectedRatioID: UUID? {
+        didSet {
+            if let id = selectedRatioID {
+                UserDefaults.standard.set(id.uuidString, forKey: Constants.UserDefaultsKeys.selectedRatioID)
+            }
+        }
+    }
+    var selectedWidthPreset: WidthPreset? {
+        widthPresets.first { $0.id == selectedWidthID }
+    }
+    var selectedAspectRatio: AspectRatio? {
+        aspectRatios.first { $0.id == selectedRatioID }
+    }
+    var enabledWidthPresets: [WidthPreset] {
+        widthPresets.filter(\.isEnabled)
+    }
+    var enabledAspectRatios: [AspectRatio] {
+        aspectRatios.filter(\.isEnabled)
+    }
+#endif
+
     var screenshotFormat: ScreenshotFormat {
         didSet { UserDefaults.standard.set(screenshotFormat.rawValue, forKey: Constants.UserDefaultsKeys.screenshotFormat) }
     }
@@ -79,36 +108,6 @@ class AppSettings {
         }
     }
 
-    // Persisted selection IDs so the last choice survives relaunch
-    var selectedWidthID: UUID? {
-        didSet {
-            if let id = selectedWidthID {
-                UserDefaults.standard.set(id.uuidString, forKey: Constants.UserDefaultsKeys.selectedWidthID)
-            }
-        }
-    }
-    var selectedRatioID: UUID? {
-        didSet {
-            if let id = selectedRatioID {
-                UserDefaults.standard.set(id.uuidString, forKey: Constants.UserDefaultsKeys.selectedRatioID)
-            }
-        }
-    }
-
-    var selectedWidthPreset: WidthPreset? {
-        widthPresets.first { $0.id == selectedWidthID }
-    }
-    var selectedAspectRatio: AspectRatio? {
-        aspectRatios.first { $0.id == selectedRatioID }
-    }
-
-    var enabledWidthPresets: [WidthPreset] {
-        widthPresets.filter(\.isEnabled)
-    }
-    var enabledAspectRatios: [AspectRatio] {
-        aspectRatios.filter(\.isEnabled)
-    }
-
     init() {
         // Load login item state from system
         self.startAtLogin = SMAppService.mainApp.status == .enabled
@@ -123,6 +122,7 @@ class AppSettings {
         // Load template background preference (defaults to false)
         self.editorUseTemplateBackground = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.editorUseTemplateBackground)
 
+#if !APPSTORE
         // Load width presets
         if let data = UserDefaults.standard.data(forKey: Constants.UserDefaultsKeys.widthPresets),
            let presets = try? JSONDecoder().decode([WidthPreset].self, from: data) {
@@ -138,6 +138,7 @@ class AppSettings {
         } else {
             self.aspectRatios = Constants.defaultAspectRatios
         }
+#endif
 
         // Load screenshot format
         if let raw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKeys.screenshotFormat),
@@ -162,6 +163,7 @@ class AppSettings {
             self.screenshotTemplate = .default
         }
 
+#if !APPSTORE
         // Load persisted selections
         if let str = UserDefaults.standard.string(forKey: Constants.UserDefaultsKeys.selectedWidthID) {
             self.selectedWidthID = UUID(uuidString: str)
@@ -177,8 +179,10 @@ class AppSettings {
         if selectedRatioID == nil || selectedAspectRatio == nil {
             selectedRatioID = aspectRatios.first?.id
         }
+#endif
     }
 
+#if !APPSTORE
     private func savePresets() {
         if let data = try? JSONEncoder().encode(widthPresets) {
             UserDefaults.standard.set(data, forKey: Constants.UserDefaultsKeys.widthPresets)
@@ -190,6 +194,7 @@ class AppSettings {
             UserDefaults.standard.set(data, forKey: Constants.UserDefaultsKeys.aspectRatios)
         }
     }
+#endif
 
     private func saveTemplate() {
         if let data = try? JSONEncoder().encode(screenshotTemplate) {
