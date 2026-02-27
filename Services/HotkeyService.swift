@@ -6,6 +6,7 @@ extension KeyboardShortcuts.Name {
     static let batchCapture = Self("batchCapture")
 #endif
     static let freeSizeCapture = Self("freeSizeCapture")
+    static let captureTextOCR = Self("captureTextOCR")
 }
 
 class HotkeyService {
@@ -14,6 +15,7 @@ class HotkeyService {
     private var onBatchCapture: (() -> Void)?
 #endif
     private var onFreeSizeCapture: (() -> Void)?
+    private var onCaptureTextOCR: (() -> Void)?
 
     init() {}
 
@@ -21,11 +23,13 @@ class HotkeyService {
     func register(
         onResizeAndCapture: @escaping () -> Void,
         onBatchCapture: @escaping () -> Void,
-        onFreeSizeCapture: @escaping () -> Void
+        onFreeSizeCapture: @escaping () -> Void,
+        onCaptureTextOCR: @escaping () -> Void
     ) {
         self.onResizeAndCapture = onResizeAndCapture
         self.onBatchCapture = onBatchCapture
         self.onFreeSizeCapture = onFreeSizeCapture
+        self.onCaptureTextOCR = onCaptureTextOCR
 
         KeyboardShortcuts.onKeyDown(for: .resizeAndCapture) { [weak self] in
             self?.onResizeAndCapture?()
@@ -36,15 +40,23 @@ class HotkeyService {
         KeyboardShortcuts.onKeyDown(for: .freeSizeCapture) { [weak self] in
             self?.onFreeSizeCapture?()
         }
+        KeyboardShortcuts.onKeyDown(for: .captureTextOCR) { [weak self] in
+            self?.onCaptureTextOCR?()
+        }
     }
 #else
     func register(
-        onFreeSizeCapture: @escaping () -> Void
+        onFreeSizeCapture: @escaping () -> Void,
+        onCaptureTextOCR: @escaping () -> Void
     ) {
         self.onFreeSizeCapture = onFreeSizeCapture
+        self.onCaptureTextOCR = onCaptureTextOCR
 
         KeyboardShortcuts.onKeyDown(for: .freeSizeCapture) { [weak self] in
             self?.onFreeSizeCapture?()
+        }
+        KeyboardShortcuts.onKeyDown(for: .captureTextOCR) { [weak self] in
+            self?.onCaptureTextOCR?()
         }
     }
 #endif

@@ -4,6 +4,7 @@ import ApplicationServices
 #endif
 import KeyboardShortcuts
 import UniformTypeIdentifiers
+@preconcurrency import UserNotifications
 
 @MainActor
 class MenuBuilder: NSObject, NSMenuDelegate {
@@ -209,6 +210,14 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(freeSizeItem)
 
+        let ocrItem = NSMenuItem(title: "Capture Text from Image (OCR)", action: #selector(captureTextOCRAction), keyEquivalent: "")
+        ocrItem.target = self
+        ocrItem.isEnabled = true
+        applyShortcut(.captureTextOCR, to: ocrItem)
+        ocrItem.image = NSImage(systemSymbolName: "text.viewfinder", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+        menu.addItem(ocrItem)
+
         menu.addItem(.separator())
 
         // --- Open existing image ---
@@ -240,6 +249,8 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         checkForUpdatesItem.isEnabled = onCheckForUpdates != nil
         menu.addItem(checkForUpdatesItem)
+
+        menu.addItem(.separator())
 #endif
 
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
@@ -497,6 +508,60 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         }
     }
 
+    @objc func captureTextOCRAction() {
+        ScreenshotService.ensurePermission()
+        menu.cancelTracking()
+
+        Task(priority: .medium) {
+            try? await Task.sleep(for: .milliseconds(200))
+
+            let captureURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("SimplShot_OCR_\(UUID().uuidString).png")
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            process.arguments = ["-i", "-o", "-x", "-t", "png", captureURL.path]
+
+            do {
+                try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                    process.terminationHandler = { _ in cont.resume() }
+                    do { try process.run() } catch { cont.resume(throwing: error) }
+                }
+            } catch {
+                await MainActor.run { self.showAlert("OCR capture failed: \(error.localizedDescription)") }
+                return
+            }
+
+            guard FileManager.default.fileExists(atPath: captureURL.path) else {
+                // User cancelled — no error shown
+                return
+            }
+
+            guard let source = CGImageSourceCreateWithURL(captureURL as CFURL, nil),
+                  let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                try? FileManager.default.removeItem(at: captureURL)
+                await MainActor.run { self.showAlert("Could not load the captured image for OCR.") }
+                return
+            }
+            try? FileManager.default.removeItem(at: captureURL)
+
+            do {
+                let text = try await OCRService.recognizeText(in: cgImage)
+                await MainActor.run {
+                    if text.isEmpty {
+                        self.showAlert("No text was found in the selected area.")
+                    } else {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                        self.showOCRSuccessNotification(characterCount: text.count)
+                    }
+                }
+            } catch {
+                await MainActor.run { self.showAlert("OCR failed: \(error.localizedDescription)") }
+            }
+        }
+    }
+
     @objc func openFromClipboardAction() {
         let pasteboard = NSPasteboard.general
         guard let image = NSImage(pasteboard: pasteboard) else {
@@ -695,6 +760,22 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     // MARK: - Helpers
 
+    private func showOCRSuccessNotification(characterCount: Int) {
+        Task {
+            let center = UNUserNotificationCenter.current()
+            guard (try? await center.requestAuthorization(options: [.alert])) == true else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "Text Copied"
+            content.body = "\(characterCount) character\(characterCount == 1 ? "" : "s") copied to clipboard"
+            let request = UNNotificationRequest(
+                identifier: UUID().uuidString,
+                content: content,
+                trigger: nil
+            )
+            try? await center.add(request)
+        }
+    }
+
     private func showAlert(_ message: String) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
@@ -793,4 +874,31 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         }
     }
 #endif
+}
+
+// MARK: - OCR
+
+import Vision
+
+private struct OCRService {
+    static func recognizeText(in image: CGImage) async throws -> String {
+        try await withCheckedThrowingContinuation { cont in
+            let request = VNRecognizeTextRequest { request, error in
+                if let error { cont.resume(throwing: error); return }
+                let text = (request.results as? [VNRecognizedTextObservation] ?? [])
+                    .compactMap { $0.topCandidates(1).first?.string }
+                    .joined(separator: "\n")
+                cont.resume(returning: text)
+            }
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+
+            let handler = VNImageRequestHandler(cgImage: image, options: [:])
+            do {
+                try handler.perform([request])
+            } catch {
+                cont.resume(throwing: error)
+            }
+        }
+    }
 }

@@ -87,12 +87,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             },
             onFreeSizeCapture: { [weak self] in
                 self?.menuBuilder.freeSizeCaptureAction()
+            },
+            onCaptureTextOCR: { [weak self] in
+                self?.menuBuilder.captureTextOCRAction()
             }
         )
 #else
         hotkeyService.register(
             onFreeSizeCapture: { [weak self] in
                 self?.menuBuilder.freeSizeCaptureAction()
+            },
+            onCaptureTextOCR: { [weak self] in
+                self?.menuBuilder.captureTextOCRAction()
             }
         )
 #endif
