@@ -9,6 +9,7 @@ struct EditorBottomToolbarView: View {
     @Binding var padding: Int
     @Binding var cornerRadius: Int
     var useTemplateBackground: Bool
+    var hideSliders: Bool = false
 
     var onTrash: () -> Void
     var onCopy: () -> Void
@@ -17,8 +18,8 @@ struct EditorBottomToolbarView: View {
     var body: some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
-                // Sliders pill (left) — only when template background is active
-                if useTemplateBackground {
+                // Sliders pill (left) — only when template background is active and not in pro sidebar mode
+                if useTemplateBackground && !hideSliders {
                     sliders
                         .glassEffect(in: Capsule())
                 }

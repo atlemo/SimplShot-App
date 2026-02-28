@@ -24,7 +24,9 @@ class TemplateRenderer {
         _ template: ScreenshotTemplate,
         to screenshot: CGImage,
         backingScale: CGFloat = 2.0,
-        targetAspectRatio: Double? = nil
+        targetAspectRatio: Double? = nil,
+        shadowIntensity: Double = 1.0,
+        alignment: CanvasAlignment = .middleCenter
     ) throws -> CGImage {
         let screenshotWidth = screenshot.width
         let screenshotHeight = screenshot.height
@@ -64,16 +66,32 @@ class TemplateRenderer {
             try drawCustomImage(path: path, in: context, rect: canvasRect)
         }
 
-        // 2. Screenshot placement rect
+        // 2. Screenshot placement rect — position within canvas using alignment.
+        //    The full remaining space is distributed by the alignment fraction:
+        //    at an edge the screenshot sits flush (zero margin on that side);
+        //    at center it gets equal margins; fraction handles the continuum.
+        let totalSpaceX = CGFloat(canvasWidth) - CGFloat(screenshotWidth)
+        let totalSpaceY = CGFloat(canvasHeight) - CGFloat(screenshotHeight)
         let screenshotRect = CGRect(
-            x: (CGFloat(canvasWidth) - CGFloat(screenshotWidth)) / 2,
-            y: (CGFloat(canvasHeight) - CGFloat(screenshotHeight)) / 2,
+            x: totalSpaceX * alignment.horizontalFraction,
+            y: totalSpaceY * (1 - alignment.verticalFraction), // CG y=0 is bottom
             width: CGFloat(screenshotWidth),
             height: CGFloat(screenshotHeight)
         )
 
         // Corner radius scaled to match the screenshot's pixel density
         let cornerRadius = CGFloat(template.cornerRadius) * backingScale
+
+        // Corners that sit flush against a canvas edge get zero radius.
+        let isFlushLeft   = alignment.horizontalFraction == 0
+        let isFlushRight  = alignment.horizontalFraction == 1
+        let isFlushTop    = alignment.verticalFraction == 0
+        let isFlushBottom = alignment.verticalFraction == 1
+        let rTL = (isFlushLeft || isFlushTop)    ? 0 : cornerRadius
+        let rTR = (isFlushRight || isFlushTop)   ? 0 : cornerRadius
+        let rBL = (isFlushLeft || isFlushBottom)  ? 0 : cornerRadius
+        let rBR = (isFlushRight || isFlushBottom) ? 0 : cornerRadius
+        let anyRounded = rTL > 0 || rTR > 0 || rBL > 0 || rBR > 0
 
         // 3. Drop shadow behind the screenshot.
         //    When corner radius is applied, the shadow follows the rounded rect.
@@ -82,11 +100,11 @@ class TemplateRenderer {
         context.setShadow(
             offset: CGSize(width: 0, height: -5),
             blur: 25,
-            color: CGColor(gray: 0, alpha: 0.2)
+            color: CGColor(gray: 0, alpha: 0.2 * shadowIntensity)
         )
-        if cornerRadius > 0 {
+        if anyRounded {
             // Fill a squircle to generate the shadow shape
-            let roundedPath = squirclePath(in: screenshotRect, cornerRadius: cornerRadius)
+            let roundedPath = squirclePath(in: screenshotRect, topLeft: rTL, topRight: rTR, bottomLeft: rBL, bottomRight: rBR)
             context.addPath(roundedPath)
             context.setFillColor(CGColor(gray: 0, alpha: 1))
             context.fillPath()
@@ -98,7 +116,7 @@ class TemplateRenderer {
         context.restoreGState()
 
         // 4. Draw the screenshot clipped to a rounded rect (if needed).
-        if cornerRadius > 0 {
+        if anyRounded {
             // Pre-process: eliminate native macOS rounded-corner transparency
             // by sampling edge colors and filling the corner regions before
             // compositing. This makes the image fully opaque so the squircle
@@ -106,7 +124,7 @@ class TemplateRenderer {
             let opaqueScreenshot = flattenNativeCorners(screenshot, backingScale: backingScale)
 
             context.saveGState()
-            let clipPath = squirclePath(in: screenshotRect, cornerRadius: cornerRadius)
+            let clipPath = squirclePath(in: screenshotRect, topLeft: rTL, topRight: rTR, bottomLeft: rBL, bottomRight: rBR)
             context.addPath(clipPath)
             context.clip()
             context.draw(opaqueScreenshot, in: screenshotRect)
@@ -144,68 +162,82 @@ class TemplateRenderer {
 
     // MARK: - Private
 
-    /// Builds a squircle (continuous-corner / superellipse) path for the given rect.
+    /// Builds a squircle (continuous-corner / superellipse) path with per-corner radii.
     ///
-    /// Uses Apple's smooth-corner Bézier approximation: the curve starts at
-    /// ~60 % of the radius away from the corner midpoint, and the control-point
-    /// handle extends ~55 % further.  This matches the shape used in iOS app icons
-    /// and macOS rounded-rect variants.
-    private func squirclePath(in rect: CGRect, cornerRadius r: CGFloat) -> CGPath {
-        // Clamp the radius so it never exceeds half the shortest side.
-        let r = min(r, min(rect.width, rect.height) / 2)
+    /// Uses Apple's smooth-corner Bézier approximation. Corner names are in screen space
+    /// (y=0 at top); CG coordinates are handled internally.
+    /// Pass 0 for a corner to make it a sharp right angle (flush edge).
+    private func squirclePath(
+        in rect: CGRect,
+        topLeft rTL: CGFloat,
+        topRight rTR: CGFloat,
+        bottomLeft rBL: CGFloat,
+        bottomRight rBR: CGFloat
+    ) -> CGPath {
+        let maxR = min(rect.width, rect.height) / 2
+        let rTL = min(rTL, maxR), rTR = min(rTR, maxR)
+        let rBL = min(rBL, maxR), rBR = min(rBR, maxR)
 
-        // Magic ratios derived from Apple's continuous-corner specification.
-        // `c` is how far along the straight edge the curve begins;
-        let c: CGFloat = 0.4477  // ≈ 1 - (√2 / 2)  — where the arc departs from the straight side
+        let c: CGFloat = 0.4477  // continuous-corner Bézier handle ratio
 
         let minX = rect.minX, minY = rect.minY
         let maxX = rect.maxX, maxY = rect.maxY
 
         let path = CGMutablePath()
 
-        // Top edge — start just right of the top-left corner arc
-        path.move(to: CGPoint(x: minX + r, y: minY))
+        // The path traverses clockwise starting from the bottom edge (minY in CG = screen bottom).
+        // CG y=0 is at screen bottom, so maxY = screen top.
 
-        // Top-right corner
-        path.addLine(to: CGPoint(x: maxX - r, y: minY))
-        path.addCurve(
-            to: CGPoint(x: maxX, y: minY + r),
-            control1: CGPoint(x: maxX - r * c, y: minY),
-            control2: CGPoint(x: maxX, y: minY + r * c)
-        )
+        // Start: bottom edge near bottom-left
+        path.move(to: CGPoint(x: minX + rBL, y: minY))
 
-        // Right edge
-        path.addLine(to: CGPoint(x: maxX, y: maxY - r))
+        // Bottom edge → bottom-right corner (screen)
+        path.addLine(to: CGPoint(x: maxX - rBR, y: minY))
+        if rBR > 0 {
+            path.addCurve(
+                to: CGPoint(x: maxX, y: minY + rBR),
+                control1: CGPoint(x: maxX - rBR * c, y: minY),
+                control2: CGPoint(x: maxX, y: minY + rBR * c)
+            )
+        }
 
-        // Bottom-right corner
-        path.addCurve(
-            to: CGPoint(x: maxX - r, y: maxY),
-            control1: CGPoint(x: maxX, y: maxY - r * c),
-            control2: CGPoint(x: maxX - r * c, y: maxY)
-        )
+        // Right edge → top-right corner (screen)
+        path.addLine(to: CGPoint(x: maxX, y: maxY - rTR))
+        if rTR > 0 {
+            path.addCurve(
+                to: CGPoint(x: maxX - rTR, y: maxY),
+                control1: CGPoint(x: maxX, y: maxY - rTR * c),
+                control2: CGPoint(x: maxX - rTR * c, y: maxY)
+            )
+        }
 
-        // Bottom edge
-        path.addLine(to: CGPoint(x: minX + r, y: maxY))
+        // Top edge → top-left corner (screen)
+        path.addLine(to: CGPoint(x: minX + rTL, y: maxY))
+        if rTL > 0 {
+            path.addCurve(
+                to: CGPoint(x: minX, y: maxY - rTL),
+                control1: CGPoint(x: minX + rTL * c, y: maxY),
+                control2: CGPoint(x: minX, y: maxY - rTL * c)
+            )
+        }
 
-        // Bottom-left corner
-        path.addCurve(
-            to: CGPoint(x: minX, y: maxY - r),
-            control1: CGPoint(x: minX + r * c, y: maxY),
-            control2: CGPoint(x: minX, y: maxY - r * c)
-        )
-
-        // Left edge
-        path.addLine(to: CGPoint(x: minX, y: minY + r))
-
-        // Top-left corner
-        path.addCurve(
-            to: CGPoint(x: minX + r, y: minY),
-            control1: CGPoint(x: minX, y: minY + r * c),
-            control2: CGPoint(x: minX + r * c, y: minY)
-        )
+        // Left edge → bottom-left corner (screen)
+        path.addLine(to: CGPoint(x: minX, y: minY + rBL))
+        if rBL > 0 {
+            path.addCurve(
+                to: CGPoint(x: minX + rBL, y: minY),
+                control1: CGPoint(x: minX, y: minY + rBL * c),
+                control2: CGPoint(x: minX + rBL * c, y: minY)
+            )
+        }
 
         path.closeSubpath()
         return path
+    }
+
+    /// Convenience: uniform radius on all four corners.
+    private func squirclePath(in rect: CGRect, cornerRadius r: CGFloat) -> CGPath {
+        squirclePath(in: rect, topLeft: r, topRight: r, bottomLeft: r, bottomRight: r)
     }
 
     /// Makes the screenshot fully opaque by sampling edge colors near each corner

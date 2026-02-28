@@ -92,6 +92,10 @@ class AppSettings {
         didSet { UserDefaults.standard.set(editorUseTemplateBackground, forKey: Constants.UserDefaultsKeys.editorUseTemplateBackground) }
     }
 
+    var editorShowProSidebar: Bool {
+        didSet { UserDefaults.standard.set(editorShowProSidebar, forKey: Constants.UserDefaultsKeys.editorShowProSidebar) }
+    }
+
     var startAtLogin: Bool {
         didSet {
             do {
@@ -121,6 +125,9 @@ class AppSettings {
 
         // Load template background preference (defaults to false)
         self.editorUseTemplateBackground = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.editorUseTemplateBackground)
+
+        // Load pro sidebar preference (defaults to false)
+        self.editorShowProSidebar = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.editorShowProSidebar)
 
 #if !APPSTORE
         // Load width presets

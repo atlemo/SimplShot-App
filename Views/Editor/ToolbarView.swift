@@ -4,19 +4,17 @@ import SwiftUI
 struct EditorToolbarView: View {
     private let toolPillHeight: CGFloat = 36
 
+    var showProSidebar: Bool
     @Binding var currentTool: AnnotationTool
     @Binding var currentStyle: AnnotationStyle
     @Binding var isCropping: Bool
     @Binding var selectedAnnotationID: UUID?
     @Binding var annotations: [Annotation]
 
-    var canUndo: Bool
     var hasTemplate: Bool
     @Binding var selectedGradient: BuiltInGradient?
     var onApplyCrop: () -> Void
     var onCancelCrop: () -> Void
-    var onUndo: () -> Void
-    var onDone: () -> Void
 
     /// The drawing tools available in the toolbar (excludes .select and .crop which are handled separately).
     private let drawingTools: [AnnotationTool] = [.freeDraw, .arrow, .rectangle, .circle, .line, .text, .measurement, .pixelate]
@@ -39,25 +37,25 @@ struct EditorToolbarView: View {
     }
 
     var body: some View {
-        GlassEffectContainer(spacing: 8) {
-            HStack(spacing: 8) {
-                // Tool picker pill
+        if !showProSidebar {
+            // Tool controls shown only in simple mode (pro mode uses sidebar).
+            // No outer GlassEffectContainer — the NSToolbar is the outer glass layer.
+            // Each pill renders its own glass via .glassEffect(in: Capsule()).
+            HStack(spacing: 6) {
+                // Tool picker
                 toolPicker
-                    .glassEffect(in: Capsule())
 
-                // Crop controls pill (replaces tool picker when cropping)
+                // Crop controls (shown while cropping)
                 if isCropping {
                     cropControls
-                        .glassEffect(in: Capsule())
                 }
 
-                // Style controls pill
+                // Style controls
                 if showStyleControls {
                     styleControls
-                        .glassEffect(in: Capsule())
                 }
 
-                // Background label + gradient picker (entire pill is the click target)
+                // Background label + gradient picker
                 if hasTemplate {
                     Button { gradientPopoverVisible.toggle() } label: {
                         HStack(spacing: 0) {
@@ -73,25 +71,12 @@ struct EditorToolbarView: View {
                     }
                     .buttonStyle(.plain)
                     .focusable(false)
-                    .glassEffect(in: Capsule())
                     .popover(isPresented: $gradientPopoverVisible, arrowEdge: .bottom) {
                         gradientPopoverContent
                     }
                 }
-
-                Spacer()
-
-                // Undo button pill
-                undoButton
-                    .glassEffect(in: Capsule())
-
-                // Done button
-                doneButton
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
         }
-        .background(.clear)
     }
 
     // MARK: - Tool Picker
@@ -490,37 +475,6 @@ struct EditorToolbarView: View {
         }
         .frame(height: toolPillHeight)
         .padding(.horizontal, 8)
-    }
-
-    // MARK: - Undo / Done Buttons
-
-    private var doneButton: some View {
-        Button(action: onDone) {
-            Text("Done")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white)
-                .frame(height: 34)
-                .padding(.horizontal, 14)
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .keyboardShortcut("s", modifiers: .command)
-        .focusable(false)
-        .background(Color.accentColor, in: Capsule())
-    }
-
-    private var undoButton: some View {
-        Button(action: onUndo) {
-            Image(systemName: "arrow.uturn.backward")
-                .frame(width: 28, height: 34)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help("Undo")
-        .keyboardShortcut("z", modifiers: .command)
-        .disabled(!canUndo)
-        .focusable(false)
-        .padding(.horizontal, 4)
     }
 
     // MARK: - Helpers

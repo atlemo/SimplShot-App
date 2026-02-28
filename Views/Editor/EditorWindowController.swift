@@ -48,13 +48,32 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
 
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            // fullSizeContentView lets SwiftUI fill the entire window including
+            // behind the title bar — backgrounds extend edge-to-edge while
+            // content respects the safe area automatically.
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "Edit & Annotate — \(imageURL.lastPathComponent)"
         window.minSize = NSSize(width: 600, height: 500)
         window.isReleasedWhenClosed = false
+
+        // Tahoe-style window chrome: transparent title bar with hidden title text.
+        // Content flows behind the title bar; window controls float over the top-left.
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+
+        // An NSToolbar triggers the larger corner radius macOS Tahoe uses for
+        // windows with toolbars (our actual toolbar is the SwiftUI glass pills).
+        let toolbar = NSToolbar(identifier: "EditorToolbar")
+        // showsBaselineSeparator removed in macOS 15+
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+
+        // Allow the sidebar to blend with whatever is behind the window.
+        window.isOpaque = false
+        window.backgroundColor = .clear
 
         // Clear any stale autosaved frame from earlier versions, then
         // don't autosave — each editor session uses the user's persisted size.

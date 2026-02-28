@@ -1,6 +1,33 @@
 import Foundation
 import CoreGraphics
 
+// MARK: - Canvas Alignment
+
+/// The position of the screenshot within the gradient canvas.
+/// Used when an aspect ratio is applied and the canvas is larger than the screenshot.
+/// Cases are intentionally distinct from SwiftUI.Alignment names to avoid inference conflicts.
+enum CanvasAlignment: String, CaseIterable {
+    case topLeft, topCenter, topRight
+    case middleLeft, middleCenter, middleRight
+    case bottomLeft, bottomCenter, bottomRight
+
+    var horizontalFraction: CGFloat {
+        switch self {
+        case .topLeft, .middleLeft, .bottomLeft:       return 0
+        case .topCenter, .middleCenter, .bottomCenter: return 0.5
+        case .topRight, .middleRight, .bottomRight:    return 1
+        }
+    }
+
+    var verticalFraction: CGFloat {
+        switch self {
+        case .topLeft, .topCenter, .topRight:          return 0
+        case .middleLeft, .middleCenter, .middleRight: return 0.5
+        case .bottomLeft, .bottomCenter, .bottomRight: return 1
+        }
+    }
+}
+
 struct CodableColor: Codable, Equatable {
     let red: CGFloat
     let green: CGFloat

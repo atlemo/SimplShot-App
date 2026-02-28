@@ -28,7 +28,7 @@ struct EditorCanvasView: View {
     let imagePixelSize: CGSize  // actual CGImage pixel dimensions
     let scale: CGFloat          // view-points per image-pixel (from parent)
     let displayBackingScale: CGFloat  // monitor backing scale for true 1x measurements
-    var showShadow: Bool = false // show a drop shadow around the image
+    var shadowIntensity: Double = 0 // drop shadow opacity (0 = none, 1 = full)
 
     @Binding var annotations: [Annotation]
     @Binding var selectedAnnotationID: UUID?
@@ -71,7 +71,7 @@ struct EditorCanvasView: View {
                 .resizable()
                 .interpolation(.high)
                 .frame(width: canvasWidth, height: canvasHeight)
-                .shadow(color: showShadow ? .black.opacity(0.25) : .clear, radius: 8, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.25 * shadowIntensity), radius: 8, x: 0, y: 2)
                 .contentShape(Rectangle())
                 .gesture(canvasGesture)
                 .onTapGesture(count: 2) { location in

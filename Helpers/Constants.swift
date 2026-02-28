@@ -40,6 +40,7 @@ enum Constants {
         static let openEditorAfterCapture = "openEditorAfterCapture"
         static let editorWindowSize = "editorWindowSize"
         static let editorUseTemplateBackground = "editorUseTemplateBackground"
+        static let editorShowProSidebar = "editorShowProSidebar"
         static let hasShownPermissionOnboarding = "hasShownPermissionOnboarding"
     }
 }

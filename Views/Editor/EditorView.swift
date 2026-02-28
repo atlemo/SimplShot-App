@@ -56,6 +56,22 @@ struct EditorView: View {
     @State private var fitScale: CGFloat = 0.5   // computed base scale to fit image
     @State private var lastViewSize: CGSize = .zero  // cached for re-fitting after image swap
 
+    // Sidebar / pro mode
+    // NavigationSplitView drives sidebar visibility; showProSidebar is a derived bool.
+    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    @State private var shadowIntensity: Double = 1.0
+    @State private var screenshotAlignment: CanvasAlignment = .middleCenter
+
+    private var showProSidebar: Bool { columnVisibility != .detailOnly }
+    /// Binding<Bool> adapter so child views (toolbar, sidebar) don't need to know
+    /// about NavigationSplitViewVisibility directly.
+    private var showProSidebarBinding: Binding<Bool> {
+        Binding(
+            get: { columnVisibility != .detailOnly },
+            set: { columnVisibility = $0 ? .all : .detailOnly }
+        )
+    }
+
     // Undo
     @State private var undoStack: [EditorSnapshot] = []
 
@@ -84,7 +100,8 @@ struct EditorView: View {
             let offset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: screenshotCropRect.size,
                 padding: editorPadding,
-                aspectRatio: selectedEditorAspectRatio?.ratio
+                aspectRatio: selectedEditorAspectRatio?.ratio,
+                alignment: screenshotAlignment
             )
             return CGRect(x: offset.x, y: offset.y,
                           width: screenshotCropRect.width, height: screenshotCropRect.height)
@@ -106,80 +123,131 @@ struct EditorView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            VStack(spacing: 0) {
-                // Canvas area — GeometryReader always fills available space
-                // so the window frame is respected even before the image loads.
-                GeometryReader { geo in
-                    Group {
-                        if let image {
-                            ScrollView([.horizontal, .vertical], showsIndicators: zoomLevel > 1.0) {
-                                EditorCanvasView(
-                                    image: image,
-                                    imagePixelSize: imagePixelSize,
-                                    scale: effectiveScale,
-                                    displayBackingScale: displayBackingScale,
-                                    showShadow: selectedGradient == nil,
-                                    annotations: $annotations,
-                                    selectedAnnotationID: $selectedAnnotationID,
-                                    currentTool: $currentTool,
-                                    currentStyle: $currentStyle,
-                                    cropRect: $cropRect,
-                                    isCropping: $isCropping,
-                                    cropBoundsRect: screenshotBoundsInDisplay,
-                                    onCommit: pushUndo
-                                )
-                                .padding(.top, 60)  // clear space for floating toolbar
-                                .padding(20)
-                            }
-                            .background(Color(nsColor: .controlBackgroundColor))
-                        } else {
-                            ContentUnavailableView("Unable to load image", systemImage: "photo.badge.exclamationmark")
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                    }
-                    .onAppear {
-                        lastViewSize = geo.size
-                        updateFitScale(viewSize: geo.size)
-                    }
-                    .onChange(of: geo.size) { _, newSize in
-                        lastViewSize = newSize
-                        updateFitScale(viewSize: newSize)
-                    }
-                }
-
-                // Bottom toolbar with sliders and action buttons
-                EditorBottomToolbarView(
-                    aspectRatios: editorAspectRatios,
-                    selectedAspectRatioID: $editorAspectRatioID,
-                    padding: $editorPadding,
-                    cornerRadius: $editorCornerRadius,
-                    useTemplateBackground: selectedGradient != nil,
-                    onTrash: { showTrashAlert = true },
-                    onCopy: copyToClipboard,
-                    onSaveAs: saveAs
-                )
-                .background(.clear)
-
-                // Status bar with zoom controls
-                statusBar
-            }
-
-            // Floating glass toolbar overlaid at the top
-            EditorToolbarView(
+        // NavigationSplitView gives the sidebar Liquid Glass floating treatment
+        // automatically — the sidebar overlays the detail content rather than
+        // sitting beside it, matching macOS Tahoe's design language.
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            EditorSidebarView(
+                showProSidebar: showProSidebarBinding,
                 currentTool: $currentTool,
                 currentStyle: $currentStyle,
-                isCropping: $isCropping,
                 selectedAnnotationID: $selectedAnnotationID,
                 annotations: $annotations,
-                canUndo: !undoStack.isEmpty,
-                hasTemplate: template != nil,
+                isCropping: $isCropping,
                 selectedGradient: $selectedGradient,
+                padding: $editorPadding,
+                cornerRadius: $editorCornerRadius,
+                shadowIntensity: $shadowIntensity,
+                screenshotAlignment: $screenshotAlignment,
+                aspectRatios: editorAspectRatios,
+                selectedAspectRatioID: $editorAspectRatioID,
+                hasTemplate: template != nil,
+                canUndo: !undoStack.isEmpty,
                 onApplyCrop: applyCrop,
                 onCancelCrop: cancelCrop,
                 onUndo: undo,
                 onDone: saveOverwrite
             )
+            .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 320)
+        } detail: {
+            // Main editor area (canvas + toolbars).
+            VStack(spacing: 0) {
+                    // Canvas area — GeometryReader always fills available space
+                    // so the window frame is respected even before the image loads.
+                    GeometryReader { geo in
+                        Group {
+                            if let image {
+                                ScrollView([.horizontal, .vertical], showsIndicators: zoomLevel > 1.0) {
+                                    EditorCanvasView(
+                                        image: image,
+                                        imagePixelSize: imagePixelSize,
+                                        scale: effectiveScale,
+                                        displayBackingScale: displayBackingScale,
+                                        shadowIntensity: selectedGradient == nil ? shadowIntensity : 0,
+                                        annotations: $annotations,
+                                        selectedAnnotationID: $selectedAnnotationID,
+                                        currentTool: $currentTool,
+                                        currentStyle: $currentStyle,
+                                        cropRect: $cropRect,
+                                        isCropping: $isCropping,
+                                        cropBoundsRect: screenshotBoundsInDisplay,
+                                        onCommit: pushUndo
+                                    )
+                                    .padding(20)
+                                }
+                            } else {
+                                ContentUnavailableView("Unable to load image", systemImage: "photo.badge.exclamationmark")
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                        }
+                        .onAppear {
+                            lastViewSize = geo.size
+                            updateFitScale(viewSize: geo.size)
+                        }
+                        .onChange(of: geo.size) { _, newSize in
+                            lastViewSize = newSize
+                            updateFitScale(viewSize: newSize)
+                        }
+                    }
+
+                    // Bottom toolbar with sliders and action buttons
+                    EditorBottomToolbarView(
+                        aspectRatios: editorAspectRatios,
+                        selectedAspectRatioID: $editorAspectRatioID,
+                        padding: $editorPadding,
+                        cornerRadius: $editorCornerRadius,
+                        useTemplateBackground: selectedGradient != nil,
+                        hideSliders: showProSidebar,
+                        onTrash: { showTrashAlert = true },
+                        onCopy: copyToClipboard,
+                        onSaveAs: saveAs
+                    )
+                    .background(.clear)
+
+                    // Status bar with zoom controls
+                    statusBar
+                }
+            .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    EditorToolbarView(
+                        showProSidebar: showProSidebar,
+                        currentTool: $currentTool,
+                        currentStyle: $currentStyle,
+                        isCropping: $isCropping,
+                        selectedAnnotationID: $selectedAnnotationID,
+                        annotations: $annotations,
+                        hasTemplate: template != nil,
+                        selectedGradient: $selectedGradient,
+                        onApplyCrop: applyCrop,
+                        onCancelCrop: cancelCrop
+                    )
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    HStack(spacing: 8) {
+                        Button(action: undo) {
+                            Image(systemName: "arrow.uturn.backward")
+                                .frame(width: 28, height: 28)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Undo")
+                        .keyboardShortcut("z", modifiers: .command)
+                        .disabled(undoStack.isEmpty)
+
+                        Button(action: saveOverwrite) {
+                            Text("Done")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.plain)
+                        .keyboardShortcut("s", modifiers: .command)
+                        .background(Color.accentColor, in: Capsule())
+                    }
+                }
+            }
         }
         .onAppear {
             if let appSettings, let template {
@@ -195,6 +263,7 @@ struct EditorView: View {
                         selectedGradient = .oceanDreams
                     }
                 }
+                columnVisibility = appSettings.editorShowProSidebar ? .all : .detailOnly
             }
             loadImage()
             installDeleteKeyMonitorIfNeeded()
@@ -215,8 +284,8 @@ struct EditorView: View {
             if let rawImage {
                 if wasEnabled != isEnabled {
                     let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
-                    let oldOrigin = wasEnabled ? screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio) : .zero
-                    let newOrigin = isEnabled ? screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio) : .zero
+                    let oldOrigin = wasEnabled ? screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment) : .zero
+                    let newOrigin = isEnabled ? screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment) : .zero
                     shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 }
                 applyDisplayImage(from: rawImage)
@@ -226,8 +295,8 @@ struct EditorView: View {
             appSettings?.screenshotTemplate.padding = newValue
             if selectedGradient != nil, let rawImage {
                 let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
-                let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: oldValue, aspectRatio: selectedEditorAspectRatio?.ratio)
-                let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: newValue, aspectRatio: selectedEditorAspectRatio?.ratio)
+                let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: oldValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
+                let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: newValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
                 shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 applyDisplayImage(from: rawImage)
             }
@@ -247,6 +316,23 @@ struct EditorView: View {
         }
         .onChange(of: editorCornerRadius) { _, newValue in
             appSettings?.screenshotTemplate.cornerRadius = newValue
+            if selectedGradient != nil, let rawImage {
+                applyDisplayImage(from: rawImage)
+            }
+        }
+        .onChange(of: screenshotAlignment) { oldAlignment, newAlignment in
+            if selectedGradient != nil, let rawImage {
+                let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
+                let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: oldAlignment)
+                let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: newAlignment)
+                shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                applyDisplayImage(from: rawImage)
+            }
+        }
+        .onChange(of: columnVisibility) { _, newValue in
+            appSettings?.editorShowProSidebar = (newValue != .detailOnly)
+        }
+        .onChange(of: shadowIntensity) { _, _ in
             if selectedGradient != nil, let rawImage {
                 applyDisplayImage(from: rawImage)
             }
@@ -340,10 +426,10 @@ struct EditorView: View {
     private func updateFitScale(viewSize: CGSize) {
         guard imagePixelSize.width > 0, imagePixelSize.height > 0 else { return }
         // Content in the scroll view adds:
-        // - top clear space for floating toolbar
-        // - outer canvas padding
+        // - 56pt top clearance for the floating toolbar overlay
+        // - 20pt padding on the other three sides
         let horizontalChrome: CGFloat = 40  // 20pt left + 20pt right
-        let verticalChrome: CGFloat = 100   // 60pt top clearance + 20pt top + 20pt bottom
+        let verticalChrome: CGFloat = 40    // 20pt top + 20pt bottom
         let fitFudge: CGFloat = 2           // avoid off-by-1 scrollbar due rounding
 
         let availableWidth = max(viewSize.width - horizontalChrome - fitFudge, 100)
@@ -421,7 +507,9 @@ struct EditorView: View {
                 editorTemplate,
                 to: croppedCG,
                 backingScale: displayBackingScale,
-                targetAspectRatio: selectedEditorAspectRatio?.ratio
+                targetAspectRatio: selectedEditorAspectRatio?.ratio,
+                shadowIntensity: shadowIntensity,
+                alignment: screenshotAlignment
             ) {
                 displayCG = templated
             }
@@ -446,7 +534,8 @@ struct EditorView: View {
             gradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: screenshotCropRect.size,
                 padding: editorPadding,
-                aspectRatio: selectedEditorAspectRatio?.ratio
+                aspectRatio: selectedEditorAspectRatio?.ratio,
+                alignment: screenshotAlignment
             )
         } else {
             gradientOffset = .zero
@@ -501,7 +590,8 @@ struct EditorView: View {
             newGradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: newScreenshotCropRect.size,
                 padding: editorPadding,
-                aspectRatio: selectedEditorAspectRatio?.ratio
+                aspectRatio: selectedEditorAspectRatio?.ratio,
+                alignment: screenshotAlignment
             )
         } else {
             newGradientOffset = .zero
@@ -546,7 +636,8 @@ struct EditorView: View {
             oldGradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: screenshotCropRect.size,
                 padding: editorPadding,
-                aspectRatio: selectedEditorAspectRatio?.ratio
+                aspectRatio: selectedEditorAspectRatio?.ratio,
+                alignment: screenshotAlignment
             )
         } else {
             oldGradientOffset = .zero
@@ -562,7 +653,8 @@ struct EditorView: View {
             newGradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: fullBounds.size,
                 padding: editorPadding,
-                aspectRatio: selectedEditorAspectRatio?.ratio
+                aspectRatio: selectedEditorAspectRatio?.ratio,
+                alignment: screenshotAlignment
             )
         } else {
             newGradientOffset = .zero
@@ -593,7 +685,8 @@ struct EditorView: View {
             fullGradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: screenshotCropRect.size,
                 padding: editorPadding,
-                aspectRatio: selectedEditorAspectRatio?.ratio
+                aspectRatio: selectedEditorAspectRatio?.ratio,
+                alignment: screenshotAlignment
             )
         } else {
             fullGradientOffset = .zero
@@ -611,7 +704,8 @@ struct EditorView: View {
             restoredGradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: screenshotCropRect.size,
                 padding: editorPadding,
-                aspectRatio: selectedEditorAspectRatio?.ratio
+                aspectRatio: selectedEditorAspectRatio?.ratio,
+                alignment: screenshotAlignment
             )
         } else {
             restoredGradientOffset = .zero
@@ -655,7 +749,12 @@ struct EditorView: View {
 
     /// Returns the screenshot's top-left origin inside the templated canvas (image-pixel space).
     /// `screenshotPixelSize` must be the actual CGImage pixel dimensions of the (possibly cropped) screenshot.
-    private func screenshotOriginInTemplatedCanvas(screenshotPixelSize: CGSize, padding: Int, aspectRatio: Double?) -> CGPoint {
+    private func screenshotOriginInTemplatedCanvas(
+        screenshotPixelSize: CGSize,
+        padding: Int,
+        aspectRatio: Double?,
+        alignment: CanvasAlignment = .middleCenter
+    ) -> CGPoint {
         let screenshotW = screenshotPixelSize.width
         let screenshotH = screenshotPixelSize.height
         let paddingPixels = CGFloat(padding) * displayBackingScale
@@ -675,9 +774,11 @@ struct EditorView: View {
             }
         }
 
+        let totalSpaceX = canvasW - screenshotW
+        let totalSpaceY = canvasH - screenshotH
         return CGPoint(
-            x: (canvasW - screenshotW) / 2,
-            y: (canvasH - screenshotH) / 2
+            x: totalSpaceX * alignment.horizontalFraction,
+            y: totalSpaceY * alignment.verticalFraction
         )
     }
 
