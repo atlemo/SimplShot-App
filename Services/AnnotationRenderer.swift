@@ -138,11 +138,14 @@ class AnnotationRenderer {
         case .line:
             drawLine(from: annotation.startPoint, to: annotation.endPoint, in: context)
         case .rectangle:
-            drawRectangle(annotation.boundingRect, in: context)
+            drawRectangle(annotation.boundingRect, filled: annotation.style.fillShape, color: color, in: context)
         case .circle:
-            drawEllipse(in: annotation.boundingRect, in: context)
+            drawEllipse(in: annotation.boundingRect, filled: annotation.style.fillShape, color: color, in: context)
         case .text:
             drawText(annotation.text, at: annotation.startPoint, style: annotation.style, backingScale: backingScale, in: context)
+        case .spotlight:
+            drawSpotlight(annotation.boundingRect, opacity: annotation.style.spotlightOpacity,
+                          imageWidth: context.width, imageHeight: context.height, in: context)
         case .select, .crop, .pixelate:
             break // Not drawn here (.pixelate is handled before the coordinate flip)
         }
@@ -433,11 +436,19 @@ class AnnotationRenderer {
         return out
     }
 
-    private func drawRectangle(_ rect: CGRect, in context: CGContext) {
+    private func drawRectangle(_ rect: CGRect, filled: Bool, color: CGColor, in context: CGContext) {
+        if filled {
+            context.setFillColor(color)
+            context.fill(rect)
+        }
         context.stroke(rect)
     }
 
-    private func drawEllipse(in rect: CGRect, in context: CGContext) {
+    private func drawEllipse(in rect: CGRect, filled: Bool, color: CGColor, in context: CGContext) {
+        if filled {
+            context.setFillColor(color)
+            context.fillEllipse(in: rect)
+        }
         context.strokeEllipse(in: rect)
     }
 
@@ -464,6 +475,22 @@ class AnnotationRenderer {
         else { return }
 
         context.draw(cgOut, in: CGRect(x: pixelRect.minX, y: ciY, width: pixelRect.width, height: pixelRect.height))
+    }
+
+    /// Draws a semi-transparent black overlay over the entire image with a clear cutout for the spotlight rectangle.
+    private func drawSpotlight(_ rect: CGRect, opacity: CGFloat, imageWidth: Int, imageHeight: Int, in context: CGContext) {
+        let fullRect = CGRect(x: 0, y: 0, width: imageWidth, height: imageHeight)
+        let overlayColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: opacity)
+
+        context.saveGState()
+        // Create a path that covers the full image with the spotlight rect cut out (even-odd rule)
+        let path = CGMutablePath()
+        path.addRect(fullRect)
+        path.addRect(rect)
+        context.addPath(path)
+        context.setFillColor(overlayColor)
+        context.fillPath(using: .evenOdd)
+        context.restoreGState()
     }
 
     private func drawText(_ text: String, at point: CGPoint, style: AnnotationStyle, backingScale: CGFloat, in context: CGContext) {

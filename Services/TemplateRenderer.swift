@@ -345,6 +345,14 @@ class TemplateRenderer {
         rect: CGRect
     ) {
         let cgColors = definition.colors.map { $0.cgColor }
+
+        // Single-color definition → solid fill (CGGradient requires ≥2 colors)
+        if cgColors.count == 1, let color = cgColors.first {
+            context.setFillColor(color)
+            context.fill(rect)
+            return
+        }
+
         guard let gradient = CGGradient(
             colorsSpace: CGColorSpaceCreateDeviceRGB(),
             colors: cgColors as CFArray,

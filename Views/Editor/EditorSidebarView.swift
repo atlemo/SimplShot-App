@@ -35,13 +35,23 @@ struct EditorSidebarView: View {
     @State private var sizePopoverVisible = false
     @State private var pixelatePopoverVisible = false
     @State private var arrowStylePopoverVisible = false
+    @State private var shapeStylePopoverVisible = false
+    @State private var spotlightPopoverVisible = false
+    @State private var backgroundTypePopoverVisible = false
+    @State private var backgroundType: BackgroundType = .gradients
+
+    enum BackgroundType: String, CaseIterable, Identifiable {
+        case gradients = "Gradients"
+        case solidColors = "Solid Colors"
+        var id: String { rawValue }
+    }
 
     private let presetColors: [Color] = [
         .red, .orange, .yellow, .green, .blue, .purple, .white, .black
     ]
 
     private let drawingTools: [AnnotationTool] = [
-        .select, .freeDraw, .arrow, .rectangle, .circle, .line, .text, .measurement, .pixelate, .crop
+        .select, .freeDraw, .arrow, .rectangle, .circle, .line, .text, .measurement, .pixelate, .spotlight, .crop
     ]
 
     private let stylingTools: [AnnotationTool] = [
@@ -101,7 +111,7 @@ struct EditorSidebarView: View {
 
     private var toolsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("Shapes and lines")
+            sectionLabel("Tools")
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 5), spacing: 4) {
                 ForEach(drawingTools) { tool in
                     sidebarToolButton(tool)
@@ -143,14 +153,29 @@ struct EditorSidebarView: View {
 
     private var backgroundsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("Backgrounds")
-            // Gradient grid — 4 columns of rounded-square thumbnails
+            Button { backgroundTypePopoverVisible.toggle() } label: {
+                HStack(spacing: 4) {
+                    Text("Backgrounds")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+            .popover(isPresented: $backgroundTypePopoverVisible, arrowEdge: .bottom) {
+                backgroundTypePopoverContent
+            }
+
+            let items = backgroundType == .gradients ? BuiltInGradient.gradients : BuiltInGradient.solidColors
             let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
             LazyVGrid(columns: columns, spacing: 6) {
-                // "None" cell
                 noneCell
-                // Gradient cells
-                ForEach(BuiltInGradient.allCases) { gradient in
+                ForEach(items) { gradient in
                     gradientCell(gradient)
                 }
             }
@@ -271,15 +296,14 @@ struct EditorSidebarView: View {
                     let cellH = geo.size.height
                     let dotW = cellW * 0.55
                     let dotH = cellH * 0.45
-                    let margin: CGFloat = 3
-                    let xRange = cellW - dotW - margin * 2
-                    let yRange = cellH - dotH - margin * 2
+                    let xRange = cellW - dotW
+                    let yRange = cellH - dotH
                     RoundedRectangle(cornerRadius: 1.5)
                         .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.4))
                         .frame(width: dotW, height: dotH)
                         .offset(
-                            x: margin + xRange * alignment.horizontalFraction,
-                            y: margin + yRange * alignment.verticalFraction
+                            x: xRange * alignment.horizontalFraction,
+                            y: yRange * alignment.verticalFraction
                         )
                 }
             }
@@ -294,7 +318,11 @@ struct EditorSidebarView: View {
     @ViewBuilder
     private func sidebarToolButton(_ tool: AnnotationTool) -> some View {
         let isActive = currentTool == tool
-        Button {
+        let button = Button {
+            if tool == .spotlight, currentTool == .spotlight {
+                spotlightPopoverVisible.toggle()
+                return
+            }
             if tool == .pixelate, currentTool == .pixelate {
                 pixelatePopoverVisible.toggle()
                 return
@@ -303,8 +331,14 @@ struct EditorSidebarView: View {
                 arrowStylePopoverVisible.toggle()
                 return
             }
+            if (tool == .rectangle || tool == .circle), currentTool == tool {
+                shapeStylePopoverVisible.toggle()
+                return
+            }
             pixelatePopoverVisible = false
             arrowStylePopoverVisible = false
+            shapeStylePopoverVisible = false
+            spotlightPopoverVisible = false
             selectTool(tool)
         } label: {
             Group {
@@ -328,6 +362,30 @@ struct EditorSidebarView: View {
         .buttonStyle(.plain)
         .focusable(false)
         .help(tool.label)
+
+        if tool == .spotlight {
+            button
+                .popover(isPresented: $spotlightPopoverVisible, arrowEdge: .trailing) {
+                    spotlightPopoverContent
+                }
+        } else if tool == .pixelate {
+            button
+                .popover(isPresented: $pixelatePopoverVisible, arrowEdge: .trailing) {
+                    pixelatePopoverContent
+                }
+        } else if tool == .arrow {
+            button
+                .popover(isPresented: $arrowStylePopoverVisible, arrowEdge: .trailing) {
+                    arrowStylePopoverContent
+                }
+        } else if tool == .rectangle || tool == .circle {
+            button
+                .popover(isPresented: $shapeStylePopoverVisible, arrowEdge: .trailing) {
+                    shapeStylePopoverContent
+                }
+        } else {
+            button
+        }
     }
 
     // MARK: - Color Button
@@ -434,6 +492,193 @@ struct EditorSidebarView: View {
             .padding(.vertical, 2)
         }
         .padding(12)
+    }
+
+    // MARK: - Arrow Style Popover
+
+    private var arrowStylePopoverContent: some View {
+        HStack(spacing: 2) {
+            ForEach(ArrowStyle.allCases, id: \.self) { style in
+                let isSelected = currentStyle.arrowStyle == style
+                Button {
+                    currentStyle.arrowStyle = style
+                    applyArrowStyleToSelection()
+                    arrowStylePopoverVisible = false
+                } label: {
+                    VStack(spacing: 4) {
+                        ArrowStylePreview(style: style, isSelected: isSelected)
+                        Text(style.label)
+                            .font(.system(size: 10))
+                            .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(8)
+    }
+
+    private func applyArrowStyleToSelection() {
+        guard let id = selectedAnnotationID,
+              let idx = annotations.firstIndex(where: { $0.id == id }),
+              annotations[idx].tool == .arrow
+        else { return }
+        annotations[idx].style.arrowStyle = currentStyle.arrowStyle
+    }
+
+    // MARK: - Pixelate Popover
+
+    private var pixelatePopoverContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Pixelation")
+                .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 8) {
+                Slider(value: pixelationScaleBinding, in: 2...60)
+                    .frame(width: 180)
+                    .focusable(false)
+                    .focusEffectDisabled()
+                Text("\(Int(currentStyle.pixelationScale))")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 28, alignment: .trailing)
+            }
+            .padding(.vertical, 2)
+        }
+        .padding(12)
+    }
+
+    private var pixelationScaleBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentStyle.pixelationScale) },
+            set: { newValue in
+                currentStyle.pixelationScale = CGFloat(newValue.rounded())
+                applyPixelationToSelection()
+            }
+        )
+    }
+
+    private func applyPixelationToSelection() {
+        guard let id = selectedAnnotationID,
+              let idx = annotations.firstIndex(where: { $0.id == id }),
+              annotations[idx].tool == .pixelate
+        else { return }
+        annotations[idx].style.pixelationScale = currentStyle.pixelationScale
+    }
+
+    // MARK: - Spotlight Opacity Popover
+
+    private var spotlightPopoverContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Dim Opacity")
+                .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 8) {
+                Slider(value: spotlightOpacityBinding, in: 0.1...0.9)
+                    .frame(width: 180)
+                    .focusable(false)
+                    .focusEffectDisabled()
+                Text("\(Int(currentStyle.spotlightOpacity * 100))%")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 36, alignment: .trailing)
+            }
+            .padding(.vertical, 2)
+        }
+        .padding(12)
+    }
+
+    private var spotlightOpacityBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentStyle.spotlightOpacity) },
+            set: { newValue in
+                currentStyle.spotlightOpacity = CGFloat(newValue)
+                applySpotlightOpacityToSelection()
+            }
+        )
+    }
+
+    private func applySpotlightOpacityToSelection() {
+        guard let id = selectedAnnotationID,
+              let idx = annotations.firstIndex(where: { $0.id == id }),
+              annotations[idx].tool == .spotlight
+        else { return }
+        annotations[idx].style.spotlightOpacity = currentStyle.spotlightOpacity
+    }
+
+    // MARK: - Shape Style Popover (Rectangle / Circle fill toggle)
+
+    private var shapeStylePopoverContent: some View {
+        HStack(spacing: 2) {
+            shapeStyleOption(filled: false, label: "Outline", icon: currentTool == .circle ? "circle" : "rectangle")
+            shapeStyleOption(filled: true, label: "Filled", icon: currentTool == .circle ? "circle.fill" : "rectangle.fill")
+        }
+        .padding(8)
+    }
+
+    private func shapeStyleOption(filled: Bool, label: String, icon: String) -> some View {
+        let isSelected = currentStyle.fillShape == filled
+        return Button {
+            currentStyle.fillShape = filled
+            applyStyleToSelection()
+            shapeStylePopoverVisible = false
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                    .frame(width: 44, height: 26)
+                Text(label)
+                    .font(.system(size: 10))
+                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Background Type Popover
+
+    private var backgroundTypePopoverContent: some View {
+        VStack(spacing: 2) {
+            backgroundTypeButton(.gradients)
+            backgroundTypeButton(.solidColors)
+        }
+        .padding(6)
+        .frame(width: 160)
+    }
+
+    private func backgroundTypeButton(_ type: BackgroundType) -> some View {
+        let isSelected = backgroundType == type
+        return Button {
+            backgroundType = type
+            backgroundTypePopoverVisible = false
+        } label: {
+            HStack {
+                Text(type.rawValue)
+                    .font(.system(size: 12))
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Gradient Cells

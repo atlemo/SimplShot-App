@@ -17,7 +17,7 @@ struct EditorToolbarView: View {
     var onCancelCrop: () -> Void
 
     /// The drawing tools available in the toolbar (excludes .select and .crop which are handled separately).
-    private let drawingTools: [AnnotationTool] = [.freeDraw, .arrow, .rectangle, .circle, .line, .text, .measurement, .pixelate]
+    private let drawingTools: [AnnotationTool] = [.freeDraw, .arrow, .rectangle, .circle, .line, .text, .measurement, .pixelate, .spotlight]
 
     /// Tools that use color/size style controls.
     private let stylingTools: [AnnotationTool] = [.arrow, .freeDraw, .measurement, .rectangle, .circle, .line, .text]
@@ -57,7 +57,17 @@ struct EditorToolbarView: View {
 
                 // Background label + gradient picker
                 if hasTemplate {
-                    Button { gradientPopoverVisible.toggle() } label: {
+                    Button {
+                        // Show the page containing the current selection
+                        if let sel = selectedGradient,
+                           let idx = BuiltInGradient.allCases.firstIndex(of: sel) {
+                            let itemIndex = idx + 1 // +1 for the "None" item
+                            backgroundPage = itemIndex / 11
+                        } else {
+                            backgroundPage = 0
+                        }
+                        gradientPopoverVisible.toggle()
+                    } label: {
                         HStack(spacing: 0) {
                             Text("Background")
                                 .font(.system(size: 12))
@@ -97,6 +107,10 @@ struct EditorToolbarView: View {
     @ViewBuilder
     private func toolButton(_ tool: AnnotationTool) -> some View {
         let button = Button {
+            if tool == .spotlight, currentTool == .spotlight {
+                spotlightPopoverVisible.toggle()
+                return
+            }
             if tool == .pixelate, currentTool == .pixelate {
                 pixelatePopoverVisible.toggle()
                 return
@@ -105,8 +119,14 @@ struct EditorToolbarView: View {
                 arrowStylePopoverVisible.toggle()
                 return
             }
+            if (tool == .rectangle || tool == .circle), currentTool == tool {
+                shapeStylePopoverVisible.toggle()
+                return
+            }
             pixelatePopoverVisible = false
             arrowStylePopoverVisible = false
+            shapeStylePopoverVisible = false
+            spotlightPopoverVisible = false
             selectTool(tool)
         } label: {
             Group {
@@ -131,7 +151,12 @@ struct EditorToolbarView: View {
         .focusable(false)
         .help(tool.label)
 
-        if tool == .pixelate {
+        if tool == .spotlight {
+            button
+                .popover(isPresented: $spotlightPopoverVisible, arrowEdge: .bottom) {
+                    spotlightPopoverContent
+                }
+        } else if tool == .pixelate {
             button
                 .popover(isPresented: $pixelatePopoverVisible, arrowEdge: .bottom) {
                     pixelatePopoverContent
@@ -140,6 +165,11 @@ struct EditorToolbarView: View {
             button
                 .popover(isPresented: $arrowStylePopoverVisible, arrowEdge: .bottom) {
                     arrowStylePopoverContent
+                }
+        } else if tool == .rectangle || tool == .circle {
+            button
+                .popover(isPresented: $shapeStylePopoverVisible, arrowEdge: .bottom) {
+                    shapeStylePopoverContent
                 }
         } else {
             button
@@ -162,6 +192,10 @@ struct EditorToolbarView: View {
     @State private var gradientPopoverVisible = false
     @State private var pixelatePopoverVisible = false
     @State private var arrowStylePopoverVisible = false
+    @State private var shapeStylePopoverVisible = false
+    @State private var spotlightPopoverVisible = false
+    @State private var backgroundPage = 0
+    @State private var backgroundDragOffset: CGFloat = 0
 
     private var styleControls: some View {
         HStack(spacing: 0) {
@@ -322,27 +356,95 @@ struct EditorToolbarView: View {
         .frame(width: 40, height: toolPillHeight)
     }
 
+    /// Background items split into pages.
+    private var backgroundPages: [[BuiltInGradient?]] {
+        let all: [BuiltInGradient?] = [nil] + BuiltInGradient.allCases.map { $0 }
+        let pageSize = 11
+        return stride(from: 0, to: all.count, by: pageSize).map {
+            Array(all[$0..<min($0 + pageSize, all.count)])
+        }
+    }
+
     /// Contents of the gradient popover.
     private var gradientPopoverContent: some View {
-        HStack(spacing: 6) {
-            // None / transparent option
-            noneCircle(size: 20, isSelected: selectedGradient == nil)
-                .help("No Background")
-                .onTapGesture { selectedGradient = nil }
+        let circleSize: CGFloat = 20
+        let spacing: CGFloat = 6
+        let pageItemCount = 11
+        let pageWidth = CGFloat(pageItemCount) * circleSize + CGFloat(pageItemCount - 1) * spacing
 
-            // Built-in gradient options
-            ForEach(BuiltInGradient.allCases) { gradient in
-                Circle()
-                    .fill(gradient.swiftUIGradient)
-                    .overlay(
-                        Circle().stroke(
-                            selectedGradient == gradient ? Color.accentColor : Color.primary.opacity(0.15),
-                            lineWidth: selectedGradient == gradient ? 2 : 0.5
-                        )
-                    )
-                    .frame(width: 20, height: 20)
-                    .help(gradient.displayName)
-                    .onTapGesture { selectedGradient = gradient }
+        return VStack(spacing: 6) {
+            // Pages with clipping and animation
+            ZStack(alignment: .leading) {
+                ForEach(Array(backgroundPages.enumerated()), id: \.offset) { pageIndex, items in
+                    HStack(spacing: spacing) {
+                        ForEach(Array(items.enumerated()), id: \.offset) { _, gradient in
+                            if let gradient {
+                                Circle()
+                                    .fill(gradient.swiftUIGradient)
+                                    .overlay(
+                                        Circle().stroke(
+                                            selectedGradient == gradient ? Color.accentColor : Color.primary.opacity(0.15),
+                                            lineWidth: selectedGradient == gradient ? 2 : 0.5
+                                        )
+                                    )
+                                    .frame(width: circleSize, height: circleSize)
+                                    .help(gradient.displayName)
+                                    .onTapGesture { selectedGradient = gradient }
+                            } else {
+                                noneCircle(size: circleSize, isSelected: selectedGradient == nil)
+                                    .help("No Background")
+                                    .onTapGesture { selectedGradient = nil }
+                            }
+                        }
+                    }
+                    .frame(width: pageWidth, alignment: .leading)
+                    .offset(x: CGFloat(pageIndex - backgroundPage) * (pageWidth + spacing * 2))
+                }
+            }
+            .offset(x: backgroundDragOffset)
+            .frame(width: pageWidth, height: circleSize + 4)
+            .clipped()
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 8)
+                    .onChanged { value in
+                        backgroundDragOffset = value.translation.width
+                    }
+                    .onEnded { value in
+                        let threshold: CGFloat = 40
+                        let pages = backgroundPages.count
+                        if value.translation.width < -threshold, backgroundPage < pages - 1 {
+                            backgroundPage += 1
+                        } else if value.translation.width > threshold, backgroundPage > 0 {
+                            backgroundPage -= 1
+                        }
+                        backgroundDragOffset = 0
+                    }
+            )
+            .onScrollWheel { direction in
+                let pages = backgroundPages.count
+                if direction > 0, backgroundPage < pages - 1 {
+                    backgroundPage += 1
+                } else if direction < 0, backgroundPage > 0 {
+                    backgroundPage -= 1
+                }
+            }
+            .animation(.easeInOut(duration: 0.25), value: backgroundPage)
+            .animation(.interactiveSpring(), value: backgroundDragOffset)
+
+            // Page dots
+            if backgroundPages.count > 1 {
+                HStack(spacing: 5) {
+                    ForEach(0..<backgroundPages.count, id: \.self) { index in
+                        Circle()
+                            .fill(backgroundPage == index ? Color.primary : Color.primary.opacity(0.25))
+                            .frame(width: 5, height: 5)
+                            .contentShape(Circle())
+                            .onTapGesture {
+                                backgroundPage = index
+                            }
+                    }
+                }
             }
         }
         .padding(10)
@@ -463,6 +565,80 @@ struct EditorToolbarView: View {
         )
     }
 
+    // MARK: - Spotlight Opacity Popover
+
+    private var spotlightPopoverContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Dim Opacity")
+                .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 8) {
+                Slider(value: spotlightOpacityBinding, in: 0.1...0.9)
+                    .frame(width: 180)
+                    .focusable(false)
+                    .focusEffectDisabled()
+                Text("\(Int(currentStyle.spotlightOpacity * 100))%")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 36, alignment: .trailing)
+            }
+            .padding(.vertical, 2)
+        }
+        .padding(12)
+    }
+
+    private var spotlightOpacityBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentStyle.spotlightOpacity) },
+            set: { newValue in
+                currentStyle.spotlightOpacity = CGFloat(newValue)
+                applySpotlightOpacityToSelection()
+            }
+        )
+    }
+
+    private func applySpotlightOpacityToSelection() {
+        guard let id = selectedAnnotationID,
+              let idx = annotations.firstIndex(where: { $0.id == id }),
+              annotations[idx].tool == .spotlight
+        else { return }
+        annotations[idx].style.spotlightOpacity = currentStyle.spotlightOpacity
+    }
+
+    // MARK: - Shape Style Popover (Rectangle / Circle fill toggle)
+
+    private var shapeStylePopoverContent: some View {
+        HStack(spacing: 2) {
+            shapeStyleOption(filled: false, label: "Outline", icon: currentTool == .circle ? "circle" : "rectangle")
+            shapeStyleOption(filled: true, label: "Filled", icon: currentTool == .circle ? "circle.fill" : "rectangle.fill")
+        }
+        .padding(8)
+    }
+
+    private func shapeStyleOption(filled: Bool, label: String, icon: String) -> some View {
+        let isSelected = currentStyle.fillShape == filled
+        return Button {
+            currentStyle.fillShape = filled
+            applyStyleToSelection()
+            shapeStylePopoverVisible = false
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                    .frame(width: 44, height: 26)
+                Text(label)
+                    .font(.system(size: 10))
+                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Crop Controls
 
     private var cropControls: some View {
@@ -510,7 +686,7 @@ struct EditorToolbarView: View {
 
 // MARK: - Arrow style mini-preview (used inside the popover)
 
-private struct ArrowStylePreview: View {
+struct ArrowStylePreview: View {
     let style: ArrowStyle
     let isSelected: Bool
 
@@ -575,6 +751,78 @@ private struct ArrowStylePreview: View {
             }
         }
         .frame(width: 44, height: 26)
+    }
+}
+
+// MARK: - Scroll Wheel Modifier
+
+/// Captures NSEvent scrollWheel events on a view and calls a handler with the direction (-1 or +1).
+private struct ScrollWheelModifier: ViewModifier {
+    let handler: (_ direction: Int) -> Void
+
+    func body(content: Content) -> some View {
+        content.overlay(ScrollWheelReceiver(handler: handler))
+    }
+}
+
+private struct ScrollWheelReceiver: NSViewRepresentable {
+    let handler: (_ direction: Int) -> Void
+
+    func makeNSView(context: Context) -> ScrollWheelNSView {
+        let view = ScrollWheelNSView()
+        view.handler = handler
+        return view
+    }
+
+    func updateNSView(_ nsView: ScrollWheelNSView, context: Context) {
+        nsView.handler = handler
+    }
+}
+
+private class ScrollWheelNSView: NSView {
+    var handler: ((_ direction: Int) -> Void)?
+    private var accumulated: CGFloat = 0
+    private var resetTask: DispatchWorkItem?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func scrollWheel(with event: NSEvent) {
+        let dx: CGFloat
+        let dy: CGFloat
+
+        if event.hasPreciseScrollingDeltas {
+            // Trackpad: pixel-level deltas, accumulate before firing
+            dx = event.scrollingDeltaX
+            dy = event.scrollingDeltaY
+        } else {
+            // Discrete mouse wheel: small integer values (typically ±1),
+            // multiply to reach threshold quickly
+            dx = event.scrollingDeltaX * 20
+            dy = event.scrollingDeltaY * 20
+        }
+
+        let scroll = abs(dx) > abs(dy) ? dx : dy
+        accumulated += scroll
+
+        // Reset accumulation after a pause
+        resetTask?.cancel()
+        let task = DispatchWorkItem { [weak self] in
+            self?.accumulated = 0
+        }
+        resetTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: task)
+
+        let threshold: CGFloat = 15
+        if abs(accumulated) >= threshold {
+            handler?(accumulated > 0 ? -1 : 1)
+            accumulated = 0
+        }
+    }
+}
+
+private extension View {
+    func onScrollWheel(_ handler: @escaping (_ direction: Int) -> Void) -> some View {
+        modifier(ScrollWheelModifier(handler: handler))
     }
 }
 

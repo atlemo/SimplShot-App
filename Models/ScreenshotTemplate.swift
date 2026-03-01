@@ -76,7 +76,37 @@ enum BuiltInGradient: String, Codable, CaseIterable, Identifiable {
     case darkEmber
     case carbonSteel
 
+    // Solid colors
+    case solidWhite
+    case solidBlack
+    case solidGray
+    case solidRed
+    case solidOrange
+    case solidYellow
+    case solidGreen
+    case solidBlue
+    case solidPurple
+    case solidPink
+
     var id: String { rawValue }
+
+    var isSolidColor: Bool {
+        switch self {
+        case .solidWhite, .solidBlack, .solidGray, .solidRed, .solidOrange,
+             .solidYellow, .solidGreen, .solidBlue, .solidPurple, .solidPink:
+            return true
+        default:
+            return false
+        }
+    }
+
+    static var gradients: [BuiltInGradient] {
+        allCases.filter { !$0.isSolidColor }
+    }
+
+    static var solidColors: [BuiltInGradient] {
+        allCases.filter { $0.isSolidColor }
+    }
 
     var displayName: String {
         switch self {
@@ -90,6 +120,16 @@ enum BuiltInGradient: String, Codable, CaseIterable, Identifiable {
         case .midnightSky: return "Midnight Sky"
         case .darkEmber:   return "Dark Ember"
         case .carbonSteel: return "Carbon Steel"
+        case .solidWhite:  return "White"
+        case .solidBlack:  return "Black"
+        case .solidGray:   return "Gray"
+        case .solidRed:    return "Red"
+        case .solidOrange: return "Orange"
+        case .solidYellow: return "Yellow"
+        case .solidGreen:  return "Green"
+        case .solidBlue:   return "Blue"
+        case .solidPurple: return "Purple"
+        case .solidPink:   return "Pink"
         }
     }
 
@@ -147,6 +187,26 @@ enum BuiltInGradient: String, Codable, CaseIterable, Identifiable {
                 CodableColor(red: 0.22, green: 0.25, blue: 0.32),
                 CodableColor(red: 0.29, green: 0.33, blue: 0.39),
             ], angle: 135)
+        case .solidWhite:
+            return GradientDefinition(colors: [CodableColor(red: 1.00, green: 1.00, blue: 1.00)], angle: 0)
+        case .solidBlack:
+            return GradientDefinition(colors: [CodableColor(red: 0.10, green: 0.10, blue: 0.10)], angle: 0)
+        case .solidGray:
+            return GradientDefinition(colors: [CodableColor(red: 0.55, green: 0.55, blue: 0.58)], angle: 0)
+        case .solidRed:
+            return GradientDefinition(colors: [CodableColor(red: 0.92, green: 0.26, blue: 0.24)], angle: 0)
+        case .solidOrange:
+            return GradientDefinition(colors: [CodableColor(red: 1.00, green: 0.58, blue: 0.00)], angle: 0)
+        case .solidYellow:
+            return GradientDefinition(colors: [CodableColor(red: 1.00, green: 0.84, blue: 0.04)], angle: 0)
+        case .solidGreen:
+            return GradientDefinition(colors: [CodableColor(red: 0.20, green: 0.78, blue: 0.35)], angle: 0)
+        case .solidBlue:
+            return GradientDefinition(colors: [CodableColor(red: 0.00, green: 0.48, blue: 1.00)], angle: 0)
+        case .solidPurple:
+            return GradientDefinition(colors: [CodableColor(red: 0.57, green: 0.32, blue: 0.87)], angle: 0)
+        case .solidPink:
+            return GradientDefinition(colors: [CodableColor(red: 1.00, green: 0.38, blue: 0.58)], angle: 0)
         }
     }
 

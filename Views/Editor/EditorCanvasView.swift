@@ -223,7 +223,7 @@ struct EditorCanvasView: View {
                               isShiftDown,
                               let start = pendingAnnotation?.startPoint {
                         pendingAnnotation?.endPoint = constrainTo45Degree(start: start, end: currentInImage)
-                    } else if isShiftDown && (tool == .rectangle || tool == .circle),
+                    } else if isShiftDown && (tool == .rectangle || tool == .circle || tool == .spotlight),
                        let start = pendingAnnotation?.startPoint {
                         pendingAnnotation?.endPoint = constrainToSquare(start: start, end: currentInImage)
                     } else {
@@ -458,7 +458,7 @@ struct EditorCanvasView: View {
             if dist(point, annotation.endPoint)   < r { return .endHandle }
             return nil
 
-        case .rectangle, .circle, .pixelate:
+        case .rectangle, .circle, .pixelate, .spotlight:
             let rect = annotation.boundingRect
             let inset = cornerHitInset / scale
             let corners: [(CGPoint, DragMode)] = [
@@ -503,7 +503,7 @@ struct EditorCanvasView: View {
                     return annotation.id
                 }
 
-            case .rectangle, .circle, .pixelate:
+            case .rectangle, .circle, .pixelate, .spotlight:
                 let rect = annotation.boundingRect.insetBy(dx: -threshold, dy: -threshold)
                 if rect.contains(point) {
                     return annotation.id

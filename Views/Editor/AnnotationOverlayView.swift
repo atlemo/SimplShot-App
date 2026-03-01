@@ -102,13 +102,15 @@ struct AnnotationOverlayView: View {
 
         case .rectangle:
             Rectangle()
-                .stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth)
+                .fill(annotation.style.fillShape ? annotation.style.strokeColor : Color.clear)
+                .overlay(Rectangle().stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
 
         case .circle:
             Ellipse()
-                .stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth)
+                .fill(annotation.style.fillShape ? annotation.style.strokeColor : Color.clear)
+                .overlay(Ellipse().stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
 
@@ -155,6 +157,14 @@ struct AnnotationOverlayView: View {
             .frame(width: rect.width, height: rect.height)
             .position(x: rect.midX, y: rect.midY)
 
+        case .spotlight:
+            let fullW = imagePixelSize.width * scale
+            let fullH = imagePixelSize.height * scale
+            SpotlightOverlayShape(cutout: rect, canvasSize: CGSize(width: fullW, height: fullH))
+                .fill(Color.black.opacity(annotation.style.spotlightOpacity), style: FillStyle(eoFill: true))
+                .frame(width: fullW, height: fullH)
+                .position(x: fullW / 2, y: fullH / 2)
+
         case .select, .crop:
             EmptyView()
         }
@@ -172,7 +182,7 @@ struct AnnotationOverlayView: View {
             HandleDot(center: start)
             HandleDot(center: end)
 
-        case .rectangle, .circle, .pixelate:
+        case .rectangle, .circle, .pixelate, .spotlight:
             let rect = scaledBoundingRect
             HandleDot(center: CGPoint(x: rect.minX, y: rect.minY))
             HandleDot(center: CGPoint(x: rect.maxX, y: rect.minY))
@@ -488,6 +498,24 @@ struct FreeDrawShape: Shape {
         }
         return out
     }
+}
+
+// MARK: - Spotlight Overlay Shape
+
+/// A shape that fills the entire canvas except for a rectangular cutout (even-odd fill).
+private struct SpotlightOverlayShape: Shape {
+    let cutout: CGRect
+    let canvasSize: CGSize
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.addRect(CGRect(origin: .zero, size: canvasSize))
+        path.addRect(cutout)
+        return path
+    }
+
+    // Use even-odd fill rule so the cutout rectangle is transparent
+    static var role: ShapeRole { .fill }
 }
 
 // MARK: - Pixelate Preview

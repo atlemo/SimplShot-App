@@ -12,6 +12,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     case line
     case text
     case pixelate
+    case spotlight
     case crop
 
     var id: String { rawValue }
@@ -27,6 +28,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .line:      return "Line"
         case .text:      return "Text"
         case .pixelate:  return "Pixelate"
+        case .spotlight: return "Spotlight"
         case .crop:      return "Crop"
         }
     }
@@ -42,6 +44,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .line:      return "line.diagonal"
         case .text:      return "textformat"
         case .pixelate:  return ""      // uses customImageName instead
+        case .spotlight: return "light.overhead.left"
         case .crop:      return "crop"
         }
     }
@@ -81,6 +84,8 @@ struct AnnotationStyle {
     var fontSize: CGFloat = 48
     var pixelationScale: CGFloat = 20
     var arrowStyle: ArrowStyle = .chevron
+    var fillShape: Bool = false
+    var spotlightOpacity: CGFloat = 0.5
 
     /// CGColor for use in Core Graphics rendering.
     var cgStrokeColor: CGColor {
