@@ -123,133 +123,8 @@ struct EditorView: View {
     }
 
     var body: some View {
-        // NavigationSplitView gives the sidebar Liquid Glass floating treatment
-        // automatically — the sidebar overlays the detail content rather than
-        // sitting beside it, matching macOS Tahoe's design language.
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            EditorSidebarView(
-                showProSidebar: showProSidebarBinding,
-                currentTool: $currentTool,
-                currentStyle: $currentStyle,
-                selectedAnnotationID: $selectedAnnotationID,
-                annotations: $annotations,
-                isCropping: $isCropping,
-                selectedGradient: $selectedGradient,
-                padding: $editorPadding,
-                cornerRadius: $editorCornerRadius,
-                shadowIntensity: $shadowIntensity,
-                screenshotAlignment: $screenshotAlignment,
-                aspectRatios: editorAspectRatios,
-                selectedAspectRatioID: $editorAspectRatioID,
-                hasTemplate: template != nil,
-                canUndo: !undoStack.isEmpty,
-                onApplyCrop: applyCrop,
-                onCancelCrop: cancelCrop,
-                onUndo: undo,
-                onDone: saveOverwrite
-            )
-            .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 320)
-        } detail: {
-            // Main editor area (canvas + toolbars).
-            VStack(spacing: 0) {
-                    // Canvas area — GeometryReader always fills available space
-                    // so the window frame is respected even before the image loads.
-                    GeometryReader { geo in
-                        Group {
-                            if let image {
-                                ScrollView([.horizontal, .vertical], showsIndicators: zoomLevel > 1.0) {
-                                    EditorCanvasView(
-                                        image: image,
-                                        imagePixelSize: imagePixelSize,
-                                        scale: effectiveScale,
-                                        displayBackingScale: displayBackingScale,
-                                        shadowIntensity: selectedGradient == nil ? shadowIntensity : 0,
-                                        annotations: $annotations,
-                                        selectedAnnotationID: $selectedAnnotationID,
-                                        currentTool: $currentTool,
-                                        currentStyle: $currentStyle,
-                                        cropRect: $cropRect,
-                                        isCropping: $isCropping,
-                                        cropBoundsRect: screenshotBoundsInDisplay,
-                                        onCommit: pushUndo
-                                    )
-                                    .padding(20)
-                                }
-                            } else {
-                                ContentUnavailableView("Unable to load image", systemImage: "photo.badge.exclamationmark")
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            }
-                        }
-                        .onAppear {
-                            lastViewSize = geo.size
-                            updateFitScale(viewSize: geo.size)
-                        }
-                        .onChange(of: geo.size) { _, newSize in
-                            lastViewSize = newSize
-                            updateFitScale(viewSize: newSize)
-                        }
-                    }
-
-                    // Bottom toolbar with sliders and action buttons
-                    EditorBottomToolbarView(
-                        aspectRatios: editorAspectRatios,
-                        selectedAspectRatioID: $editorAspectRatioID,
-                        padding: $editorPadding,
-                        cornerRadius: $editorCornerRadius,
-                        useTemplateBackground: selectedGradient != nil,
-                        hideSliders: showProSidebar,
-                        onTrash: { showTrashAlert = true },
-                        onCopy: copyToClipboard,
-                        onSaveAs: saveAs
-                    )
-                    .background(.clear)
-
-                    // Status bar with zoom controls
-                    statusBar
-                }
-            .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    EditorToolbarView(
-                        showProSidebar: showProSidebar,
-                        currentTool: $currentTool,
-                        currentStyle: $currentStyle,
-                        isCropping: $isCropping,
-                        selectedAnnotationID: $selectedAnnotationID,
-                        annotations: $annotations,
-                        hasTemplate: template != nil,
-                        selectedGradient: $selectedGradient,
-                        onApplyCrop: applyCrop,
-                        onCancelCrop: cancelCrop
-                    )
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 8) {
-                        Button(action: undo) {
-                            Image(systemName: "arrow.uturn.backward")
-                                .frame(width: 28, height: 28)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Undo")
-                        .keyboardShortcut("z", modifiers: .command)
-                        .disabled(undoStack.isEmpty)
-
-                        Button(action: saveOverwrite) {
-                            Text("Done")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 6)
-                        }
-                        .buttonStyle(.plain)
-                        .keyboardShortcut("s", modifiers: .command)
-                        .background(Color.accentColor, in: Capsule())
-                    }
-                }
-            }
-        }
-        .onAppear {
+        navigationContent
+            .onAppear {
             if let appSettings, let template {
 #if !APPSTORE
                 editorAspectRatioID = preferOriginalAspectRatio ? nil : appSettings.selectedRatioID
@@ -359,6 +234,146 @@ struct EditorView: View {
         } message: {
             Text("The file will be moved to the Trash.")
         }
+    }
+
+    // MARK: - Navigation Content
+
+    private var navigationContent: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            sidebarContent
+        } detail: {
+            detailContent
+        }
+        .toolbar {
+            // [Panel Toggle Button] — NavigationSplitView auto sidebar toggle (far left)
+
+            // [flexible spacer] — always present, keeps tools centered
+            ToolbarItem(placement: .automatic) {
+                Spacer()
+            }
+
+            // [Main toolbar with all tools] — centered by surrounding spacers
+            ToolbarItem(placement: .automatic) {
+                EditorToolbarView(
+                    showProSidebar: showProSidebar,
+                    currentTool: $currentTool,
+                    currentStyle: $currentStyle,
+                    isCropping: $isCropping,
+                    selectedAnnotationID: $selectedAnnotationID,
+                    annotations: $annotations,
+                    hasTemplate: template != nil,
+                    selectedGradient: $selectedGradient,
+                    onApplyCrop: applyCrop,
+                    onCancelCrop: cancelCrop
+                )
+            }
+
+            // [flexible spacer] — always present, pins Undo & Done to far right
+            ToolbarItem(placement: .automatic) {
+                Spacer()
+            }
+
+            // [Undo & Done buttons] — far right, each in its own item to prevent style bleed
+            ToolbarItem(placement: .automatic) {
+                Button(action: undo) {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .buttonStyle(.bordered)
+                .help("Undo")
+                .keyboardShortcut("z", modifiers: .command)
+                .disabled(undoStack.isEmpty)
+            }
+            ToolbarItem(placement: .automatic) {
+                Button("Done", action: saveOverwrite)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut("s", modifiers: .command)
+            }
+        }
+    }
+
+    // MARK: - Sidebar Content
+
+    private var sidebarContent: some View {
+        EditorSidebarView(
+            showProSidebar: showProSidebarBinding,
+            currentTool: $currentTool,
+            currentStyle: $currentStyle,
+            selectedAnnotationID: $selectedAnnotationID,
+            annotations: $annotations,
+            isCropping: $isCropping,
+            selectedGradient: $selectedGradient,
+            padding: $editorPadding,
+            cornerRadius: $editorCornerRadius,
+            shadowIntensity: $shadowIntensity,
+            screenshotAlignment: $screenshotAlignment,
+            aspectRatios: editorAspectRatios,
+            selectedAspectRatioID: $editorAspectRatioID,
+            hasTemplate: template != nil,
+            canUndo: !undoStack.isEmpty,
+            onApplyCrop: applyCrop,
+            onCancelCrop: cancelCrop,
+            onUndo: undo,
+            onDone: saveOverwrite
+        )
+        .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 320)
+    }
+
+    // MARK: - Detail Content
+
+    private var detailContent: some View {
+        VStack(spacing: 0) {
+            GeometryReader { geo in
+                Group {
+                    if let image {
+                        ScrollView([.horizontal, .vertical], showsIndicators: zoomLevel > 1.0) {
+                            EditorCanvasView(
+                                image: image,
+                                imagePixelSize: imagePixelSize,
+                                scale: effectiveScale,
+                                displayBackingScale: displayBackingScale,
+                                shadowIntensity: selectedGradient == nil ? shadowIntensity : 0,
+                                annotations: $annotations,
+                                selectedAnnotationID: $selectedAnnotationID,
+                                currentTool: $currentTool,
+                                currentStyle: $currentStyle,
+                                cropRect: $cropRect,
+                                isCropping: $isCropping,
+                                cropBoundsRect: screenshotBoundsInDisplay,
+                                onCommit: pushUndo
+                            )
+                            .padding(20)
+                        }
+                    } else {
+                        ContentUnavailableView("Unable to load image", systemImage: "photo.badge.exclamationmark")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .onAppear {
+                    lastViewSize = geo.size
+                    updateFitScale(viewSize: geo.size)
+                }
+                .onChange(of: geo.size) { _, newSize in
+                    lastViewSize = newSize
+                    updateFitScale(viewSize: newSize)
+                }
+            }
+
+            EditorBottomToolbarView(
+                aspectRatios: editorAspectRatios,
+                selectedAspectRatioID: $editorAspectRatioID,
+                padding: $editorPadding,
+                cornerRadius: $editorCornerRadius,
+                useTemplateBackground: selectedGradient != nil,
+                hideSliders: showProSidebar,
+                onTrash: { showTrashAlert = true },
+                onCopy: copyToClipboard,
+                onSaveAs: saveAs
+            )
+            .background(.clear)
+
+            statusBar
+        }
+        .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
     }
 
     // MARK: - Status Bar
