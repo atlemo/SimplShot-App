@@ -32,6 +32,7 @@ struct EditorSidebarView: View {
     // MARK: - Local state
 
     @State private var colorPopoverVisible = false
+    @State private var sizePopoverVisible = false
     @State private var pixelatePopoverVisible = false
     @State private var arrowStylePopoverVisible = false
 
@@ -116,9 +117,6 @@ struct EditorSidebarView: View {
             sectionLabel("Color and size")
             HStack(spacing: 8) {
                 colorButton
-                if !isTextContext {
-                    strokeStylePlaceholder
-                }
                 sizePicker
                 Spacer()
             }
@@ -374,24 +372,8 @@ struct EditorSidebarView: View {
         }
     }
 
-    private var strokeStylePlaceholder: some View {
-        // Stroke style icon (same as lineweight picker in toolbar)
-        Button {} label: {
-            Image(systemName: "lineweight")
-                .font(.system(size: 13))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .disabled(true)
-        .opacity(0.5)
-    }
-
     private var sizePicker: some View {
-        // Shows current size value; tappable to adjust via popover
-        Button {} label: {
+        Button { sizePopoverVisible.toggle() } label: {
             HStack(spacing: 4) {
                 Image(systemName: isTextContext ? "textformat.size" : "lineweight")
                     .font(.system(size: 12))
@@ -399,6 +381,9 @@ struct EditorSidebarView: View {
                      ? "\(Int(currentStyle.fontSize))pt"
                      : "\(Int(currentStyle.strokeWidth))pt")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
@@ -406,6 +391,49 @@ struct EditorSidebarView: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
+        .popover(isPresented: $sizePopoverVisible, arrowEdge: .bottom) {
+            if isTextContext {
+                fontSizeSliderContent
+            } else {
+                strokeWidthSliderContent
+            }
+        }
+    }
+
+    private var strokeWidthSliderContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Stroke")
+                .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 8) {
+                Slider(value: strokeWidthBinding, in: 1...15)
+                    .frame(width: 180)
+                    .focusable(false)
+                    .focusEffectDisabled()
+                Text("\(Int(currentStyle.strokeWidth))px")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 36, alignment: .trailing)
+            }
+            .padding(.vertical, 2)
+        }
+        .padding(12)
+    }
+
+    private var fontSizeSliderContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Font Size")
+                .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 8) {
+                Slider(value: fontSizeBinding, in: 12...120)
+                    .frame(width: 180)
+                    .focusable(false)
+                    .focusEffectDisabled()
+                Text("\(Int(currentStyle.fontSize))pt")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 36, alignment: .trailing)
+            }
+            .padding(.vertical, 2)
+        }
+        .padding(12)
     }
 
     // MARK: - Gradient Cells
@@ -499,6 +527,26 @@ struct EditorSidebarView: View {
         Binding(
             get: { Double(cornerRadius) },
             set: { cornerRadius = Int($0) }
+        )
+    }
+
+    private var strokeWidthBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentStyle.strokeWidth) },
+            set: { newValue in
+                currentStyle.strokeWidth = CGFloat(newValue.rounded())
+                applyStyleToSelection()
+            }
+        )
+    }
+
+    private var fontSizeBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentStyle.fontSize) },
+            set: { newValue in
+                currentStyle.fontSize = CGFloat(newValue.rounded())
+                applyStyleToSelection()
+            }
         )
     }
 }

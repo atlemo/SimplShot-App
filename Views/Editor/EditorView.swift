@@ -58,9 +58,28 @@ struct EditorView: View {
 
     // Sidebar / pro mode
     // NavigationSplitView drives sidebar visibility; showProSidebar is a derived bool.
-    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    // Initialized from appSettings so the layout is correct from the first frame
+    // (avoids a geometry race when NavigationSplitView animates the sidebar in).
+    @State private var columnVisibility: NavigationSplitViewVisibility
     @State private var shadowIntensity: Double = 1.0
     @State private var screenshotAlignment: CanvasAlignment = .middleCenter
+
+    init(
+        imageURL: URL,
+        template: ScreenshotTemplate? = nil,
+        appSettings: AppSettings? = nil,
+        preferOriginalAspectRatio: Bool = false,
+        onDismiss: @escaping () -> Void = {}
+    ) {
+        self.imageURL = imageURL
+        self.template = template
+        self.appSettings = appSettings
+        self.preferOriginalAspectRatio = preferOriginalAspectRatio
+        self.onDismiss = onDismiss
+        _columnVisibility = State(initialValue:
+            appSettings?.editorShowProSidebar == true ? .all : .detailOnly
+        )
+    }
 
     private var showProSidebar: Bool { columnVisibility != .detailOnly }
     /// Binding<Bool> adapter so child views (toolbar, sidebar) don't need to know
@@ -138,7 +157,6 @@ struct EditorView: View {
                         selectedGradient = .oceanDreams
                     }
                 }
-                columnVisibility = appSettings.editorShowProSidebar ? .all : .detailOnly
             }
             loadImage()
             installDeleteKeyMonitorIfNeeded()
@@ -207,13 +225,13 @@ struct EditorView: View {
         .onChange(of: columnVisibility) { _, newValue in
             appSettings?.editorShowProSidebar = (newValue != .detailOnly)
         }
+        .onChange(of: imagePixelSize) { _, _ in
+            updateFitScale(viewSize: lastViewSize)
+        }
         .onChange(of: shadowIntensity) { _, _ in
             if selectedGradient != nil, let rawImage {
                 applyDisplayImage(from: rawImage)
             }
-        }
-        .onChange(of: imagePixelSize) { _, _ in
-            updateFitScale(viewSize: lastViewSize)
         }
         .onChange(of: isCropping) { _, newValue in
             if newValue {
@@ -239,13 +257,24 @@ struct EditorView: View {
     // MARK: - Navigation Content
 
     private var navigationContent: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            sidebarContent
-        } detail: {
+        HStack(spacing: 0) {
+            if showProSidebar {
+                sidebarContent
+                    .transition(.move(edge: .leading))
+            }
             detailContent
         }
+        .animation(.easeInOut(duration: 0.2), value: showProSidebar)
         .toolbar {
-            // [Panel Toggle Button] — NavigationSplitView auto sidebar toggle (far left)
+            // [Panel Toggle Button]
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    columnVisibility = showProSidebar ? .detailOnly : .all
+                } label: {
+                    Image(systemName: "sidebar.leading")
+                }
+                .help(showProSidebar ? "Hide Sidebar" : "Show Sidebar")
+            }
 
             // [flexible spacer] — always present, keeps tools centered
             ToolbarItem(placement: .automatic) {
@@ -315,7 +344,8 @@ struct EditorView: View {
             onUndo: undo,
             onDone: saveOverwrite
         )
-        .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 320)
+        .frame(width: 260)
+        .background(.thinMaterial)
     }
 
     // MARK: - Detail Content
@@ -439,7 +469,8 @@ struct EditorView: View {
     // MARK: - Zoom
 
     private func updateFitScale(viewSize: CGSize) {
-        guard imagePixelSize.width > 0, imagePixelSize.height > 0 else { return }
+        guard imagePixelSize.width > 0, imagePixelSize.height > 0,
+              viewSize.width > 0, viewSize.height > 0 else { return }
         // Content in the scroll view adds:
         // - 56pt top clearance for the floating toolbar overlay
         // - 20pt padding on the other three sides
