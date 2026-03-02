@@ -58,14 +58,6 @@ struct EditorToolbarView: View {
                 // Background label + gradient picker
                 if hasTemplate {
                     Button {
-                        // Show the page containing the current selection
-                        if let sel = selectedGradient,
-                           let idx = BuiltInGradient.allCases.firstIndex(of: sel) {
-                            let itemIndex = idx + 1 // +1 for the "None" item
-                            backgroundPage = itemIndex / 11
-                        } else {
-                            backgroundPage = 0
-                        }
                         gradientPopoverVisible.toggle()
                     } label: {
                         HStack(spacing: 0) {
@@ -194,8 +186,6 @@ struct EditorToolbarView: View {
     @State private var arrowStylePopoverVisible = false
     @State private var shapeStylePopoverVisible = false
     @State private var spotlightPopoverVisible = false
-    @State private var backgroundPage = 0
-    @State private var backgroundDragOffset: CGFloat = 0
 
     private var styleControls: some View {
         HStack(spacing: 0) {
@@ -356,95 +346,40 @@ struct EditorToolbarView: View {
         .frame(width: 40, height: toolPillHeight)
     }
 
-    /// Background items split into pages.
-    private var backgroundPages: [[BuiltInGradient?]] {
-        let all: [BuiltInGradient?] = [nil] + BuiltInGradient.allCases.map { $0 }
-        let pageSize = 11
-        return stride(from: 0, to: all.count, by: pageSize).map {
-            Array(all[$0..<min($0 + pageSize, all.count)])
-        }
-    }
 
     /// Contents of the gradient popover.
     private var gradientPopoverContent: some View {
         let circleSize: CGFloat = 20
         let spacing: CGFloat = 6
-        let pageItemCount = 11
-        let pageWidth = CGFloat(pageItemCount) * circleSize + CGFloat(pageItemCount - 1) * spacing
+        let columns = Array(repeating: GridItem(.fixed(circleSize), spacing: spacing), count: 7)
 
-        return VStack(spacing: 6) {
-            // Pages with clipping and animation
-            ZStack(alignment: .leading) {
-                ForEach(Array(backgroundPages.enumerated()), id: \.offset) { pageIndex, items in
-                    HStack(spacing: spacing) {
-                        ForEach(Array(items.enumerated()), id: \.offset) { _, gradient in
-                            if let gradient {
-                                Circle()
-                                    .fill(gradient.swiftUIGradient)
-                                    .overlay(
-                                        Circle().stroke(
-                                            selectedGradient == gradient ? Color.accentColor : Color.primary.opacity(0.15),
-                                            lineWidth: selectedGradient == gradient ? 2 : 0.5
-                                        )
-                                    )
-                                    .frame(width: circleSize, height: circleSize)
-                                    .help(gradient.displayName)
-                                    .onTapGesture { selectedGradient = gradient }
-                            } else {
-                                noneCircle(size: circleSize, isSelected: selectedGradient == nil)
-                                    .help("No Background")
-                                    .onTapGesture { selectedGradient = nil }
-                            }
-                        }
-                    }
-                    .frame(width: pageWidth, alignment: .leading)
-                    .offset(x: CGFloat(pageIndex - backgroundPage) * (pageWidth + spacing * 2))
-                }
+        return LazyVGrid(columns: columns, spacing: spacing) {
+            Button {
+                selectedGradient = nil
+            } label: {
+                noneCircle(size: circleSize, isSelected: selectedGradient == nil)
             }
-            .offset(x: backgroundDragOffset)
-            .frame(width: pageWidth, height: circleSize + 4)
-            .clipped()
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 8)
-                    .onChanged { value in
-                        backgroundDragOffset = value.translation.width
-                    }
-                    .onEnded { value in
-                        let threshold: CGFloat = 40
-                        let pages = backgroundPages.count
-                        if value.translation.width < -threshold, backgroundPage < pages - 1 {
-                            backgroundPage += 1
-                        } else if value.translation.width > threshold, backgroundPage > 0 {
-                            backgroundPage -= 1
-                        }
-                        backgroundDragOffset = 0
-                    }
-            )
-            .onScrollWheel { direction in
-                let pages = backgroundPages.count
-                if direction > 0, backgroundPage < pages - 1 {
-                    backgroundPage += 1
-                } else if direction < 0, backgroundPage > 0 {
-                    backgroundPage -= 1
-                }
-            }
-            .animation(.easeInOut(duration: 0.25), value: backgroundPage)
-            .animation(.interactiveSpring(), value: backgroundDragOffset)
+            .buttonStyle(.plain)
+            .focusable(false)
+            .help("No Background")
 
-            // Page dots
-            if backgroundPages.count > 1 {
-                HStack(spacing: 5) {
-                    ForEach(0..<backgroundPages.count, id: \.self) { index in
-                        Circle()
-                            .fill(backgroundPage == index ? Color.primary : Color.primary.opacity(0.25))
-                            .frame(width: 5, height: 5)
-                            .contentShape(Circle())
-                            .onTapGesture {
-                                backgroundPage = index
-                            }
-                    }
+            ForEach(BuiltInGradient.allCases) { gradient in
+                Button {
+                    selectedGradient = gradient
+                } label: {
+                    Circle()
+                        .fill(gradient.swiftUIGradient)
+                        .overlay(
+                            Circle().stroke(
+                                selectedGradient == gradient ? Color.accentColor : Color.primary.opacity(0.15),
+                                lineWidth: selectedGradient == gradient ? 2 : 0.5
+                            )
+                        )
+                        .frame(width: circleSize, height: circleSize)
                 }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .help(gradient.displayName)
             }
         }
         .padding(10)

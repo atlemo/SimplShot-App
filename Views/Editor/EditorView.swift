@@ -10,8 +10,9 @@ struct EditorView: View {
     /// The URL of the captured screenshot file.
     let imageURL: URL
 
-    /// Optional template for applying a background.
-    let template: ScreenshotTemplate?
+    /// Template for applying a background. Falls back to `.default` so the
+    /// editor can always add/change a gradient even when no template was passed.
+    let template: ScreenshotTemplate
 
     /// Optional app settings for reading/writing persisted editor preferences.
     var appSettings: AppSettings?
@@ -72,7 +73,7 @@ struct EditorView: View {
         onDismiss: @escaping () -> Void = {}
     ) {
         self.imageURL = imageURL
-        self.template = template
+        self.template = template ?? appSettings?.screenshotTemplate ?? .default
         self.appSettings = appSettings
         self.preferOriginalAspectRatio = preferOriginalAspectRatio
         self.onDismiss = onDismiss
@@ -142,9 +143,16 @@ struct EditorView: View {
     }
 
     var body: some View {
+        bodyWithObservers
+    }
+
+    // Split into two computed properties to help the Swift type checker
+    // with the long chain of .onChange modifiers.
+
+    private var bodyBase: some View {
         navigationContent
             .onAppear {
-            if let appSettings, let template {
+            if let appSettings {
 #if !APPSTORE
                 editorAspectRatioID = preferOriginalAspectRatio ? nil : appSettings.selectedRatioID
 #endif
@@ -196,8 +204,6 @@ struct EditorView: View {
         }
         .onChange(of: editorAspectRatioID) { oldID, newID in
             if selectedGradient != nil, let rawImage {
-                // Keep annotations anchored to screenshot content when the
-                // background canvas expands/contracts to match selected ratio.
                 let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
                 let oldRatio = aspectRatioValue(for: oldID)
                 let newRatio = aspectRatioValue(for: newID)
@@ -213,6 +219,10 @@ struct EditorView: View {
                 applyDisplayImage(from: rawImage)
             }
         }
+    }
+
+    private var bodyWithObservers: some View {
+        bodyBase
         .onChange(of: screenshotAlignment) { oldAlignment, newAlignment in
             if selectedGradient != nil, let rawImage {
                 let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
@@ -243,6 +253,9 @@ struct EditorView: View {
                let ann = annotations.first(where: { $0.id == id }) {
                 currentStyle = ann.style
             }
+        }
+        .onChange(of: currentTool) { _, newTool in
+            handleToolChange(newTool)
         }
         .alert("Delete Screenshot?", isPresented: $showTrashAlert) {
             Button("Delete", role: .destructive) {
@@ -290,7 +303,7 @@ struct EditorView: View {
                     isCropping: $isCropping,
                     selectedAnnotationID: $selectedAnnotationID,
                     annotations: $annotations,
-                    hasTemplate: template != nil,
+                    hasTemplate: true,
                     selectedGradient: $selectedGradient,
                     onApplyCrop: applyCrop,
                     onCancelCrop: cancelCrop
@@ -337,7 +350,7 @@ struct EditorView: View {
             screenshotAlignment: $screenshotAlignment,
             aspectRatios: editorAspectRatios,
             selectedAspectRatioID: $editorAspectRatioID,
-            hasTemplate: template != nil,
+            hasTemplate: true,
             canUndo: !undoStack.isEmpty,
             onApplyCrop: applyCrop,
             onCancelCrop: cancelCrop,
@@ -541,7 +554,7 @@ struct EditorView: View {
         }
 
         var displayCG = croppedCG
-        if let gradient = selectedGradient, let template {
+        if let gradient = selectedGradient {
             // Build a template with the current editor slider values and selected gradient,
             // applied to the already-cropped screenshot (never the raw+gradient composite).
             var editorTemplate = template
@@ -880,6 +893,30 @@ struct EditorView: View {
     private func trashScreenshot() {
         try? FileManager.default.trashItem(at: imageURL, resultingItemURL: nil)
         onDismiss()
+    }
+
+    // MARK: - Tool Change
+
+    private func handleToolChange(_ tool: AnnotationTool) {
+        if tool == .spotlight, imagePixelSize.width > 0, imagePixelSize.height > 0 {
+            let insetX = imagePixelSize.width * 0.15
+            let insetY = imagePixelSize.height * 0.15
+            let spotlightRect = CGRect(
+                x: insetX,
+                y: insetY,
+                width: imagePixelSize.width - insetX * 2,
+                height: imagePixelSize.height - insetY * 2
+            )
+            pushUndo()
+            let annotation = Annotation(
+                tool: .spotlight,
+                startPoint: spotlightRect.origin,
+                endPoint: CGPoint(x: spotlightRect.maxX, y: spotlightRect.maxY),
+                style: currentStyle
+            )
+            annotations.append(annotation)
+            selectedAnnotationID = annotation.id
+        }
     }
 
     // MARK: - Undo

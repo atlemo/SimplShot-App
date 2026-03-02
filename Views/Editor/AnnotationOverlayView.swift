@@ -101,9 +101,9 @@ struct AnnotationOverlayView: View {
             )
 
         case .rectangle:
-            Rectangle()
+            RoundedRectangle(cornerRadius: 6)
                 .fill(annotation.style.fillShape ? annotation.style.strokeColor : Color.clear)
-                .overlay(Rectangle().stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
 
@@ -163,6 +163,7 @@ struct AnnotationOverlayView: View {
             SpotlightOverlayShape(cutout: rect, canvasSize: CGSize(width: fullW, height: fullH))
                 .fill(Color.black.opacity(annotation.style.spotlightOpacity), style: FillStyle(eoFill: true))
                 .frame(width: fullW, height: fullH)
+                .clipped()
                 .position(x: fullW / 2, y: fullH / 2)
 
         case .select, .crop:
@@ -510,12 +511,9 @@ private struct SpotlightOverlayShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         path.addRect(CGRect(origin: .zero, size: canvasSize))
-        path.addRect(cutout)
+        path.addRoundedRect(in: cutout, cornerSize: CGSize(width: 6, height: 6))
         return path
     }
-
-    // Use even-odd fill rule so the cutout rectangle is transparent
-    static var role: ShapeRole { .fill }
 }
 
 // MARK: - Pixelate Preview

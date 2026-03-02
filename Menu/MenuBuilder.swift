@@ -363,12 +363,11 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 if !capturedFiles.isEmpty {
                     if capturedFiles.count == 1, appSettings.openEditorAfterCapture {
                         EditorWindowController.openEditor(imageURL: capturedFiles[0], template: template, appSettings: appSettings)
+                    } else if capturedFiles.count == 1, !appSettings.openEditorAfterCapture {
+                        applyTemplateAndCopy(fileURL: capturedFiles[0], template: nil)
+                        showSystemNotification(title: "Screenshot Copied", body: "Click to Edit", imageURL: capturedFiles[0])
                     } else {
-                        let body = capturedFiles.count == 1
-                            ? capturedFiles[0].lastPathComponent
-                            : "\(capturedFiles.count) screenshots saved"
-                        let editableFile = capturedFiles.count == 1 ? capturedFiles[0] : nil
-                        showNotification(title: "Screenshot Saved", body: body, editableFileURL: editableFile)
+                        showSystemNotification(title: "Screenshots Saved", body: "\(capturedFiles.count) screenshots saved")
                     }
                 }
                 if !errors.isEmpty {
@@ -498,12 +497,28 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 #endif
 
             await MainActor.run { [self] in
-                EditorWindowController.openEditor(
-                    imageURL: finalURL,
-                    template: template,
-                    appSettings: appSettings,
-                    preferOriginalAspectRatio: true
-                )
+                if appSettings.openEditorAfterCapture {
+                    EditorWindowController.openEditor(
+                        imageURL: finalURL,
+                        template: template,
+                        appSettings: appSettings,
+                        preferOriginalAspectRatio: true
+                    )
+                } else {
+                    // Keep a raw copy for the editor before baking the template.
+                    let rawURL: URL
+                    if template.isEnabled {
+                        let rawName = finalURL.deletingPathExtension().lastPathComponent + "_raw"
+                        rawURL = finalURL.deletingLastPathComponent()
+                            .appendingPathComponent(rawName)
+                            .appendingPathExtension(finalURL.pathExtension)
+                        try? FileManager.default.copyItem(at: finalURL, to: rawURL)
+                    } else {
+                        rawURL = finalURL
+                    }
+                    applyTemplateAndCopy(fileURL: finalURL, template: template)
+                    showSystemNotification(title: "Screenshot Copied", body: "Click to Edit", imageURL: rawURL)
+                }
             }
         }
     }
@@ -760,13 +775,16 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     // MARK: - Helpers
 
-    private func showOCRSuccessNotification(characterCount: Int) {
+    private func showSystemNotification(title: String, body: String, imageURL: URL? = nil) {
         Task {
             let center = UNUserNotificationCenter.current()
             guard (try? await center.requestAuthorization(options: [.alert])) == true else { return }
             let content = UNMutableNotificationContent()
-            content.title = "Text Copied"
-            content.body = "\(characterCount) character\(characterCount == 1 ? "" : "s") copied to clipboard"
+            content.title = title
+            content.body = body
+            if let imageURL {
+                content.userInfo = ["imageURL": imageURL.path]
+            }
             let request = UNNotificationRequest(
                 identifier: UUID().uuidString,
                 content: content,
@@ -776,6 +794,13 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         }
     }
 
+    private func showOCRSuccessNotification(characterCount: Int) {
+        showSystemNotification(
+            title: "Text Copied",
+            body: "\(characterCount) character\(characterCount == 1 ? "" : "s") copied to clipboard"
+        )
+    }
+
     private func showAlert(_ message: String) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
@@ -783,6 +808,35 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
+    }
+
+    /// Applies the screenshot template (if enabled) to the image, overwrites the
+    /// file on disk with the templated version, and copies it to the pasteboard.
+    private func applyTemplateAndCopy(fileURL: URL, template: ScreenshotTemplate?) {
+        guard let nsImage = NSImage(contentsOf: fileURL),
+              let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return }
+
+        var finalCG = cgImage
+        if let template, template.isEnabled {
+            let backingScale = NSScreen.main?.backingScaleFactor ?? 2.0
+            let renderer = TemplateRenderer()
+            if let templated = try? renderer.applyTemplate(template, to: cgImage, backingScale: backingScale) {
+                finalCG = templated
+                // Overwrite saved file with the templated version
+                if let dest = CGImageDestinationCreateWithURL(fileURL as CFURL, UTType.png.identifier as CFString, 1, nil) {
+                    CGImageDestinationAddImage(dest, finalCG, nil)
+                    CGImageDestinationFinalize(dest)
+                }
+            }
+        }
+
+        let bitmapRep = NSBitmapImageRep(cgImage: finalCG)
+        let finalImage = NSImage(size: NSSize(width: finalCG.width, height: finalCG.height))
+        finalImage.addRepresentation(bitmapRep)
+
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([NSURL(fileURLWithPath: fileURL.path), finalImage])
     }
 
     private func showNotification(title: String, body: String, editableFileURL: URL? = nil) {

@@ -4,6 +4,7 @@ import KeyboardShortcuts
 import Sparkle
 #endif
 import SwiftUI
+@preconcurrency import UserNotifications
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
@@ -115,6 +116,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // System Settings → Screen Recording, even after a rebuild resets the entry.
         ScreenshotService.ensurePermission()
         showPermissionOnboardingIfNeeded()
+
+        // Handle notification clicks to open the editor
+        UNUserNotificationCenter.current().delegate = self
     }
 
 #if !APPSTORE
@@ -166,6 +170,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 #endif
+}
+
+// MARK: - Notification Click → Open Editor
+
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if let path = response.notification.request.content.userInfo["imageURL"] as? String {
+            let url = URL(fileURLWithPath: path)
+            EditorWindowController.openEditor(imageURL: url, appSettings: appSettings)
+        }
+        completionHandler()
+    }
 }
 
 private final class PermissionOnboardingWindowController: NSWindowController {
