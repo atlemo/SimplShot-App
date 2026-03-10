@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The pro-mode sidebar panel shown when the user toggles the sidebar button.
 /// Replaces the compact floating toolbar with grouped, labeled sections.
@@ -13,7 +14,7 @@ struct EditorSidebarView: View {
     @Binding var annotations: [Annotation]
     @Binding var isCropping: Bool
 
-    @Binding var selectedGradient: BuiltInGradient?
+    @Binding var selectedWallpaper: WallpaperSource?
     @Binding var padding: Int
     @Binding var cornerRadius: Int
     @Binding var shadowIntensity: Double
@@ -178,6 +179,7 @@ struct EditorSidebarView: View {
                 ForEach(items) { gradient in
                     gradientCell(gradient)
                 }
+                customImageCell
             }
         }
         .padding(.horizontal, 14)
@@ -685,15 +687,15 @@ struct EditorSidebarView: View {
 
     private var noneCell: some View {
         Button {
-            selectedGradient = nil
+            selectedWallpaper = nil
         } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(.white)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8).stroke(
-                            selectedGradient == nil ? Color.accentColor : Color.primary.opacity(0.2),
-                            lineWidth: selectedGradient == nil ? 2 : 0.5
+                            selectedWallpaper == nil ? Color.accentColor : Color.primary.opacity(0.2),
+                            lineWidth: selectedWallpaper == nil ? 2 : 0.5
                         )
                     )
                 Path { path in
@@ -710,10 +712,17 @@ struct EditorSidebarView: View {
         .help("No Background")
     }
 
+    private func isGradientSelected(_ gradient: BuiltInGradient) -> Bool {
+        if case .builtInGradient(let current) = selectedWallpaper {
+            return current == gradient
+        }
+        return false
+    }
+
     private func gradientCell(_ gradient: BuiltInGradient) -> some View {
-        let isSelected = selectedGradient == gradient
+        let isSelected = isGradientSelected(gradient)
         return Button {
-            selectedGradient = gradient
+            selectedWallpaper = .builtInGradient(gradient)
         } label: {
             RoundedRectangle(cornerRadius: 8)
                 .fill(gradient.swiftUIGradient)
@@ -728,6 +737,61 @@ struct EditorSidebarView: View {
         .buttonStyle(.plain)
         .focusable(false)
         .help(gradient.displayName)
+    }
+
+    private var customImageCell: some View {
+        let isSelected: Bool = {
+            if case .customImage = selectedWallpaper { return true }
+            return false
+        }()
+        return Button {
+            pickCustomImage()
+        } label: {
+            ZStack {
+                if case .customImage(let path) = selectedWallpaper,
+                   let nsImage = NSImage(contentsOfFile: path) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8).stroke(
+                                Color.accentColor, lineWidth: 2
+                            )
+                        )
+                } else {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .overlay(
+                            Image(systemName: "photo")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.secondary)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8).stroke(
+                                isSelected ? Color.accentColor : Color.primary.opacity(0.15),
+                                lineWidth: isSelected ? 2 : 0.5
+                            )
+                        )
+                        .frame(height: 44)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help("Custom Image")
+    }
+
+    private func pickCustomImage() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.image]
+        if panel.runModal() == .OK, let url = panel.url {
+            selectedWallpaper = .customImage(path: url.path)
+        }
     }
 
     // MARK: - Helpers

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The annotation toolbar displayed at the top of the editor.
 struct EditorToolbarView: View {
@@ -12,7 +13,7 @@ struct EditorToolbarView: View {
     @Binding var annotations: [Annotation]
 
     var hasTemplate: Bool
-    @Binding var selectedGradient: BuiltInGradient?
+    @Binding var selectedWallpaper: WallpaperSource?
     var onApplyCrop: () -> Void
     var onCancelCrop: () -> Void
 
@@ -331,11 +332,8 @@ struct EditorToolbarView: View {
     /// Circle + chevron shown inside the pill label.
     private var gradientIndicator: some View {
         HStack(spacing: 4) {
-            if let gradient = selectedGradient {
-                Circle()
-                    .fill(gradient.swiftUIGradient)
-                    .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
-                    .frame(width: 14, height: 14)
+            if let wallpaper = selectedWallpaper {
+                wallpaperIndicatorCircle(wallpaper, size: 14)
             } else {
                 noneCircle(size: 14)
             }
@@ -346,6 +344,37 @@ struct EditorToolbarView: View {
         .frame(width: 40, height: toolPillHeight)
     }
 
+    @ViewBuilder
+    private func wallpaperIndicatorCircle(_ wallpaper: WallpaperSource, size: CGFloat) -> some View {
+        switch wallpaper {
+        case .builtInGradient(let gradient):
+            Circle()
+                .fill(gradient.swiftUIGradient)
+                .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
+                .frame(width: size, height: size)
+        case .customImage(let path):
+            if let nsImage = NSImage(contentsOfFile: path) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
+            } else {
+                Circle()
+                    .fill(Color.gray)
+                    .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
+                    .frame(width: size, height: size)
+            }
+        }
+    }
+
+    private func isGradientSelected(_ gradient: BuiltInGradient) -> Bool {
+        if case .builtInGradient(let current) = selectedWallpaper {
+            return current == gradient
+        }
+        return false
+    }
 
     /// Contents of the gradient popover.
     private var gradientPopoverContent: some View {
@@ -355,9 +384,9 @@ struct EditorToolbarView: View {
 
         return LazyVGrid(columns: columns, spacing: spacing) {
             Button {
-                selectedGradient = nil
+                selectedWallpaper = nil
             } label: {
-                noneCircle(size: circleSize, isSelected: selectedGradient == nil)
+                noneCircle(size: circleSize, isSelected: selectedWallpaper == nil)
             }
             .buttonStyle(.plain)
             .focusable(false)
@@ -365,14 +394,14 @@ struct EditorToolbarView: View {
 
             ForEach(BuiltInGradient.allCases) { gradient in
                 Button {
-                    selectedGradient = gradient
+                    selectedWallpaper = .builtInGradient(gradient)
                 } label: {
                     Circle()
                         .fill(gradient.swiftUIGradient)
                         .overlay(
                             Circle().stroke(
-                                selectedGradient == gradient ? Color.accentColor : Color.primary.opacity(0.15),
-                                lineWidth: selectedGradient == gradient ? 2 : 0.5
+                                isGradientSelected(gradient) ? Color.accentColor : Color.primary.opacity(0.15),
+                                lineWidth: isGradientSelected(gradient) ? 2 : 0.5
                             )
                         )
                         .frame(width: circleSize, height: circleSize)
@@ -381,8 +410,50 @@ struct EditorToolbarView: View {
                 .focusable(false)
                 .help(gradient.displayName)
             }
+
+            Button {
+                pickCustomImage()
+            } label: {
+                ZStack {
+                    if case .customImage(let path) = selectedWallpaper,
+                       let nsImage = NSImage(contentsOfFile: path) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: circleSize, height: circleSize)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle().stroke(Color.accentColor, lineWidth: 2)
+                            )
+                    } else {
+                        Circle()
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .font(.system(size: circleSize * 0.45))
+                                    .foregroundStyle(.secondary)
+                            )
+                            .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
+                            .frame(width: circleSize, height: circleSize)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+            .help("Custom Image")
         }
         .padding(10)
+    }
+
+    private func pickCustomImage() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.image]
+        if panel.runModal() == .OK, let url = panel.url {
+            selectedWallpaper = .customImage(path: url.path)
+        }
     }
 
     @ViewBuilder

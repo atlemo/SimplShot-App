@@ -30,8 +30,8 @@ struct EditorView: View {
     /// The display's backing scale factor (e.g. 2.0 on Retina, 3.0 on 3× displays).
     /// Used to compute "true size" — where 100% shows the image at its logical point dimensions.
     @State private var displayBackingScale: CGFloat = NSScreen.main?.backingScaleFactor ?? 2.0
-    /// nil = no background; non-nil = background enabled with that gradient.
-    @State private var selectedGradient: BuiltInGradient? = nil
+    /// nil = no background; non-nil = background enabled with that wallpaper.
+    @State private var selectedWallpaper: WallpaperSource? = nil
     /// Local copies of template padding/cornerRadius for live editing in the bottom toolbar.
     @State private var editorAspectRatioID: UUID? = nil
     @State private var editorPadding: Int = 80
@@ -116,7 +116,7 @@ struct EditorView: View {
     /// The screenshot content's bounding rect inside the display canvas, in image-pixel space.
     /// When a gradient is active this is the inset screenshot region; otherwise the full canvas.
     private var screenshotBoundsInDisplay: CGRect {
-        if selectedGradient != nil, !screenshotCropRect.isEmpty {
+        if selectedWallpaper != nil, !screenshotCropRect.isEmpty {
             let offset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: screenshotCropRect.size,
                 padding: editorPadding,
@@ -159,11 +159,7 @@ struct EditorView: View {
                 editorPadding = template.padding
                 editorCornerRadius = template.cornerRadius
                 if appSettings.editorUseTemplateBackground {
-                    if case .builtInGradient(let gradient) = template.wallpaperSource {
-                        selectedGradient = gradient
-                    } else {
-                        selectedGradient = .oceanDreams
-                    }
+                    selectedWallpaper = template.wallpaperSource
                 }
             }
             loadImage()
@@ -178,10 +174,13 @@ struct EditorView: View {
                 cancelCrop()
             }
         }
-        .onChange(of: selectedGradient) { oldValue, newValue in
+        .onChange(of: selectedWallpaper) { oldValue, newValue in
             let wasEnabled = oldValue != nil
             let isEnabled = newValue != nil
             appSettings?.editorUseTemplateBackground = isEnabled
+            if let newValue {
+                appSettings?.screenshotTemplate.wallpaperSource = newValue
+            }
             if let rawImage {
                 if wasEnabled != isEnabled {
                     let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
@@ -194,7 +193,7 @@ struct EditorView: View {
         }
         .onChange(of: editorPadding) { oldValue, newValue in
             appSettings?.screenshotTemplate.padding = newValue
-            if selectedGradient != nil, let rawImage {
+            if selectedWallpaper != nil, let rawImage {
                 let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
                 let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: oldValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
                 let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: newValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
@@ -203,7 +202,7 @@ struct EditorView: View {
             }
         }
         .onChange(of: editorAspectRatioID) { oldID, newID in
-            if selectedGradient != nil, let rawImage {
+            if selectedWallpaper != nil, let rawImage {
                 let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
                 let oldRatio = aspectRatioValue(for: oldID)
                 let newRatio = aspectRatioValue(for: newID)
@@ -215,7 +214,7 @@ struct EditorView: View {
         }
         .onChange(of: editorCornerRadius) { _, newValue in
             appSettings?.screenshotTemplate.cornerRadius = newValue
-            if selectedGradient != nil, let rawImage {
+            if selectedWallpaper != nil, let rawImage {
                 applyDisplayImage(from: rawImage)
             }
         }
@@ -224,7 +223,7 @@ struct EditorView: View {
     private var bodyWithObservers: some View {
         bodyBase
         .onChange(of: screenshotAlignment) { oldAlignment, newAlignment in
-            if selectedGradient != nil, let rawImage {
+            if selectedWallpaper != nil, let rawImage {
                 let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
                 let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: oldAlignment)
                 let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: newAlignment)
@@ -239,7 +238,7 @@ struct EditorView: View {
             updateFitScale(viewSize: lastViewSize)
         }
         .onChange(of: shadowIntensity) { _, _ in
-            if selectedGradient != nil, let rawImage {
+            if selectedWallpaper != nil, let rawImage {
                 applyDisplayImage(from: rawImage)
             }
         }
@@ -304,7 +303,7 @@ struct EditorView: View {
                     selectedAnnotationID: $selectedAnnotationID,
                     annotations: $annotations,
                     hasTemplate: true,
-                    selectedGradient: $selectedGradient,
+                    selectedWallpaper: $selectedWallpaper,
                     onApplyCrop: applyCrop,
                     onCancelCrop: cancelCrop
                 )
@@ -343,7 +342,7 @@ struct EditorView: View {
             selectedAnnotationID: $selectedAnnotationID,
             annotations: $annotations,
             isCropping: $isCropping,
-            selectedGradient: $selectedGradient,
+            selectedWallpaper: $selectedWallpaper,
             padding: $editorPadding,
             cornerRadius: $editorCornerRadius,
             shadowIntensity: $shadowIntensity,
@@ -374,7 +373,7 @@ struct EditorView: View {
                                 imagePixelSize: imagePixelSize,
                                 scale: effectiveScale,
                                 displayBackingScale: displayBackingScale,
-                                shadowIntensity: selectedGradient == nil ? shadowIntensity : 0,
+                                shadowIntensity: selectedWallpaper == nil ? shadowIntensity : 0,
                                 annotations: $annotations,
                                 selectedAnnotationID: $selectedAnnotationID,
                                 currentTool: $currentTool,
@@ -406,7 +405,7 @@ struct EditorView: View {
                 selectedAspectRatioID: $editorAspectRatioID,
                 padding: $editorPadding,
                 cornerRadius: $editorCornerRadius,
-                useTemplateBackground: selectedGradient != nil,
+                useTemplateBackground: selectedWallpaper != nil,
                 hideSliders: showProSidebar,
                 onTrash: { showTrashAlert = true },
                 onCopy: copyToClipboard,
@@ -554,13 +553,13 @@ struct EditorView: View {
         }
 
         var displayCG = croppedCG
-        if let gradient = selectedGradient {
-            // Build a template with the current editor slider values and selected gradient,
-            // applied to the already-cropped screenshot (never the raw+gradient composite).
+        if let wallpaper = selectedWallpaper {
+            // Build a template with the current editor slider values and selected wallpaper,
+            // applied to the already-cropped screenshot (never the raw+wallpaper composite).
             var editorTemplate = template
             editorTemplate.padding = editorPadding
             editorTemplate.cornerRadius = editorCornerRadius
-            editorTemplate.wallpaperSource = .builtInGradient(gradient)
+            editorTemplate.wallpaperSource = wallpaper
             let renderer = TemplateRenderer()
             if let templated = try? renderer.applyTemplate(
                 editorTemplate,
@@ -589,7 +588,7 @@ struct EditorView: View {
         // Compute the gradient offset so we can convert display-space cropRect
         // back to raw screenshot pixel space.
         let gradientOffset: CGPoint
-        if selectedGradient != nil, !screenshotCropRect.isEmpty {
+        if selectedWallpaper != nil, !screenshotCropRect.isEmpty {
             gradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: screenshotCropRect.size,
                 padding: editorPadding,
@@ -645,7 +644,7 @@ struct EditorView: View {
         // Compute annotation shift: accounts for both crop origin movement and
         // any change in the gradient offset (which can shift if aspect ratio is used).
         let newGradientOffset: CGPoint
-        if selectedGradient != nil {
+        if selectedWallpaper != nil {
             newGradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: newScreenshotCropRect.size,
                 padding: editorPadding,
@@ -691,7 +690,7 @@ struct EditorView: View {
 
         // Compute the old gradient offset (before expanding).
         let oldGradientOffset: CGPoint
-        if selectedGradient != nil, !screenshotCropRect.isEmpty {
+        if selectedWallpaper != nil, !screenshotCropRect.isEmpty {
             oldGradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: screenshotCropRect.size,
                 padding: editorPadding,
@@ -708,7 +707,7 @@ struct EditorView: View {
 
         // Compute the new gradient offset (after expanding to full image).
         let newGradientOffset: CGPoint
-        if selectedGradient != nil {
+        if selectedWallpaper != nil {
             newGradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: fullBounds.size,
                 padding: editorPadding,
@@ -740,7 +739,7 @@ struct EditorView: View {
     private func cancelCrop() {
         // Compute gradient offset for the full image (current crop-mode state).
         let fullGradientOffset: CGPoint
-        if selectedGradient != nil, !screenshotCropRect.isEmpty {
+        if selectedWallpaper != nil, !screenshotCropRect.isEmpty {
             fullGradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: screenshotCropRect.size,
                 padding: editorPadding,
@@ -759,7 +758,7 @@ struct EditorView: View {
 
         // Compute gradient offset for the restored crop.
         let restoredGradientOffset: CGPoint
-        if selectedGradient != nil, !screenshotCropRect.isEmpty {
+        if selectedWallpaper != nil, !screenshotCropRect.isEmpty {
             restoredGradientOffset = screenshotOriginInTemplatedCanvas(
                 screenshotPixelSize: screenshotCropRect.size,
                 padding: editorPadding,
@@ -926,7 +925,7 @@ struct EditorView: View {
             annotations: annotations,
             image: image,
             rawImage: rawImage,
-            selectedGradientRawValue: selectedGradient?.rawValue,
+            selectedWallpaper: selectedWallpaper,
             imagePixelSize: imagePixelSize,
             cropRect: cropRect,
             screenshotCropRect: screenshotCropRect
@@ -949,7 +948,7 @@ struct EditorView: View {
                 ?? snapImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
         }
         rawImage = snapshot.rawImage
-        selectedGradient = snapshot.selectedGradientRawValue.flatMap { BuiltInGradient(rawValue: $0) }
+        selectedWallpaper = snapshot.selectedWallpaper
         cropRect = snapshot.cropRect ?? CGRect(origin: .zero, size: imagePixelSize)
         selectedAnnotationID = nil
     }

@@ -173,7 +173,7 @@ struct EditorSnapshot {
     let annotations: [Annotation]
     let image: NSImage?
     let rawImage: NSImage?
-    let selectedGradientRawValue: String?
+    let selectedWallpaper: WallpaperSource?
     let imagePixelSize: CGSize
     let cropRect: CGRect?
     /// The current crop in raw screenshot pixel space (non-destructive crop state).
@@ -183,7 +183,7 @@ struct EditorSnapshot {
         annotations: [Annotation],
         image: NSImage? = nil,
         rawImage: NSImage? = nil,
-        selectedGradientRawValue: String? = nil,
+        selectedWallpaper: WallpaperSource? = nil,
         imagePixelSize: CGSize = .zero,
         cropRect: CGRect? = nil,
         screenshotCropRect: CGRect? = nil
@@ -191,7 +191,7 @@ struct EditorSnapshot {
         self.annotations = annotations
         self.image = image
         self.rawImage = rawImage
-        self.selectedGradientRawValue = selectedGradientRawValue
+        self.selectedWallpaper = selectedWallpaper
         self.imagePixelSize = imagePixelSize
         self.cropRect = cropRect
         self.screenshotCropRect = screenshotCropRect
