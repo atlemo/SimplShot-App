@@ -24,6 +24,9 @@ struct EditorSidebarView: View {
     @Binding var selectedAspectRatioID: UUID?
 
     var hasTemplate: Bool
+    var customBackgroundImages: [String]
+    var onAddCustomImage: () -> Void
+    var onRemoveCustomImage: (String) -> Void
     var canUndo: Bool
     var onApplyCrop: () -> Void
     var onCancelCrop: () -> Void
@@ -179,7 +182,10 @@ struct EditorSidebarView: View {
                 ForEach(items) { gradient in
                     gradientCell(gradient)
                 }
-                customImageCell
+                ForEach(customBackgroundImages, id: \.self) { path in
+                    customImageCell(path: path)
+                }
+                customImagePickerButton
             }
         }
         .padding(.horizontal, 14)
@@ -739,59 +745,76 @@ struct EditorSidebarView: View {
         .help(gradient.displayName)
     }
 
-    private var customImageCell: some View {
-        let isSelected: Bool = {
-            if case .customImage = selectedWallpaper { return true }
-            return false
-        }()
+    private func isCustomImageSelected(_ path: String) -> Bool {
+        if case .customImage(let current) = selectedWallpaper {
+            return current == path
+        }
+        return false
+    }
+
+    private func customImageCell(path: String) -> some View {
+        let isSelected = isCustomImageSelected(path)
         return Button {
-            pickCustomImage()
+            selectedWallpaper = .customImage(path: path)
         } label: {
-            ZStack {
-                if case .customImage(let path) = selectedWallpaper,
-                   let nsImage = NSImage(contentsOfFile: path) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8).stroke(
-                                Color.accentColor, lineWidth: 2
-                            )
+            if let nsImage = NSImage(contentsOfFile: path) {
+                Color.clear
+                    .frame(height: 44)
+                    .overlay(
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8).stroke(
+                            isSelected ? Color.accentColor : Color.primary.opacity(0.15),
+                            lineWidth: isSelected ? 2 : 0.5
                         )
-                } else {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                        .overlay(
-                            Image(systemName: "photo")
-                                .font(.system(size: 16))
-                                .foregroundStyle(.secondary)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8).stroke(
-                                isSelected ? Color.accentColor : Color.primary.opacity(0.15),
-                                lineWidth: isSelected ? 2 : 0.5
-                            )
-                        )
-                        .frame(height: 44)
-                }
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(height: 44)
             }
         }
         .buttonStyle(.plain)
         .focusable(false)
         .help("Custom Image")
+        .contextMenu {
+            Button(role: .destructive) {
+                if isSelected {
+                    selectedWallpaper = nil
+                }
+                onRemoveCustomImage(path)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
-    private func pickCustomImage() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.image]
-        if panel.runModal() == .OK, let url = panel.url {
-            selectedWallpaper = .customImage(path: url.path)
+    /// Button to add a custom background image, shown inline in the grid.
+    private var customImagePickerButton: some View {
+        Button {
+            onAddCustomImage()
+        } label: {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    Image(systemName: "photo.badge.plus")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8).stroke(
+                        Color.primary.opacity(0.15), lineWidth: 0.5
+                    )
+                )
+                .frame(height: 44)
         }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help("Add Custom Image")
     }
 
     // MARK: - Helpers

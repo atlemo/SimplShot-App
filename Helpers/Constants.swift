@@ -42,5 +42,6 @@ enum Constants {
         static let editorUseTemplateBackground = "editorUseTemplateBackground"
         static let editorShowProSidebar = "editorShowProSidebar"
         static let hasShownPermissionOnboarding = "hasShownPermissionOnboarding"
+        static let customBackgroundImages = "customBackgroundImages"
     }
 }

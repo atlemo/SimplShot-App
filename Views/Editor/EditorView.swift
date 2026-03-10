@@ -304,6 +304,9 @@ struct EditorView: View {
                     annotations: $annotations,
                     hasTemplate: true,
                     selectedWallpaper: $selectedWallpaper,
+                    customBackgroundImages: appSettings?.customBackgroundImages ?? [],
+                    onAddCustomImage: addCustomBackgroundImage,
+                    onRemoveCustomImage: removeCustomBackgroundImage,
                     onApplyCrop: applyCrop,
                     onCancelCrop: cancelCrop
                 )
@@ -350,6 +353,9 @@ struct EditorView: View {
             aspectRatios: editorAspectRatios,
             selectedAspectRatioID: $editorAspectRatioID,
             hasTemplate: true,
+            customBackgroundImages: appSettings?.customBackgroundImages ?? [],
+            onAddCustomImage: addCustomBackgroundImage,
+            onRemoveCustomImage: removeCustomBackgroundImage,
             canUndo: !undoStack.isEmpty,
             onApplyCrop: applyCrop,
             onCancelCrop: cancelCrop,
@@ -951,6 +957,27 @@ struct EditorView: View {
         selectedWallpaper = snapshot.selectedWallpaper
         cropRect = snapshot.cropRect ?? CGRect(origin: .zero, size: imagePixelSize)
         selectedAnnotationID = nil
+    }
+
+    // MARK: - Custom Background Images
+
+    private func addCustomBackgroundImage() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.image]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if let path = appSettings?.addCustomBackgroundImage(from: url) {
+            selectedWallpaper = .customImage(path: path)
+        }
+    }
+
+    private func removeCustomBackgroundImage(_ path: String) {
+        if case .customImage(let current) = selectedWallpaper, current == path {
+            selectedWallpaper = nil
+        }
+        appSettings?.removeCustomBackgroundImage(at: path)
     }
 
     // MARK: - Save

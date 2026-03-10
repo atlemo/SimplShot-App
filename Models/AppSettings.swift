@@ -96,6 +96,11 @@ class AppSettings {
         didSet { UserDefaults.standard.set(editorShowProSidebar, forKey: Constants.UserDefaultsKeys.editorShowProSidebar) }
     }
 
+    /// Paths to user-added custom background images, stored in Application Support.
+    var customBackgroundImages: [String] {
+        didSet { saveCustomBackgroundImages() }
+    }
+
     var startAtLogin: Bool {
         didSet {
             do {
@@ -128,6 +133,9 @@ class AppSettings {
 
         // Load pro sidebar preference (defaults to false)
         self.editorShowProSidebar = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.editorShowProSidebar)
+
+        // Load custom background images
+        self.customBackgroundImages = UserDefaults.standard.stringArray(forKey: Constants.UserDefaultsKeys.customBackgroundImages) ?? []
 
 #if !APPSTORE
         // Load width presets
@@ -207,5 +215,37 @@ class AppSettings {
         if let data = try? JSONEncoder().encode(screenshotTemplate) {
             UserDefaults.standard.set(data, forKey: Constants.UserDefaultsKeys.screenshotTemplate)
         }
+    }
+
+    private func saveCustomBackgroundImages() {
+        UserDefaults.standard.set(customBackgroundImages, forKey: Constants.UserDefaultsKeys.customBackgroundImages)
+    }
+
+    /// Copies the image at `sourceURL` into the app's Application Support directory and
+    /// adds the new path to `customBackgroundImages`. Returns the stored path.
+    @discardableResult
+    func addCustomBackgroundImage(from sourceURL: URL) -> String? {
+        let fm = FileManager.default
+        guard let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
+        let bgDir = appSupport.appendingPathComponent("SimplShot/CustomBackgrounds")
+        try? fm.createDirectory(at: bgDir, withIntermediateDirectories: true)
+
+        let fileName = UUID().uuidString + "." + sourceURL.pathExtension
+        let destURL = bgDir.appendingPathComponent(fileName)
+        do {
+            try fm.copyItem(at: sourceURL, to: destURL)
+            let path = destURL.path
+            customBackgroundImages.append(path)
+            return path
+        } catch {
+            print("Failed to copy custom background image: \(error)")
+            return nil
+        }
+    }
+
+    /// Removes a custom background image from the list and deletes the file.
+    func removeCustomBackgroundImage(at path: String) {
+        customBackgroundImages.removeAll { $0 == path }
+        try? FileManager.default.removeItem(atPath: path)
     }
 }
