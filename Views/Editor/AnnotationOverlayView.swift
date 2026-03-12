@@ -529,12 +529,26 @@ private struct PixelatePreviewView: View {
     let pixelationScale: CGFloat
     let viewSize: CGSize             // display size in view points
 
+    // Cache key: rounded pixelRect + pixelationScale to avoid re-rendering on sub-pixel drag jitter
+    @State private var cachedImage: NSImage?
+    @State private var cacheKey: String = ""
+
     var body: some View {
-        if let small = makePixelated() {
+        let key = "\(Int(pixelRect.minX)),\(Int(pixelRect.minY)),\(Int(pixelRect.width)),\(Int(pixelRect.height)),\(Int(pixelationScale))"
+        if let cached = cachedImage, cacheKey == key {
+            Image(nsImage: cached)
+                .interpolation(.none)
+                .resizable()
+                .frame(width: viewSize.width, height: viewSize.height)
+        } else if let small = makePixelated() {
             Image(nsImage: small)
                 .interpolation(.none)
                 .resizable()
                 .frame(width: viewSize.width, height: viewSize.height)
+                .onAppear {
+                    cachedImage = small
+                    cacheKey = key
+                }
         } else {
             // Fallback: deterministic checkerboard pattern
             Canvas { ctx, size in

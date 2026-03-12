@@ -78,7 +78,7 @@ enum ArrowStyle: String, CaseIterable {
 
 // MARK: - Annotation Style
 
-struct AnnotationStyle {
+struct AnnotationStyle: Equatable {
     var strokeColor: Color = .red
     var strokeWidth: CGFloat = 3
     var fontSize: CGFloat = 48
@@ -114,7 +114,7 @@ struct AnnotationStyle {
 /// A single annotation on the canvas.
 /// Points are stored in **image-pixel coordinates** (matching the CGImage dimensions)
 /// so they remain accurate regardless of view zoom or window size.
-struct Annotation: Identifiable {
+struct Annotation: Identifiable, Equatable {
     let id: UUID
     var tool: AnnotationTool
     var startPoint: CGPoint    // image-pixel coordinates

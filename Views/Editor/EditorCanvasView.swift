@@ -88,7 +88,7 @@ struct EditorCanvasView: View {
                     scale: scale,
                     displayBackingScale: displayBackingScale,
                     isSelected: annotation.id == selectedAnnotationID && !isDraggingAnnotation,
-                    sourceImage: image,
+                    sourceImage: annotation.tool == .pixelate ? image : nil,
                     imagePixelSize: imagePixelSize
                 )
                 .allowsHitTesting(false)
@@ -101,7 +101,7 @@ struct EditorCanvasView: View {
                     scale: scale,
                     displayBackingScale: displayBackingScale,
                     isSelected: false,
-                    sourceImage: image,
+                    sourceImage: pending.tool == .pixelate ? image : nil,
                     imagePixelSize: imagePixelSize
                 )
                 .allowsHitTesting(false)

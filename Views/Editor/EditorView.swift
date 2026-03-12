@@ -99,6 +99,7 @@ struct EditorView: View {
     @State private var showTrashAlert: Bool = false
     @State private var deleteKeyMonitor: Any?
 
+
     /// The actual scale applied to the image: fitScale * zoomLevel.
     /// Units: view-points per image-pixel.
     private var effectiveScale: CGFloat {
