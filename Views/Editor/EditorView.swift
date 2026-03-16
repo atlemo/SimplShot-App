@@ -364,7 +364,7 @@ struct EditorView: View {
             onDone: saveOverwrite
         )
         .frame(width: 260)
-        .background(.thinMaterial)
+        .background(.regularMaterial)
     }
 
     // MARK: - Detail Content

@@ -29,32 +29,35 @@ struct TemplateSettingsView: View {
             // --- Wallpaper picker ---
             settingsRow("Wallpaper:") {
                 VStack(alignment: .leading, spacing: 8) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(BuiltInGradient.allCases) { gradient in
-                                GradientSwatchView(gradient: gradient, isSelected: isGradientSelected(gradient))
-                                    .onTapGesture {
-                                        appSettings.screenshotTemplate.wallpaperSource = .builtInGradient(gradient)
-                                    }
+                    ScrollViewReader { scrollProxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(BuiltInGradient.allCases) { gradient in
+                                    GradientSwatchView(gradient: gradient, isSelected: isGradientSelected(gradient))
+                                        .onTapGesture {
+                                            appSettings.screenshotTemplate.wallpaperSource = .builtInGradient(gradient)
+                                        }
+                                }
+
+                                ForEach(appSettings.customBackgroundImages, id: \.self) { path in
+                                    customImageSwatch(path: path)
+                                }
+                            }
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 4)
+                            .id("wallpaperEnd")
+                        }
+                        .onChange(of: appSettings.customBackgroundImages.count) {
+                            withAnimation {
+                                scrollProxy.scrollTo("wallpaperEnd", anchor: .trailing)
                             }
                         }
-                        .padding(.vertical, 3)
-                        .padding(.horizontal, 4)
                     }
 
-                    HStack(spacing: 8) {
-                        Button("Custom Image…") {
-                            pickCustomImage()
-                        }
-                        .controlSize(.small)
-
-                        if case .customImage(let path) = appSettings.screenshotTemplate.wallpaperSource {
-                            Text(URL(fileURLWithPath: path).lastPathComponent)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
+                    Button("Add Image") {
+                        addCustomImage()
                     }
+                    .controlSize(.small)
                 }
             }
             .disabled(!appSettings.screenshotTemplate.isEnabled)
@@ -142,14 +145,50 @@ struct TemplateSettingsView: View {
         return false
     }
 
-    private func pickCustomImage() {
+    @ViewBuilder
+    private func customImageSwatch(path: String) -> some View {
+        let isSelected = {
+            if case .customImage(let p) = appSettings.screenshotTemplate.wallpaperSource { return p == path }
+            return false
+        }()
+
+        Button {
+            appSettings.screenshotTemplate.wallpaperSource = .customImage(path: path)
+        } label: {
+            if let nsImage = NSImage(contentsOfFile: path) {
+                Color.clear
+                    .frame(width: 48, height: 32)
+                    .overlay(
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.15),
+                                    lineWidth: isSelected ? 2 : 0.5)
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 48, height: 32)
+            }
+        }
+        .buttonStyle(.plain)
+        .help("Custom Image")
+    }
+
+    private func addCustomImage() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.image]
         if panel.runModal() == .OK, let url = panel.url {
-            appSettings.screenshotTemplate.wallpaperSource = .customImage(path: url.path)
+            if let path = appSettings.addCustomBackgroundImage(from: url) {
+                appSettings.screenshotTemplate.wallpaperSource = .customImage(path: path)
+            }
         }
     }
 }
@@ -294,7 +333,8 @@ struct GradientSwatchView: View {
             .frame(width: 48, height: 32)
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                    .strokeBorder(isSelected ? Color.accentColor : Color.primary.opacity(gradient.needsBorder ? 0.15 : 0),
+                                  lineWidth: isSelected ? 2 : 0.5)
             )
     }
 

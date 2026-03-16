@@ -801,9 +801,9 @@ struct EditorSidebarView: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color(nsColor: .controlBackgroundColor))
                 .overlay(
-                    Image(systemName: "photo.badge.plus")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
+                    Image(systemName: "plus")
+                        .font(.system(size: 17))
+                        .foregroundStyle(.primary)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8).stroke(

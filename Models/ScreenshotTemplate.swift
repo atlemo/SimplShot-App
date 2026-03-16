@@ -100,6 +100,11 @@ enum BuiltInGradient: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Whether this swatch needs a visible border to stand out against a light background.
+    var needsBorder: Bool {
+        self == .solidWhite
+    }
+
     static var gradients: [BuiltInGradient] {
         allCases.filter { !$0.isSolidColor }
     }

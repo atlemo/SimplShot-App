@@ -427,9 +427,9 @@ struct EditorToolbarView: View {
                 Circle()
                     .fill(Color(nsColor: .controlBackgroundColor))
                     .overlay(
-                        Image(systemName: "photo.badge.plus")
-                            .font(.system(size: circleSize * 0.45))
-                            .foregroundStyle(.secondary)
+                        Image(systemName: "plus")
+                            .font(.system(size: circleSize * 0.5))
+                            .foregroundStyle(.primary)
                     )
                     .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
                     .frame(width: circleSize, height: circleSize)
