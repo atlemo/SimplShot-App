@@ -606,6 +606,48 @@ private struct PixelatePreviewView: View {
     }
 }
 
+// MARK: - Committed Annotations (Isolated Subview)
+
+/// Displays all committed (non-dragging, non-editing) annotations.
+/// Extracted into its own view so SwiftUI can skip re-evaluation during drag:
+/// `draggingAnnotation` (which changes every frame) is NOT an input here —
+/// only the stable `excludeDraggingID` (set once at drag start) is used.
+struct CommittedAnnotationsView: Equatable, View {
+    let annotations: [Annotation]
+    let excludeEditingID: UUID?
+    let excludeDraggingID: UUID?
+    let selectedAnnotationID: UUID?
+    let scale: CGFloat
+    let displayBackingScale: CGFloat
+    let sourceImage: NSImage?
+    let imagePixelSize: CGSize
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.annotations == rhs.annotations
+        && lhs.excludeEditingID == rhs.excludeEditingID
+        && lhs.excludeDraggingID == rhs.excludeDraggingID
+        && lhs.selectedAnnotationID == rhs.selectedAnnotationID
+        && lhs.scale == rhs.scale
+        && lhs.displayBackingScale == rhs.displayBackingScale
+        && lhs.sourceImage === rhs.sourceImage
+        && lhs.imagePixelSize == rhs.imagePixelSize
+    }
+
+    var body: some View {
+        ForEach(annotations.filter { $0.id != excludeEditingID && $0.id != excludeDraggingID }) { annotation in
+            AnnotationOverlayView(
+                annotation: annotation,
+                scale: scale,
+                displayBackingScale: displayBackingScale,
+                isSelected: annotation.id == selectedAnnotationID,
+                sourceImage: annotation.tool == .pixelate ? sourceImage : nil,
+                imagePixelSize: imagePixelSize
+            )
+            .allowsHitTesting(false)
+        }
+    }
+}
+
 // MARK: - Resize Handle Dot
 
 struct HandleDot: View {

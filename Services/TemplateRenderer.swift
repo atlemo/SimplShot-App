@@ -20,6 +20,24 @@ enum TemplateRenderError: LocalizedError {
 
 class TemplateRenderer {
 
+    // Cache for flattenNativeCorners — keyed by image dimensions + data pointer.
+    // The result depends only on the source image pixels, not on corner radius,
+    // so we can reuse it across rapid slider changes.
+    private var cachedFlattenedImage: CGImage?
+    private var cachedFlattenKey: String = ""
+
+    private func cachedFlattenNativeCorners(_ image: CGImage, backingScale: CGFloat) -> CGImage {
+        // Key by image identity: dimensions + data provider pointer
+        let key = "\(image.width)x\(image.height)_\(Unmanaged.passUnretained(image).toOpaque())_\(backingScale)"
+        if key == cachedFlattenKey, let cached = cachedFlattenedImage {
+            return cached
+        }
+        let result = flattenNativeCorners(image, backingScale: backingScale)
+        cachedFlattenedImage = result
+        cachedFlattenKey = key
+        return result
+    }
+
     func applyTemplate(
         _ template: ScreenshotTemplate,
         to screenshot: CGImage,
@@ -121,7 +139,7 @@ class TemplateRenderer {
             // by sampling edge colors and filling the corner regions before
             // compositing. This makes the image fully opaque so the squircle
             // clip produces perfectly clean corners.
-            let opaqueScreenshot = flattenNativeCorners(screenshot, backingScale: backingScale)
+            let opaqueScreenshot = cachedFlattenNativeCorners(screenshot, backingScale: backingScale)
 
             context.saveGState()
             let clipPath = squirclePath(in: screenshotRect, topLeft: rTL, topRight: rTR, bottomLeft: rBL, bottomRight: rBR)

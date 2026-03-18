@@ -62,6 +62,10 @@ struct EditorCanvasView: View {
     @State private var dragMode: DragMode = .body
     /// Ensure we only push one undo snapshot per drag interaction.
     @State private var didCaptureUndoForCurrentDrag: Bool = false
+    /// ID of the annotation currently being dragged — set once at drag start, cleared at drag end.
+    /// Used in the committed annotations filter so it doesn't re-evaluate on every drag tick
+    /// (unlike `draggingAnnotation?.id` which changes every frame as the struct updates).
+    @State private var draggingAnnotationID: UUID?
 
     private var canvasWidth: CGFloat { imagePixelSize.width * scale }
     private var canvasHeight: CGFloat { imagePixelSize.height * scale }
@@ -83,18 +87,19 @@ struct EditorCanvasView: View {
                     handleTap(at: location)
                 }
 
-            // Committed annotations (hide the one being text-edited or actively dragged)
-            ForEach(annotations.filter { $0.id != editingTextID && $0.id != draggingAnnotation?.id }) { annotation in
-                AnnotationOverlayView(
-                    annotation: annotation,
-                    scale: scale,
-                    displayBackingScale: displayBackingScale,
-                    isSelected: annotation.id == selectedAnnotationID && !isDraggingAnnotation,
-                    sourceImage: annotation.tool == .pixelate ? image : nil,
-                    imagePixelSize: imagePixelSize
-                )
-                .allowsHitTesting(false)
-            }
+            // Committed annotations — isolated into a subview so it doesn't
+            // re-evaluate on every drag tick (draggingAnnotation changes every frame,
+            // but draggingAnnotationID is stable throughout a single drag).
+            CommittedAnnotationsView(
+                annotations: annotations,
+                excludeEditingID: editingTextID,
+                excludeDraggingID: draggingAnnotationID,
+                selectedAnnotationID: isDraggingAnnotation ? nil : selectedAnnotationID,
+                scale: scale,
+                displayBackingScale: displayBackingScale,
+                sourceImage: image,
+                imagePixelSize: imagePixelSize
+            )
 
             // Live drag proxy — only this view updates during drag (local @State)
             if let dragging = draggingAnnotation {
@@ -189,6 +194,7 @@ struct EditorCanvasView: View {
                         if let idx = annotations.firstIndex(where: { $0.id == hitID }) {
                             selectedAnnotationID = hitID
                             isDraggingAnnotation = true
+                            draggingAnnotationID = hitID
                             dragStartAnnotation = annotations[idx]
                             draggingAnnotation = annotations[idx]
                             dragStartImagePoint = startInImage
@@ -365,6 +371,7 @@ struct EditorCanvasView: View {
             annotations[idx] = final
         }
         isDraggingAnnotation = false
+        draggingAnnotationID = nil
         dragStartAnnotation = nil
         draggingAnnotation = nil
         dragStartImagePoint = .zero

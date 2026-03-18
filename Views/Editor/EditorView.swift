@@ -37,6 +37,9 @@ struct EditorView: View {
     @State private var editorPadding: Int = 80
     @State private var editorCornerRadius: Int = 24
 
+    /// Persistent renderer so `flattenNativeCorners` cache survives across slider ticks.
+    @State private var templateRenderer = TemplateRenderer()
+
     // Annotation state
     @State private var annotations: [Annotation] = []
     @State private var selectedAnnotationID: UUID?
@@ -537,7 +540,6 @@ struct EditorView: View {
         }
         applyDisplayImage(from: nsImage)
     }
-
     private func applyDisplayImage(from source: NSImage) {
         guard let cgSource = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             image = source
@@ -567,8 +569,7 @@ struct EditorView: View {
             editorTemplate.padding = editorPadding
             editorTemplate.cornerRadius = editorCornerRadius
             editorTemplate.wallpaperSource = wallpaper
-            let renderer = TemplateRenderer()
-            if let templated = try? renderer.applyTemplate(
+            if let templated = try? templateRenderer.applyTemplate(
                 editorTemplate,
                 to: croppedCG,
                 backingScale: displayBackingScale,
