@@ -162,7 +162,7 @@ struct EditorView: View {
 #endif
                 editorPadding = template.padding
                 editorCornerRadius = template.cornerRadius
-                if appSettings.editorUseTemplateBackground {
+                if appSettings.editorUseTemplateBackground || appSettings.screenshotTemplate.isEnabled {
                     selectedWallpaper = template.wallpaperSource
                 }
             }
