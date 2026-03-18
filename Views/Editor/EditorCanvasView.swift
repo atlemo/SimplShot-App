@@ -54,6 +54,8 @@ struct EditorCanvasView: View {
     @State private var isDraggingAnnotation: Bool = false
     /// Pre-drag snapshot of the annotation being moved/resized
     @State private var dragStartAnnotation: Annotation?
+    /// Live-updated annotation during drag (local @State, avoids binding cascade)
+    @State private var draggingAnnotation: Annotation?
     /// The image-space point where the drag started (for delta computation)
     @State private var dragStartImagePoint: CGPoint = .zero
     /// Which part of the annotation is being dragged
@@ -81,14 +83,27 @@ struct EditorCanvasView: View {
                     handleTap(at: location)
                 }
 
-            // Committed annotations (hide the one being text-edited)
-            ForEach(annotations.filter { $0.id != editingTextID }) { annotation in
+            // Committed annotations (hide the one being text-edited or actively dragged)
+            ForEach(annotations.filter { $0.id != editingTextID && $0.id != draggingAnnotation?.id }) { annotation in
                 AnnotationOverlayView(
                     annotation: annotation,
                     scale: scale,
                     displayBackingScale: displayBackingScale,
                     isSelected: annotation.id == selectedAnnotationID && !isDraggingAnnotation,
                     sourceImage: annotation.tool == .pixelate ? image : nil,
+                    imagePixelSize: imagePixelSize
+                )
+                .allowsHitTesting(false)
+            }
+
+            // Live drag proxy — only this view updates during drag (local @State)
+            if let dragging = draggingAnnotation {
+                AnnotationOverlayView(
+                    annotation: dragging,
+                    scale: scale,
+                    displayBackingScale: displayBackingScale,
+                    isSelected: false,
+                    sourceImage: dragging.tool == .pixelate ? image : nil,
                     imagePixelSize: imagePixelSize
                 )
                 .allowsHitTesting(false)
@@ -175,6 +190,7 @@ struct EditorCanvasView: View {
                             selectedAnnotationID = hitID
                             isDraggingAnnotation = true
                             dragStartAnnotation = annotations[idx]
+                            draggingAnnotation = annotations[idx]
                             dragStartImagePoint = startInImage
                             dragMode = mode
                             didCaptureUndoForCurrentDrag = false
@@ -285,11 +301,9 @@ struct EditorCanvasView: View {
 
     // MARK: - Drag Application
 
-    /// Apply the current drag delta to the annotation being dragged.
+    /// Apply the current drag delta to the local drag proxy (avoids mutating the binding).
     private func applyDragDelta(_ currentInImage: CGPoint) {
-        guard let startAnn = dragStartAnnotation,
-              let idx = annotations.firstIndex(where: { $0.id == startAnn.id })
-        else { return }
+        guard var ann = dragStartAnnotation else { return }
 
         if !didCaptureUndoForCurrentDrag {
             onCommit()
@@ -301,50 +315,58 @@ struct EditorCanvasView: View {
 
         switch dragMode {
         case .body:
-            annotations[idx].startPoint = CGPoint(x: startAnn.startPoint.x + dx,
-                                                   y: startAnn.startPoint.y + dy)
-            annotations[idx].endPoint   = CGPoint(x: startAnn.endPoint.x + dx,
-                                                   y: startAnn.endPoint.y + dy)
-            if startAnn.tool == .freeDraw {
-                annotations[idx].points = startAnn.points.map {
+            ann.startPoint = CGPoint(x: ann.startPoint.x + dx,
+                                     y: ann.startPoint.y + dy)
+            ann.endPoint   = CGPoint(x: ann.endPoint.x + dx,
+                                     y: ann.endPoint.y + dy)
+            if ann.tool == .freeDraw {
+                ann.points = ann.points.map {
                     CGPoint(x: $0.x + dx, y: $0.y + dy)
                 }
             }
 
         case .startHandle:
-            let newStart = CGPoint(x: startAnn.startPoint.x + dx,
-                                   y: startAnn.startPoint.y + dy)
-            if isAngleLockTool(startAnn.tool), isShiftDown {
-                annotations[idx].startPoint = constrainTo45Degree(start: startAnn.endPoint, end: newStart)
+            let newStart = CGPoint(x: ann.startPoint.x + dx,
+                                   y: ann.startPoint.y + dy)
+            if isAngleLockTool(ann.tool), isShiftDown {
+                ann.startPoint = constrainTo45Degree(start: ann.endPoint, end: newStart)
             } else {
-                annotations[idx].startPoint = newStart
+                ann.startPoint = newStart
             }
 
         case .endHandle:
-            let newEnd = CGPoint(x: startAnn.endPoint.x + dx,
-                                 y: startAnn.endPoint.y + dy)
-            if isAngleLockTool(startAnn.tool), isShiftDown {
-                annotations[idx].endPoint = constrainTo45Degree(start: startAnn.startPoint, end: newEnd)
+            let newEnd = CGPoint(x: ann.endPoint.x + dx,
+                                 y: ann.endPoint.y + dy)
+            if isAngleLockTool(ann.tool), isShiftDown {
+                ann.endPoint = constrainTo45Degree(start: ann.startPoint, end: newEnd)
             } else {
-                annotations[idx].endPoint = newEnd
+                ann.endPoint = newEnd
             }
 
         case .corner(let minXFixed, let minYFixed):
-            let origRect = startAnn.boundingRect
+            let origRect = ann.boundingRect
             let draggedX = minXFixed ? origRect.maxX + dx : origRect.minX + dx
             let draggedY = minYFixed ? origRect.maxY + dy : origRect.minY + dy
             let fixedX = minXFixed ? origRect.minX : origRect.maxX
             let fixedY = minYFixed ? origRect.minY : origRect.maxY
-            annotations[idx].startPoint = CGPoint(x: min(fixedX, draggedX),
-                                                   y: min(fixedY, draggedY))
-            annotations[idx].endPoint   = CGPoint(x: max(fixedX, draggedX),
-                                                   y: max(fixedY, draggedY))
+            ann.startPoint = CGPoint(x: min(fixedX, draggedX),
+                                     y: min(fixedY, draggedY))
+            ann.endPoint   = CGPoint(x: max(fixedX, draggedX),
+                                     y: max(fixedY, draggedY))
         }
+
+        draggingAnnotation = ann
     }
 
     private func finishSelectDrag() {
+        // Commit the drag proxy back to the annotations array (single write)
+        if let final = draggingAnnotation,
+           let idx = annotations.firstIndex(where: { $0.id == final.id }) {
+            annotations[idx] = final
+        }
         isDraggingAnnotation = false
         dragStartAnnotation = nil
+        draggingAnnotation = nil
         dragStartImagePoint = .zero
         dragMode = .body
         didCaptureUndoForCurrentDrag = false
