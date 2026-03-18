@@ -280,6 +280,9 @@ struct EditorView: View {
             }
             detailContent
         }
+        // Scoped animation: only animates the sidebar's insertion/removal transition.
+        // Using .animation on the whole HStack could add overhead to every child view
+        // change within the animation environment (including the canvas during drag).
         .animation(.easeInOut(duration: 0.2), value: showProSidebar)
         .toolbar {
             // [Panel Toggle Button]

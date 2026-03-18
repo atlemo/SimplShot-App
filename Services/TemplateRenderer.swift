@@ -38,6 +38,13 @@ class TemplateRenderer {
         return result
     }
 
+    // Cache for the rendered background (gradient or custom image).
+    // The background only changes when the wallpaper source or canvas dimensions change —
+    // NOT when corner radius or shadow intensity changes. Caching it avoids the expensive
+    // full-canvas gradient fill on every slider tick.
+    private var cachedBackgroundImage: CGImage?
+    private var cachedBackgroundKey: String = ""
+
     func applyTemplate(
         _ template: ScreenshotTemplate,
         to screenshot: CGImage,
@@ -76,12 +83,30 @@ class TemplateRenderer {
 
         let canvasRect = CGRect(x: 0, y: 0, width: canvasWidth, height: canvasHeight)
 
-        // 1. Draw background
+        // 1. Draw background — use cached version when available.
+        //    The background key covers wallpaper source + canvas dimensions.
+        //    Corner radius and shadow changes reuse the cached background.
+        let bgKey: String
         switch template.wallpaperSource {
         case .builtInGradient(let gradient):
-            drawGradient(gradient.gradientDefinition, in: context, rect: canvasRect)
+            bgKey = "grad_\(gradient.id)_\(canvasWidth)x\(canvasHeight)"
         case .customImage(let path):
-            try drawCustomImage(path: path, in: context, rect: canvasRect)
+            bgKey = "img_\(path)_\(canvasWidth)x\(canvasHeight)"
+        }
+
+        if bgKey == cachedBackgroundKey, let cachedBG = cachedBackgroundImage {
+            // Fast path: draw the cached background image (single blit, no gradient math)
+            context.draw(cachedBG, in: canvasRect)
+        } else {
+            // Slow path: render the background and cache it
+            switch template.wallpaperSource {
+            case .builtInGradient(let gradient):
+                drawGradient(gradient.gradientDefinition, in: context, rect: canvasRect)
+            case .customImage(let path):
+                try drawCustomImage(path: path, in: context, rect: canvasRect)
+            }
+            cachedBackgroundImage = context.makeImage()
+            cachedBackgroundKey = bgKey
         }
 
         // 2. Screenshot placement rect — position within canvas using alignment.

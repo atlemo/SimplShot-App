@@ -176,17 +176,14 @@ struct EditorSidebarView: View {
             }
 
             let items = backgroundType == .gradients ? BuiltInGradient.gradients : BuiltInGradient.solidColors
-            let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
-            LazyVGrid(columns: columns, spacing: 6) {
-                noneCell
-                ForEach(items) { gradient in
-                    gradientCell(gradient)
-                }
-                ForEach(customBackgroundImages, id: \.self) { path in
-                    customImageCell(path: path)
-                }
-                customImagePickerButton
-            }
+            BackgroundGridView(
+                gradientItems: items,
+                selectedWallpaper: selectedWallpaper,
+                customBackgroundImages: customBackgroundImages,
+                onSelectWallpaper: { selectedWallpaper = $0 },
+                onRemoveCustomImage: onRemoveCustomImage,
+                onAddCustomImage: onAddCustomImage
+            )
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -689,133 +686,7 @@ struct EditorSidebarView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Gradient Cells
-
-    private var noneCell: some View {
-        Button {
-            selectedWallpaper = nil
-        } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.white)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8).stroke(
-                            selectedWallpaper == nil ? Color.accentColor : Color.primary.opacity(0.2),
-                            lineWidth: selectedWallpaper == nil ? 2 : 0.5
-                        )
-                    )
-                Path { path in
-                    path.move(to: CGPoint(x: 8, y: 36))
-                    path.addLine(to: CGPoint(x: 36, y: 8))
-                }
-                .stroke(Color.red, lineWidth: 1.5)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            .frame(height: 44)
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .help("No Background")
-    }
-
-    private func isGradientSelected(_ gradient: BuiltInGradient) -> Bool {
-        if case .builtInGradient(let current) = selectedWallpaper {
-            return current == gradient
-        }
-        return false
-    }
-
-    private func gradientCell(_ gradient: BuiltInGradient) -> some View {
-        let isSelected = isGradientSelected(gradient)
-        return Button {
-            selectedWallpaper = .builtInGradient(gradient)
-        } label: {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(gradient.swiftUIGradient)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8).stroke(
-                        isSelected ? Color.accentColor : Color.primary.opacity(0.15),
-                        lineWidth: isSelected ? 2 : 0.5
-                    )
-                )
-                .frame(height: 44)
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .help(gradient.displayName)
-    }
-
-    private func isCustomImageSelected(_ path: String) -> Bool {
-        if case .customImage(let current) = selectedWallpaper {
-            return current == path
-        }
-        return false
-    }
-
-    private func customImageCell(path: String) -> some View {
-        let isSelected = isCustomImageSelected(path)
-        return Button {
-            selectedWallpaper = .customImage(path: path)
-        } label: {
-            if let nsImage = NSImage(contentsOfFile: path) {
-                Color.clear
-                    .frame(height: 44)
-                    .overlay(
-                        Image(nsImage: nsImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8).stroke(
-                            isSelected ? Color.accentColor : Color.primary.opacity(0.15),
-                            lineWidth: isSelected ? 2 : 0.5
-                        )
-                    )
-            } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(height: 44)
-            }
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .help("Custom Image")
-        .contextMenu {
-            Button(role: .destructive) {
-                if isSelected {
-                    selectedWallpaper = nil
-                }
-                onRemoveCustomImage(path)
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
-    }
-
-    /// Button to add a custom background image, shown inline in the grid.
-    private var customImagePickerButton: some View {
-        Button {
-            onAddCustomImage()
-        } label: {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    Image(systemName: "plus")
-                        .font(.system(size: 17))
-                        .foregroundStyle(.primary)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8).stroke(
-                        Color.primary.opacity(0.15), lineWidth: 0.5
-                    )
-                )
-                .frame(height: 44)
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .help("Add Custom Image")
-    }
+    // Gradient cells moved to BackgroundGridView (Equatable) below.
 
     // MARK: - Helpers
 
@@ -880,6 +751,167 @@ struct EditorSidebarView: View {
                 applyStyleToSelection()
             }
         )
+    }
+}
+
+// MARK: - Background Grid (Equatable)
+
+/// Isolated `Equatable` view for the gradient/background grid.
+/// When the parent re-evaluates due to slider changes (corner radius, shadow, padding),
+/// SwiftUI compares this view's value-type inputs and SKIPS its body if unchanged.
+/// This avoids recreating 40+ gradient cells with LinearGradient fills on every slider tick.
+struct BackgroundGridView: View, Equatable {
+    let gradientItems: [BuiltInGradient]
+    let selectedWallpaper: WallpaperSource?
+    let customBackgroundImages: [String]
+    // Closures — excluded from Equatable comparison (they always change identity)
+    var onSelectWallpaper: (WallpaperSource?) -> Void
+    var onRemoveCustomImage: (String) -> Void
+    var onAddCustomImage: () -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.gradientItems == rhs.gradientItems
+        && lhs.selectedWallpaper == rhs.selectedWallpaper
+        && lhs.customBackgroundImages == rhs.customBackgroundImages
+    }
+
+    var body: some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
+        LazyVGrid(columns: columns, spacing: 6) {
+            noneCell
+            ForEach(gradientItems) { gradient in
+                gradientCell(gradient)
+            }
+            ForEach(customBackgroundImages, id: \.self) { path in
+                customImageCell(path: path)
+            }
+            customImagePickerButton
+        }
+    }
+
+    private var noneCell: some View {
+        Button {
+            onSelectWallpaper(nil)
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8).stroke(
+                            selectedWallpaper == nil ? Color.accentColor : Color.primary.opacity(0.2),
+                            lineWidth: selectedWallpaper == nil ? 2 : 0.5
+                        )
+                    )
+                Path { path in
+                    path.move(to: CGPoint(x: 8, y: 36))
+                    path.addLine(to: CGPoint(x: 36, y: 8))
+                }
+                .stroke(Color.red, lineWidth: 1.5)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .frame(height: 44)
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help("No Background")
+    }
+
+    private func isGradientSelected(_ gradient: BuiltInGradient) -> Bool {
+        if case .builtInGradient(let current) = selectedWallpaper {
+            return current == gradient
+        }
+        return false
+    }
+
+    private func gradientCell(_ gradient: BuiltInGradient) -> some View {
+        let isSelected = isGradientSelected(gradient)
+        return Button {
+            onSelectWallpaper(.builtInGradient(gradient))
+        } label: {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(gradient.swiftUIGradient)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8).stroke(
+                        isSelected ? Color.accentColor : Color.primary.opacity(0.15),
+                        lineWidth: isSelected ? 2 : 0.5
+                    )
+                )
+                .frame(height: 44)
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help(gradient.displayName)
+    }
+
+    private func isCustomImageSelected(_ path: String) -> Bool {
+        if case .customImage(let current) = selectedWallpaper {
+            return current == path
+        }
+        return false
+    }
+
+    private func customImageCell(path: String) -> some View {
+        let isSelected = isCustomImageSelected(path)
+        return Button {
+            onSelectWallpaper(.customImage(path: path))
+        } label: {
+            if let nsImage = NSImage(contentsOfFile: path) {
+                Color.clear
+                    .frame(height: 44)
+                    .overlay(
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8).stroke(
+                            isSelected ? Color.accentColor : Color.primary.opacity(0.15),
+                            lineWidth: isSelected ? 2 : 0.5
+                        )
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(height: 44)
+            }
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help("Custom Image")
+        .contextMenu {
+            Button(role: .destructive) {
+                if isSelected {
+                    onSelectWallpaper(nil)
+                }
+                onRemoveCustomImage(path)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    private var customImagePickerButton: some View {
+        Button {
+            onAddCustomImage()
+        } label: {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    Image(systemName: "plus")
+                        .font(.system(size: 17))
+                        .foregroundStyle(.primary)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8).stroke(
+                        Color.primary.opacity(0.15), lineWidth: 0.5
+                    )
+                )
+                .frame(height: 44)
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help("Add Custom Image")
     }
 }
 

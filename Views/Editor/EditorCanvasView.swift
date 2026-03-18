@@ -101,7 +101,10 @@ struct EditorCanvasView: View {
                 imagePixelSize: imagePixelSize
             )
 
-            // Live drag proxy — only this view updates during drag (local @State)
+            // Live drag proxy — only this view updates during drag (local @State).
+            // NO drawingGroup() here: for a single annotation, allocating a full
+            // canvas-sized Metal buffer every frame is more expensive than the 2-3
+            // Core Animation layers the shape naturally creates.
             if let dragging = draggingAnnotation {
                 AnnotationOverlayView(
                     annotation: dragging,
