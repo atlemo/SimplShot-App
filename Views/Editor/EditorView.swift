@@ -421,7 +421,6 @@ struct EditorView: View {
                 useTemplateBackground: selectedWallpaper != nil,
                 hideSliders: showProSidebar,
                 onTrash: { showTrashAlert = true },
-                onCopy: copyToClipboard,
                 onSaveAs: saveAs
             )
             .background(.clear)
@@ -995,6 +994,12 @@ struct EditorView: View {
     }
 
     private func copyToClipboard() {
+        copyToClipboardSilent()
+        onDismiss()
+    }
+
+    /// Copies the current image to the clipboard without dismissing the editor.
+    private func copyToClipboardSilent() {
         guard let cgImage = currentCGImage() else { return }
 
         let renderer = AnnotationRenderer()
@@ -1018,13 +1023,12 @@ struct EditorView: View {
         } else {
             NSPasteboard.general.writeObjects([finalImage])
         }
-
-        onDismiss()
     }
 
     private func saveOverwrite() {
         do {
             try exportAndSave(to: imageURL)
+            copyToClipboardSilent()
             onDismiss()
         } catch {
             showSaveError(error)

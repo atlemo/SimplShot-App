@@ -12,7 +12,6 @@ struct EditorBottomToolbarView: View {
     var hideSliders: Bool = false
 
     var onTrash: () -> Void
-    var onCopy: () -> Void
     var onSaveAs: () -> Void
 
     var body: some View {
@@ -102,18 +101,6 @@ struct EditorBottomToolbarView: View {
                     .contentShape(Rectangle())
             }
             .help("Delete Screenshot")
-            .focusable(false)
-
-            Divider()
-                .frame(height: 16)
-                .padding(.horizontal, 2)
-
-            Button(action: onCopy) {
-                Image(systemName: "document.on.document")
-                    .frame(width: 28, height: pillHeight)
-                    .contentShape(Rectangle())
-            }
-            .help("Copy to Clipboard")
             .focusable(false)
 
             Divider()
