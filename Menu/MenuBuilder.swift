@@ -836,7 +836,20 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         finalImage.addRepresentation(bitmapRep)
 
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects([NSURL(fileURLWithPath: fileURL.path), finalImage])
+
+        // Write a single pasteboard item with both file URL and image data.
+        // Using two separate writeObjects entries caused recipient apps to
+        // interpret them as two images.
+        let item = NSPasteboardItem()
+        item.setString(fileURL.absoluteString, forType: .fileURL)
+        if let tiffData = finalImage.tiffRepresentation {
+            item.setData(tiffData, forType: .tiff)
+        }
+        if let bitmapRep2 = finalImage.representations.first as? NSBitmapImageRep,
+           let pngData = bitmapRep2.representation(using: .png, properties: [:]) {
+            item.setData(pngData, forType: .png)
+        }
+        NSPasteboard.general.writeObjects([item])
     }
 
     private func showNotification(title: String, body: String, editableFileURL: URL? = nil) {

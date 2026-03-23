@@ -1013,13 +1013,21 @@ struct EditorView: View {
 
         NSPasteboard.general.clearContents()
 
-        // Write a named temp file alongside the image so apps (e.g. Slack) derive
-        // the filename from the file URL instead of defaulting to "image".
+        // Write a single pasteboard item that carries both a file URL (so apps
+        // like Slack derive a filename) and the TIFF image data. Using separate
+        // writeObjects entries caused recipient apps to see two images.
         if let pngData = bitmapRep.representation(using: .png, properties: [:]) {
             let tempURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent("SimplShot_pasted.png")
             try? pngData.write(to: tempURL)
-            NSPasteboard.general.writeObjects([NSURL(fileURLWithPath: tempURL.path), finalImage])
+
+            let item = NSPasteboardItem()
+            item.setString(tempURL.absoluteString, forType: .fileURL)
+            if let tiffData = finalImage.tiffRepresentation {
+                item.setData(tiffData, forType: .tiff)
+            }
+            item.setData(pngData, forType: .png)
+            NSPasteboard.general.writeObjects([item])
         } else {
             NSPasteboard.general.writeObjects([finalImage])
         }
