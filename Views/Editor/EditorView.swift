@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 import UniformTypeIdentifiers
 import AppKit
 #if !APPSTORE
@@ -59,6 +60,8 @@ struct EditorView: View {
     @State private var zoomLevel: CGFloat = 1.0  // 1.0 = fit to view
     @State private var fitScale: CGFloat = 0.5   // computed base scale to fit image
     @State private var lastViewSize: CGSize = .zero  // cached for re-fitting after image swap
+
+    @Environment(\.requestReview) private var requestReview
 
     // Sidebar / pro mode
     // NavigationSplitView drives sidebar visibility; showProSidebar is a derived bool.
@@ -1037,6 +1040,7 @@ struct EditorView: View {
         do {
             try exportAndSave(to: imageURL)
             copyToClipboardSilent()
+            requestReviewIfEligible()
             onDismiss()
         } catch {
             showSaveError(error)
@@ -1063,6 +1067,7 @@ struct EditorView: View {
 
         do {
             try exportAndSave(to: url)
+            requestReviewIfEligible()
             onDismiss()
         } catch {
             showSaveError(error)
@@ -1117,6 +1122,27 @@ struct EditorView: View {
         guard CGImageDestinationFinalize(destination) else {
             throw AnnotationRenderer.RenderError.cannotCreateOutputImage
         }
+    }
+
+    /// Request an App Store review after the user saves their 3rd screenshot with annotations.
+    private func requestReviewIfEligible() {
+        #if APPSTORE
+        guard !annotations.isEmpty else { return }
+        let key = Constants.UserDefaultsKeys.annotationSaveCount
+        let count = UserDefaults.standard.integer(forKey: key) + 1
+        UserDefaults.standard.set(count, forKey: key)
+        if count == 3 {
+            let alert = NSAlert()
+            alert.messageText = "Enjoying SimplShot?"
+            alert.informativeText = "We'd love your feedback — it helps us grow and make SimplShot even better!"
+            alert.addButton(withTitle: "Rate SimplShot")
+            alert.addButton(withTitle: "Not Now")
+            alert.alertStyle = .informational
+            if alert.runModal() == .alertFirstButtonReturn {
+                requestReview()
+            }
+        }
+        #endif
     }
 
     private func showSaveError(_ error: Error) {

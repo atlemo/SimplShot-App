@@ -64,7 +64,8 @@ struct GeneralSettingsView: View {
                     shortcutRow("Capture", shortcut: .resizeAndCapture)
                     shortcutRow("Capture all widths", shortcut: .batchCapture)
 #endif
-                    shortcutRow("Capture area", shortcut: .freeSizeCapture)
+                    shortcutRow("Capture Area", shortcut: .freeSizeCapture)
+                    shortcutRow("Capture OCR", shortcut: .captureTextOCR)
                 }
             }
 

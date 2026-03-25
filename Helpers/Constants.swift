@@ -43,5 +43,6 @@ enum Constants {
         static let editorShowProSidebar = "editorShowProSidebar"
         static let hasShownPermissionOnboarding = "hasShownPermissionOnboarding"
         static let customBackgroundImages = "customBackgroundImages"
+        static let annotationSaveCount = "annotationSaveCount"
     }
 }
