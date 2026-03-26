@@ -3,6 +3,14 @@ import SwiftUI
 struct SettingsView: View {
     let appSettings: AppSettings
 
+    private var settingsHeight: CGFloat {
+#if APPSTORE
+        400
+#else
+        480
+#endif
+    }
+
     var body: some View {
         TabView {
             GeneralSettingsView(appSettings: appSettings)
@@ -12,10 +20,10 @@ struct SettingsView: View {
                 .tabItem { Label("Sizes", systemImage: "ruler") }
 #endif
             TemplateSettingsView(appSettings: appSettings)
-                .tabItem { Label("Background", systemImage: "photo") }
+                .tabItem { Label("Template", systemImage: "photo") }
             AboutSettingsView()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 500, height: 480)
+        .frame(width: 500, height: settingsHeight)
     }
 }

@@ -313,7 +313,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         let saveURL = appSettings.screenshotSaveURL
         let presetWidth = widthPreset.width
         let windowCount = allWindows.count
-        let template = appSettings.screenshotTemplate
+        let template = appSettings.defaultCaptureTemplate
         let willOpenEditor = appSettings.openEditorAfterCapture && windowCount == 1
 
         Task { [windowManager, screenshotService] in
@@ -390,7 +390,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
         let format = appSettings.screenshotFormat
         let saveURL = appSettings.screenshotSaveURL
-        let template = appSettings.screenshotTemplate
+        let template = appSettings.defaultCaptureTemplate
 
         Task(priority: .medium) {
             // Brief pause so the menu fully dismisses before the crosshair appears
@@ -610,7 +610,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
         EditorWindowController.openEditor(
             imageURL: fileURL,
-            template: appSettings.screenshotTemplate,
+            template: appSettings.defaultCaptureTemplate,
             appSettings: appSettings
         )
     }
@@ -627,7 +627,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
         EditorWindowController.openEditor(
             imageURL: url,
-            template: appSettings.screenshotTemplate,
+            template: appSettings.defaultCaptureTemplate,
             appSettings: appSettings
         )
     }
@@ -661,7 +661,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         let format = appSettings.screenshotFormat
         let saveURL = appSettings.screenshotSaveURL
         let appName = app.name
-        let template = appSettings.screenshotTemplate
+        let template = appSettings.defaultCaptureTemplate
 
         Task {
             // Initial delay for app activation to settle

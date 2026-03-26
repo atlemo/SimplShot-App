@@ -52,5 +52,8 @@ enum Constants {
         static let screenshotSaveBookmark = "screenshotSaveBookmark"
         static let customBackgroundImages = "customBackgroundImages"
         static let annotationSaveCount = "annotationSaveCount"
+        static let editorTemplates = "editorTemplates"
+        static let selectedEditorTemplateID = "selectedEditorTemplateID"
+        static let defaultCaptureTemplateID = "defaultCaptureTemplateID"
     }
 }

@@ -6,7 +6,7 @@ import CoreGraphics
 /// The position of the screenshot within the gradient canvas.
 /// Used when an aspect ratio is applied and the canvas is larger than the screenshot.
 /// Cases are intentionally distinct from SwiftUI.Alignment names to avoid inference conflicts.
-enum CanvasAlignment: String, CaseIterable {
+enum CanvasAlignment: String, CaseIterable, Codable {
     case topLeft, topCenter, topRight
     case middleLeft, middleCenter, middleRight
     case bottomLeft, bottomCenter, bottomRight
@@ -278,5 +278,60 @@ struct ScreenshotTemplate: Codable {
         self.wallpaperSource = wallpaperSource
         self.padding = padding
         self.cornerRadius = cornerRadius
+    }
+}
+
+struct EditorTemplatePreset: Codable, Identifiable {
+    let id: UUID
+    var name: String
+    var wallpaperSource: WallpaperSource?
+    var padding: Int
+    var cornerRadius: Int
+    var shadowIntensity: Double
+    var aspectRatioID: UUID?
+    var alignment: CanvasAlignment
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        wallpaperSource: WallpaperSource?,
+        padding: Int,
+        cornerRadius: Int,
+        shadowIntensity: Double = 1.0,
+        aspectRatioID: UUID? = nil,
+        alignment: CanvasAlignment = .middleCenter
+    ) {
+        self.id = id
+        self.name = name
+        self.wallpaperSource = wallpaperSource
+        self.padding = padding
+        self.cornerRadius = cornerRadius
+        self.shadowIntensity = shadowIntensity
+        self.aspectRatioID = aspectRatioID
+        self.alignment = alignment
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        wallpaperSource = try container.decodeIfPresent(WallpaperSource.self, forKey: .wallpaperSource)
+        padding = try container.decodeIfPresent(Int.self, forKey: .padding) ?? 80
+        cornerRadius = try container.decodeIfPresent(Int.self, forKey: .cornerRadius) ?? 24
+        shadowIntensity = try container.decodeIfPresent(Double.self, forKey: .shadowIntensity) ?? 1.0
+        aspectRatioID = try container.decodeIfPresent(UUID.self, forKey: .aspectRatioID)
+        alignment = try container.decodeIfPresent(CanvasAlignment.self, forKey: .alignment) ?? .middleCenter
+    }
+
+    static func `default`(from template: ScreenshotTemplate, aspectRatioID: UUID? = nil) -> EditorTemplatePreset {
+        EditorTemplatePreset(
+            name: "My default",
+            wallpaperSource: template.isEnabled ? template.wallpaperSource : nil,
+            padding: template.padding,
+            cornerRadius: template.cornerRadius,
+            shadowIntensity: 1.0,
+            aspectRatioID: aspectRatioID,
+            alignment: .middleCenter
+        )
     }
 }

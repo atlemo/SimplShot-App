@@ -22,11 +22,16 @@ struct EditorSidebarView: View {
 
     let aspectRatios: [AspectRatio]
     @Binding var selectedAspectRatioID: UUID?
+    let editorTemplates: [EditorTemplatePreset]
+    @Binding var selectedEditorTemplateID: UUID?
+    var hasUnsavedTemplateChanges: Bool
 
     var hasTemplate: Bool
     var customBackgroundImages: [String]
     var onAddCustomImage: () -> Void
     var onRemoveCustomImage: (String) -> Void
+    var onOverwriteTemplate: () -> Void
+    var onSaveAsNewTemplate: () -> Void
     var canUndo: Bool
     var onApplyCrop: () -> Void
     var onCancelCrop: () -> Void
@@ -84,6 +89,10 @@ struct EditorSidebarView: View {
         VStack(spacing: 0) {
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 0) {
+                    if hasTemplate {
+                        templatesSection
+                        sectionDivider
+                    }
                     toolsSection
                     sectionDivider
                     if showStyleControls {
@@ -112,6 +121,37 @@ struct EditorSidebarView: View {
     }
 
     // MARK: - Sections
+
+    private var templatesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("Templates")
+            TemplatePopupPicker(
+                items: editorTemplates.map { ($0.id, templateDisplayName(for: $0)) },
+                selection: $selectedEditorTemplateID
+            )
+            .frame(maxWidth: .infinity, minHeight: 28)
+
+            HStack(spacing: 8) {
+                Button("Save", action: onOverwriteTemplate)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(selectedEditorTemplateID == nil || !hasUnsavedTemplateChanges)
+
+                Button("Save as new", action: onSaveAsNewTemplate)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    private func templateDisplayName(for template: EditorTemplatePreset) -> String {
+        if template.id == selectedEditorTemplateID && hasUnsavedTemplateChanges {
+            return "\(template.name) *"
+        }
+        return template.name
+    }
 
     private var toolsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -313,6 +353,7 @@ struct EditorSidebarView: View {
                 }
             }
             .frame(width: 26, height: 22)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .focusable(false)
@@ -363,6 +404,7 @@ struct EditorSidebarView: View {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(isActive ? Color.primary.opacity(0.12) : Color.clear)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .focusable(false)
@@ -751,6 +793,68 @@ struct EditorSidebarView: View {
                 applyStyleToSelection()
             }
         )
+    }
+}
+
+private struct TemplatePopupPicker: NSViewRepresentable {
+    let items: [(UUID, String)]
+    @Binding var selection: UUID?
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        button.controlSize = .regular
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.selectionChanged(_:))
+        context.coordinator.update(button: button, items: items, selection: selection)
+        return button
+    }
+
+    func updateNSView(_ button: NSPopUpButton, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.update(button: button, items: items, selection: selection)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject {
+        var parent: TemplatePopupPicker
+
+        init(parent: TemplatePopupPicker) {
+            self.parent = parent
+        }
+
+        func update(button: NSPopUpButton, items: [(UUID, String)], selection: UUID?) {
+            let existingTitles = button.itemArray.map(\.title)
+            let newTitles = items.map(\.1)
+            let needsReload = existingTitles != newTitles || button.numberOfItems != items.count
+
+            if needsReload {
+                button.removeAllItems()
+                for (id, title) in items {
+                    button.addItem(withTitle: title)
+                    button.lastItem?.representedObject = id.uuidString
+                }
+            }
+
+            if let selection,
+               let item = button.itemArray.first(where: { ($0.representedObject as? String) == selection.uuidString }) {
+                button.select(item)
+            } else if button.numberOfItems > 0 {
+                button.selectItem(at: 0)
+            }
+        }
+
+        @objc func selectionChanged(_ sender: NSPopUpButton) {
+            guard let idString = sender.selectedItem?.representedObject as? String,
+                  let id = UUID(uuidString: idString)
+            else { return }
+            parent.selection = id
+        }
     }
 }
 

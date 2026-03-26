@@ -79,7 +79,7 @@ struct EditorView: View {
         onDismiss: @escaping () -> Void = {}
     ) {
         self.imageURL = imageURL
-        self.template = template ?? appSettings?.screenshotTemplate ?? .default
+        self.template = template ?? appSettings?.defaultCaptureTemplate ?? .default
         self.appSettings = appSettings
         self.preferOriginalAspectRatio = preferOriginalAspectRatio
         self.onDismiss = onDismiss
@@ -148,6 +148,15 @@ struct EditorView: View {
         guard let id = editorAspectRatioID else { return nil }
         return editorAspectRatios.first(where: { $0.id == id })
     }
+    private var hasUnsavedTemplateChanges: Bool {
+        guard let template = appSettings?.selectedEditorTemplate else { return false }
+        return template.wallpaperSource != selectedWallpaper
+            || template.padding != editorPadding
+            || template.cornerRadius != editorCornerRadius
+            || template.shadowIntensity != shadowIntensity
+            || template.aspectRatioID != editorAspectRatioID
+            || template.alignment != screenshotAlignment
+    }
 
     var body: some View {
         bodyWithObservers
@@ -167,6 +176,9 @@ struct EditorView: View {
                 editorCornerRadius = template.cornerRadius
                 if appSettings.editorUseTemplateBackground || appSettings.screenshotTemplate.isEnabled {
                     selectedWallpaper = template.wallpaperSource
+                }
+                if let savedTemplate = appSettings.selectedEditorTemplate {
+                    applyEditorTemplate(savedTemplate)
                 }
             }
             loadImage()
@@ -262,6 +274,13 @@ struct EditorView: View {
         }
         .onChange(of: currentTool) { _, newTool in
             handleToolChange(newTool)
+        }
+        .onChange(of: appSettings?.selectedEditorTemplateID) { _, newValue in
+            guard let appSettings,
+                  let id = newValue,
+                  let template = appSettings.editorTemplates.first(where: { $0.id == id })
+            else { return }
+            applyEditorTemplate(template)
         }
         .alert("Delete Screenshot?", isPresented: $showTrashAlert) {
             Button("Delete", role: .destructive) {
@@ -362,10 +381,18 @@ struct EditorView: View {
             screenshotAlignment: $screenshotAlignment,
             aspectRatios: editorAspectRatios,
             selectedAspectRatioID: $editorAspectRatioID,
+            editorTemplates: appSettings?.editorTemplates ?? [],
+            selectedEditorTemplateID: Binding(
+                get: { appSettings?.selectedEditorTemplateID },
+                set: { appSettings?.selectedEditorTemplateID = $0 }
+            ),
+            hasUnsavedTemplateChanges: hasUnsavedTemplateChanges,
             hasTemplate: true,
             customBackgroundImages: appSettings?.customBackgroundImages ?? [],
             onAddCustomImage: addCustomBackgroundImage,
             onRemoveCustomImage: removeCustomBackgroundImage,
+            onOverwriteTemplate: overwriteSelectedTemplate,
+            onSaveAsNewTemplate: saveAsNewTemplate,
             canUndo: !undoStack.isEmpty,
             onApplyCrop: applyCrop,
             onCancelCrop: cancelCrop,
@@ -858,6 +885,89 @@ struct EditorView: View {
         return editorAspectRatios.first(where: { $0.id == id })?.ratio
     }
 
+    private func applyEditorTemplate(_ template: EditorTemplatePreset) {
+        selectedWallpaper = template.wallpaperSource
+        editorPadding = template.padding
+        editorCornerRadius = template.cornerRadius
+        shadowIntensity = template.shadowIntensity
+        screenshotAlignment = template.alignment
+        editorAspectRatioID = template.aspectRatioID
+    }
+
+    private func overwriteSelectedTemplate() {
+        guard let appSettings,
+              let selectedTemplate = appSettings.selectedEditorTemplate
+        else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Save Template?"
+        alert.informativeText = "Save the current setup to \"\(selectedTemplate.name)\"?"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        saveCurrentTemplateSetup()
+    }
+
+    private func saveCurrentTemplateSetup() {
+        guard let appSettings,
+              let id = appSettings.selectedEditorTemplateID,
+              let index = appSettings.editorTemplates.firstIndex(where: { $0.id == id })
+        else { return }
+
+        var templates = appSettings.editorTemplates
+        templates[index].wallpaperSource = selectedWallpaper
+        templates[index].padding = editorPadding
+        templates[index].cornerRadius = editorCornerRadius
+        templates[index].shadowIntensity = shadowIntensity
+        templates[index].aspectRatioID = editorAspectRatioID
+        templates[index].alignment = screenshotAlignment
+        appSettings.editorTemplates = templates
+    }
+
+    private func saveAsNewTemplate() {
+        guard let appSettings else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Save Template"
+        alert.informativeText = "Enter a name for this template."
+        alert.alertStyle = .informational
+
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        input.stringValue = suggestedTemplateName(existing: appSettings.editorTemplates.map(\.name))
+        alert.accessoryView = input
+
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let name = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+
+        let template = EditorTemplatePreset(
+            name: name,
+            wallpaperSource: selectedWallpaper,
+            padding: editorPadding,
+            cornerRadius: editorCornerRadius,
+            shadowIntensity: shadowIntensity,
+            aspectRatioID: editorAspectRatioID,
+            alignment: screenshotAlignment
+        )
+        appSettings.editorTemplates.append(template)
+        appSettings.selectedEditorTemplateID = template.id
+    }
+
+    private func suggestedTemplateName(existing names: [String]) -> String {
+        let base = "My template"
+        guard names.contains(base) else { return base }
+        var index = 2
+        while names.contains("\(base) \(index)") {
+            index += 1
+        }
+        return "\(base) \(index)"
+    }
+
     // MARK: - Delete
 
     private func deleteSelected() {
@@ -1153,4 +1263,3 @@ struct EditorView: View {
         alert.runModal()
     }
 }
-

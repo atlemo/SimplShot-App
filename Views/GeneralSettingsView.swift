@@ -121,7 +121,7 @@ struct GeneralSettingsView: View {
         HStack {
             Text(label)
                 .font(.system(size: 13))
-                .frame(width: 130, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             KeyboardShortcuts.Recorder("", name: shortcut)
         }
     }

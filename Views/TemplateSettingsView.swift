@@ -7,91 +7,36 @@ struct TemplateSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // --- Preview ---
             settingsRow("Preview:") {
                 TemplatePreviewView(
-                    template: appSettings.screenshotTemplate,
-                    aspectRatio: previewAspectRatio
+                    template: appSettings.defaultCaptureTemplate,
+                    aspectRatio: previewAspectRatio,
+                    alignment: appSettings.defaultCaptureTemplatePreset?.alignment ?? .middleCenter,
+                    shadowIntensity: appSettings.defaultCaptureTemplatePreset?.shadowIntensity ?? 1.0
                 )
                 .frame(height: 140)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Divider().padding(.horizontal)
 
-            // --- Enable toggle ---
-            settingsRow("Background:") {
-                Toggle("Apply background to screenshots", isOn: $appSettings.screenshotTemplate.isEnabled)
+            settingsRow("Template:") {
+                Picker("", selection: $appSettings.defaultCaptureTemplateID) {
+                    ForEach(appSettings.editorTemplates) { template in
+                        Text(template.name)
+                            .tag(Optional(template.id))
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Divider().padding(.horizontal)
+
+            settingsRow("Apply:") {
+                Toggle("Apply selected template to screenshots", isOn: $appSettings.screenshotTemplate.isEnabled)
                     .toggleStyle(.checkbox)
             }
-
-            Divider().padding(.horizontal)
-
-            // --- Wallpaper picker ---
-            settingsRow("Wallpaper:") {
-                VStack(alignment: .leading, spacing: 8) {
-                    ScrollViewReader { scrollProxy in
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(BuiltInGradient.allCases) { gradient in
-                                    GradientSwatchView(gradient: gradient, isSelected: isGradientSelected(gradient))
-                                        .onTapGesture {
-                                            appSettings.screenshotTemplate.wallpaperSource = .builtInGradient(gradient)
-                                        }
-                                }
-
-                                ForEach(appSettings.customBackgroundImages, id: \.self) { path in
-                                    customImageSwatch(path: path)
-                                }
-                            }
-                            .padding(.vertical, 3)
-                            .padding(.horizontal, 4)
-                            .id("wallpaperEnd")
-                        }
-                        .onChange(of: appSettings.customBackgroundImages.count) {
-                            withAnimation {
-                                scrollProxy.scrollTo("wallpaperEnd", anchor: .trailing)
-                            }
-                        }
-                    }
-
-                    Button("Add Image") {
-                        addCustomImage()
-                    }
-                    .controlSize(.small)
-                }
-            }
-            .disabled(!appSettings.screenshotTemplate.isEnabled)
-            .opacity(appSettings.screenshotTemplate.isEnabled ? 1 : 0.5)
-
-            Divider().padding(.horizontal)
-
-            // --- Padding ---
-            settingsRow("Padding:") {
-                HStack {
-                    Slider(value: paddingBinding, in: 20...200, step: 10)
-                        .frame(width: 200)
-                    Text("\(appSettings.screenshotTemplate.padding)px")
-                        .font(.system(size: 12, design: .monospaced))
-                        .frame(width: 50, alignment: .trailing)
-                }
-            }
-            .disabled(!appSettings.screenshotTemplate.isEnabled)
-            .opacity(appSettings.screenshotTemplate.isEnabled ? 1 : 0.5)
-
-            Divider().padding(.horizontal)
-
-            // --- Corner Radius ---
-            settingsRow("Corner Radius:") {
-                HStack {
-                    Slider(value: cornerRadiusBinding, in: 0...50, step: 1)
-                        .frame(width: 200)
-                    Text("\(appSettings.screenshotTemplate.cornerRadius)px")
-                        .font(.system(size: 12, design: .monospaced))
-                        .frame(width: 50, alignment: .trailing)
-                }
-            }
-            .disabled(!appSettings.screenshotTemplate.isEnabled)
-            .opacity(appSettings.screenshotTemplate.isEnabled ? 1 : 0.5)
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 8)
@@ -118,79 +63,16 @@ struct TemplateSettingsView: View {
 
     private var previewAspectRatio: Double {
 #if !APPSTORE
-        appSettings.selectedAspectRatio?.ratio ?? (16.0 / 9.0)
+        if let templateRatioID = appSettings.defaultCaptureTemplatePreset?.aspectRatioID,
+           let ratio = appSettings.aspectRatios.first(where: { $0.id == templateRatioID })?.ratio {
+            return ratio
+        }
+        return appSettings.selectedAspectRatio?.ratio ?? (16.0 / 9.0)
 #else
         16.0 / 9.0
 #endif
     }
 
-    private var paddingBinding: Binding<Double> {
-        Binding(
-            get: { Double(appSettings.screenshotTemplate.padding) },
-            set: { appSettings.screenshotTemplate.padding = Int($0) }
-        )
-    }
-
-    private var cornerRadiusBinding: Binding<Double> {
-        Binding(
-            get: { Double(appSettings.screenshotTemplate.cornerRadius) },
-            set: { appSettings.screenshotTemplate.cornerRadius = Int($0) }
-        )
-    }
-
-    private func isGradientSelected(_ gradient: BuiltInGradient) -> Bool {
-        if case .builtInGradient(let current) = appSettings.screenshotTemplate.wallpaperSource {
-            return current == gradient
-        }
-        return false
-    }
-
-    @ViewBuilder
-    private func customImageSwatch(path: String) -> some View {
-        let isSelected = {
-            if case .customImage(let p) = appSettings.screenshotTemplate.wallpaperSource { return p == path }
-            return false
-        }()
-
-        Button {
-            appSettings.screenshotTemplate.wallpaperSource = .customImage(path: path)
-        } label: {
-            if let nsImage = NSImage(contentsOfFile: path) {
-                Color.clear
-                    .frame(width: 48, height: 32)
-                    .overlay(
-                        Image(nsImage: nsImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.15),
-                                    lineWidth: isSelected ? 2 : 0.5)
-                    )
-            } else {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: 48, height: 32)
-            }
-        }
-        .buttonStyle(.plain)
-        .help("Custom Image")
-    }
-
-    private func addCustomImage() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.image]
-        if panel.runModal() == .OK, let url = panel.url {
-            if let path = appSettings.addCustomBackgroundImage(from: url) {
-                appSettings.screenshotTemplate.wallpaperSource = .customImage(path: path)
-            }
-        }
-    }
 }
 
 // MARK: - Template preview
@@ -198,55 +80,47 @@ struct TemplateSettingsView: View {
 struct TemplatePreviewView: View {
     let template: ScreenshotTemplate
     let aspectRatio: Double // width / height (e.g. 16/9 = 1.77)
+    let alignment: CanvasAlignment
+    let shadowIntensity: Double
 
     var body: some View {
         GeometryReader { geo in
-            // Scale padding proportionally: map the real padding (20-200)
-            // into a visual range that looks good in the preview
-            let paddingFraction = CGFloat(template.padding) / 200.0
-            let maxPreviewPadding: CGFloat = 24
-            let minPreviewPadding: CGFloat = 6
-            let previewPadding = minPreviewPadding + paddingFraction * (maxPreviewPadding - minPreviewPadding)
-
-            // Scale the corner radius proportionally for the preview.
-            // Map the real radius (0-50) into a visual range for the preview.
+            let layout = previewLayout(in: geo.size)
             let radiusFraction = CGFloat(template.cornerRadius) / 50.0
             let windowCornerRadius: CGFloat = 6 + radiusFraction * 14
+            let previewCornerRadii = cornerRadii(
+                for: layout.screenshotFrame,
+                in: layout.canvasSize,
+                radius: windowCornerRadius
+            )
+            let shadowOpacity = 0.08 + CGFloat(shadowIntensity) * 0.18
+            let shadowRadius = 2 + CGFloat(shadowIntensity) * 6
+            let shadowYOffset = 1 + CGFloat(shadowIntensity) * 2
 
-            // The container itself should also respect the aspect ratio.
-            // Compute a container ratio that accounts for padding around the window.
-            // We use a reference size to derive the proportional container ratio.
-            let refWindowWidth: CGFloat = 200
-            let refWindowHeight = refWindowWidth / aspectRatio
-            // Use max padding for the container ratio so the outer background
-            // stays a fixed size while the slider only changes the inner inset.
-            let containerWidth = refWindowWidth + maxPreviewPadding * 2
-            let containerHeight = refWindowHeight + maxPreviewPadding * 2
-            let containerRatio = containerWidth / containerHeight
+            HStack(spacing: 0) {
+                ZStack(alignment: .topLeading) {
+                    if template.isEnabled {
+                        backgroundView(in: layout.canvasSize)
+                    } else {
+                        CheckerboardView()
+                    }
 
-            // Compute the actual fitted container size so the background
-            // image gets the correct dimensions (not the full geo size).
-            let fittedSize = Self.fittedSize(in: geo.size, ratio: containerRatio)
-
-            ZStack {
-                // Background: gradient, custom image, or checkerboard
-                if template.isEnabled {
-                    backgroundView(in: fittedSize)
-                } else {
-                    CheckerboardView()
+                    UnevenRoundedRectangle(cornerRadii: previewCornerRadii, style: .continuous)
+                        .fill(Color(nsColor: .windowBackgroundColor))
+                        .shadow(color: .black.opacity(shadowOpacity), radius: shadowRadius, y: shadowYOffset)
+                        .overlay {
+                            PreviewWindowMock()
+                                .clipShape(UnevenRoundedRectangle(cornerRadii: previewCornerRadii, style: .continuous))
+                        }
+                        .frame(width: layout.screenshotFrame.width, height: layout.screenshotFrame.height)
+                        .offset(x: layout.screenshotFrame.minX, y: layout.screenshotFrame.minY)
                 }
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .frame(width: layout.canvasSize.width, height: layout.canvasSize.height, alignment: .leading)
 
-                // Window mockup sized by user's aspect ratio
-                RoundedRectangle(cornerRadius: windowCornerRadius)
-                    .fill(Color(nsColor: .windowBackgroundColor))
-                    .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
-                    .aspectRatio(aspectRatio, contentMode: .fit)
-                    .padding(previewPadding)
+                Spacer(minLength: 0)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .aspectRatio(containerRatio, contentMode: .fit)
-            .frame(maxWidth: geo.size.width, maxHeight: geo.size.height)
-            .frame(width: geo.size.width, height: geo.size.height)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
         }
     }
 
@@ -281,6 +155,137 @@ struct TemplatePreviewView: View {
         } else {
             let w = bounds.width
             return CGSize(width: w, height: w / ratio)
+        }
+    }
+
+    private func previewLayout(in bounds: CGSize) -> (canvasSize: CGSize, screenshotFrame: CGRect) {
+        let mockScreenshotSize = CGSize(width: 280, height: 176)
+        let paddingFraction = CGFloat(template.padding) / 200.0
+        let minPreviewPadding: CGFloat = 8
+        let maxPreviewPadding: CGFloat = 44
+        let previewPadding = minPreviewPadding + paddingFraction * (maxPreviewPadding - minPreviewPadding)
+
+        let baseWidth = mockScreenshotSize.width + previewPadding * 2
+        let baseHeight = mockScreenshotSize.height + previewPadding * 2
+        let targetRatio = CGFloat(max(aspectRatio, 0.1))
+        let baseRatio = baseWidth / baseHeight
+
+        let canvasReferenceWidth: CGFloat
+        let canvasReferenceHeight: CGFloat
+
+        if baseRatio < targetRatio {
+            canvasReferenceWidth = baseHeight * targetRatio
+            canvasReferenceHeight = baseHeight
+        } else if baseRatio > targetRatio {
+            canvasReferenceWidth = baseWidth
+            canvasReferenceHeight = baseWidth / targetRatio
+        } else {
+            canvasReferenceWidth = baseWidth
+            canvasReferenceHeight = baseHeight
+        }
+
+        let fittedCanvasSize = Self.fittedSize(
+            in: CGSize(width: max(bounds.width - 2, 1), height: max(bounds.height - 2, 1)),
+            ratio: max(canvasReferenceWidth / canvasReferenceHeight, 0.1)
+        )
+        let previewScale = min(
+            fittedCanvasSize.width / canvasReferenceWidth,
+            fittedCanvasSize.height / canvasReferenceHeight
+        )
+        let screenshotOrigin = CGPoint(
+            x: (canvasReferenceWidth - mockScreenshotSize.width) * alignment.horizontalFraction,
+            y: (canvasReferenceHeight - mockScreenshotSize.height) * alignment.verticalFraction
+        )
+
+        return (
+            canvasSize: fittedCanvasSize,
+            screenshotFrame: CGRect(
+                x: screenshotOrigin.x * previewScale,
+                y: screenshotOrigin.y * previewScale,
+                width: mockScreenshotSize.width * previewScale,
+                height: mockScreenshotSize.height * previewScale
+            )
+        )
+    }
+
+    private func cornerRadii(for frame: CGRect, in canvasSize: CGSize, radius: CGFloat) -> RectangleCornerRadii {
+        let edgeTolerance: CGFloat = 0.5
+        let touchesLeft = frame.minX <= edgeTolerance
+        let touchesTop = frame.minY <= edgeTolerance
+        let touchesRight = abs(frame.maxX - canvasSize.width) <= edgeTolerance
+        let touchesBottom = abs(frame.maxY - canvasSize.height) <= edgeTolerance
+
+        return RectangleCornerRadii(
+            topLeading: touchesTop || touchesLeft ? 0 : radius,
+            bottomLeading: touchesBottom || touchesLeft ? 0 : radius,
+            bottomTrailing: touchesBottom || touchesRight ? 0 : radius,
+            topTrailing: touchesTop || touchesRight ? 0 : radius
+        )
+    }
+}
+
+private struct PreviewWindowMock: View {
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let height = geo.size.height
+
+            VStack(spacing: 0) {
+                HStack(spacing: width * 0.025) {
+                    Circle()
+                        .fill(Color.gray.opacity(0.35))
+                        .frame(width: width * 0.035, height: width * 0.035)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.gray.opacity(0.12))
+                        .frame(width: width * 0.28, height: height * 0.11)
+                    Spacer()
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.gray.opacity(0.08))
+                        .frame(width: width * 0.22, height: height * 0.11)
+                }
+                .padding(.horizontal, width * 0.06)
+                .padding(.top, height * 0.07)
+                .padding(.bottom, height * 0.05)
+
+                Divider()
+                    .overlay(Color.black.opacity(0.05))
+
+                HStack(alignment: .top, spacing: width * 0.04) {
+                    VStack(alignment: .leading, spacing: height * 0.045) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.gray.opacity(0.11))
+                            .frame(width: width * 0.16, height: height * 0.06)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.gray.opacity(0.08))
+                            .frame(width: width * 0.14, height: height * 0.045)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.gray.opacity(0.08))
+                            .frame(width: width * 0.12, height: height * 0.045)
+                    }
+
+                    VStack(alignment: .leading, spacing: height * 0.04) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.blue.opacity(0.12))
+                            .frame(width: width * 0.26, height: height * 0.08)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(width: width * 0.4, height: height * 0.04)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.gray.opacity(0.08))
+                            .frame(width: width * 0.32, height: height * 0.04)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.gray.opacity(0.08))
+                            .frame(width: width * 0.36, height: height * 0.04)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, width * 0.06)
+                .padding(.top, height * 0.08)
+
+                Spacer(minLength: 0)
+            }
+            .background(Color.white)
         }
     }
 }

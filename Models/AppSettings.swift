@@ -92,6 +92,22 @@ class AppSettings {
         didSet { saveTemplate() }
     }
 
+    var editorTemplates: [EditorTemplatePreset] {
+        didSet { saveEditorTemplates() }
+    }
+
+    var selectedEditorTemplateID: UUID? {
+        didSet {
+            UserDefaults.standard.set(selectedEditorTemplateID?.uuidString, forKey: Constants.UserDefaultsKeys.selectedEditorTemplateID)
+        }
+    }
+
+    var defaultCaptureTemplateID: UUID? {
+        didSet {
+            UserDefaults.standard.set(defaultCaptureTemplateID?.uuidString, forKey: Constants.UserDefaultsKeys.defaultCaptureTemplateID)
+        }
+    }
+
     var openEditorAfterCapture: Bool {
         didSet { UserDefaults.standard.set(openEditorAfterCapture, forKey: Constants.UserDefaultsKeys.openEditorAfterCapture) }
     }
@@ -107,6 +123,25 @@ class AppSettings {
     /// Paths to user-added custom background images, stored in Application Support.
     var customBackgroundImages: [String] {
         didSet { saveCustomBackgroundImages() }
+    }
+
+    var selectedEditorTemplate: EditorTemplatePreset? {
+        editorTemplates.first { $0.id == selectedEditorTemplateID }
+    }
+
+    var defaultCaptureTemplatePreset: EditorTemplatePreset? {
+        editorTemplates.first { $0.id == defaultCaptureTemplateID }
+    }
+
+    var defaultCaptureTemplate: ScreenshotTemplate {
+        let fallback = screenshotTemplate
+        guard let preset = defaultCaptureTemplatePreset else { return fallback }
+        return ScreenshotTemplate(
+            isEnabled: fallback.isEnabled && preset.wallpaperSource != nil,
+            wallpaperSource: preset.wallpaperSource ?? fallback.wallpaperSource,
+            padding: preset.padding,
+            cornerRadius: preset.cornerRadius
+        )
     }
 
     var startAtLogin: Bool {
@@ -144,6 +179,9 @@ class AppSettings {
 
         // Load custom background images
         self.customBackgroundImages = UserDefaults.standard.stringArray(forKey: Constants.UserDefaultsKeys.customBackgroundImages) ?? []
+        self.editorTemplates = []
+        self.selectedEditorTemplateID = nil
+        self.defaultCaptureTemplateID = nil
 
 #if !APPSTORE
         // Load width presets
@@ -213,6 +251,34 @@ class AppSettings {
             selectedRatioID = aspectRatios.first?.id
         }
 #endif
+
+        let currentRatioID: UUID?
+#if !APPSTORE
+        currentRatioID = selectedRatioID
+#else
+        currentRatioID = nil
+#endif
+
+        if let data = UserDefaults.standard.data(forKey: Constants.UserDefaultsKeys.editorTemplates),
+           let templates = try? JSONDecoder().decode([EditorTemplatePreset].self, from: data),
+           !templates.isEmpty {
+            self.editorTemplates = templates
+        } else {
+            self.editorTemplates = [.default(from: self.screenshotTemplate, aspectRatioID: currentRatioID)]
+        }
+
+        if let str = UserDefaults.standard.string(forKey: Constants.UserDefaultsKeys.selectedEditorTemplateID) {
+            self.selectedEditorTemplateID = UUID(uuidString: str)
+        }
+        if selectedEditorTemplateID == nil || selectedEditorTemplate == nil {
+            selectedEditorTemplateID = editorTemplates.first?.id
+        }
+        if let str = UserDefaults.standard.string(forKey: Constants.UserDefaultsKeys.defaultCaptureTemplateID) {
+            self.defaultCaptureTemplateID = UUID(uuidString: str)
+        }
+        if defaultCaptureTemplateID == nil || defaultCaptureTemplatePreset == nil {
+            defaultCaptureTemplateID = selectedEditorTemplateID ?? editorTemplates.first?.id
+        }
     }
 
 #if !APPSTORE
@@ -232,6 +298,12 @@ class AppSettings {
     private func saveTemplate() {
         if let data = try? JSONEncoder().encode(screenshotTemplate) {
             UserDefaults.standard.set(data, forKey: Constants.UserDefaultsKeys.screenshotTemplate)
+        }
+    }
+
+    private func saveEditorTemplates() {
+        if let data = try? JSONEncoder().encode(editorTemplates) {
+            UserDefaults.standard.set(data, forKey: Constants.UserDefaultsKeys.editorTemplates)
         }
     }
 
