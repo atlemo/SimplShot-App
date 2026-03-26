@@ -144,6 +144,7 @@ struct EditorCanvasView: View {
                 GrowingTextField(
                     text: $editingText,
                     fontSize: scaledFontSize,
+                    textColor: NSColor(ann.style.textBubbleForeground),
                     onSizeChange: { editingContentSize = $0 }
                 )
                 .frame(width: contentW, height: contentH)
@@ -207,8 +208,8 @@ struct EditorCanvasView: View {
                         applyDragDelta(currentInImage)
                         return
                     }
-                    // Nothing hit — start drawing (only if not select tool)
-                    if currentTool != .select && currentTool != .text {
+                    // Nothing hit — start drawing (only if not select/text/numberedStep)
+                    if currentTool != .select && currentTool != .text && currentTool != .numberedStep {
                         if currentTool == .freeDraw {
                             pendingAnnotation = Annotation(
                                 tool: currentTool,
@@ -297,6 +298,12 @@ struct EditorCanvasView: View {
                 return
             }
             placeText(at: pointInImage)
+            return
+        }
+
+        // Numbered step tool: place new step
+        if currentTool == .numberedStep {
+            placeNumberedStep(at: pointInImage)
             return
         }
 
@@ -397,6 +404,22 @@ struct EditorCanvasView: View {
         editingTextID = annotation.id
         editingText = ""
         editingContentSize = .zero
+    }
+
+    // MARK: - Numbered Step Tool
+
+    private func placeNumberedStep(at point: CGPoint) {
+        let nextNumber = (annotations.filter { $0.tool == .numberedStep }.map(\.stepNumber).max() ?? 0) + 1
+        let annotation = Annotation(
+            tool: .numberedStep,
+            startPoint: point,
+            endPoint: point,
+            style: currentStyle,
+            stepNumber: nextNumber
+        )
+        onCommit()
+        annotations.append(annotation)
+        selectedAnnotationID = annotation.id
     }
 
     private func commitTextEdit() {
@@ -561,6 +584,12 @@ struct EditorCanvasView: View {
                     return annotation.id
                 }
 
+            case .numberedStep:
+                let radius = annotation.style.fontSize * 0.7
+                if hypot(point.x - annotation.startPoint.x, point.y - annotation.startPoint.y) < radius {
+                    return annotation.id
+                }
+
             case .select, .crop:
                 break
             }
@@ -676,12 +705,13 @@ struct EditorCanvasView: View {
 private struct GrowingTextField: NSViewRepresentable {
     @Binding var text: String
     let fontSize: CGFloat
+    let textColor: NSColor
     var onSizeChange: (CGSize) -> Void = { _ in }
 
     func makeNSView(context: Context) -> NSTextView {
         let tv = NSTextView()
         tv.delegate = context.coordinator
-        tv.textColor = .white
+        tv.textColor = textColor
         tv.backgroundColor = .clear
         tv.drawsBackground = false
         tv.isRichText = false
@@ -699,7 +729,7 @@ private struct GrowingTextField: NSViewRepresentable {
         tv.typingAttributes = [
             .paragraphStyle: paraStyle,
             .font: NSFont.systemFont(ofSize: fontSize, weight: .medium),
-            .foregroundColor: NSColor.white,
+            .foregroundColor: textColor,
         ]
 
         // Disable line wrapping so the view grows horizontally instead.
@@ -730,8 +760,9 @@ private struct GrowingTextField: NSViewRepresentable {
         tv.typingAttributes = [
             .paragraphStyle: paraStyle,
             .font: font,
-            .foregroundColor: NSColor.white,
+            .foregroundColor: textColor,
         ]
+        tv.textColor = textColor
         context.coordinator.reportSize(tv)
     }
 

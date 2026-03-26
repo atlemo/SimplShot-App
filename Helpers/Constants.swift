@@ -16,16 +16,23 @@ enum Constants {
 
     static let defaultScreenshotURL: URL = {
 #if APPSTORE
-        // App Sandbox does not allow writing to ~/Desktop without a TCC prompt.
-        // The Downloads folder is always accessible via the
-        // com.apple.security.files.downloads.read-write entitlement.
-        let base = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
-        return base.appendingPathComponent("SimplShot Screenshots")
+        // Sandboxed: fall back to the app container until the user picks a
+        // folder via NSOpenPanel (which grants user-selected.read-write access).
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+        return appSupport.appendingPathComponent("SimplShot/Screenshots")
 #else
         return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Desktop/SimplShot Screenshots")
 #endif
+    }()
+
+    /// The URL shown in the NSOpenPanel when prompting the user to choose a
+    /// save folder for the first time (App Store build only).
+    static let suggestedScreenshotURL: URL = {
+        let base = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
+        return base.appendingPathComponent("SimplShot Screenshots")
     }()
 
     enum UserDefaultsKeys {
@@ -42,6 +49,7 @@ enum Constants {
         static let editorUseTemplateBackground = "editorUseTemplateBackground"
         static let editorShowProSidebar = "editorShowProSidebar"
         static let hasShownPermissionOnboarding = "hasShownPermissionOnboarding"
+        static let screenshotSaveBookmark = "screenshotSaveBookmark"
         static let customBackgroundImages = "customBackgroundImages"
         static let annotationSaveCount = "annotationSaveCount"
     }

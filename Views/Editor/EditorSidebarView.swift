@@ -55,11 +55,11 @@ struct EditorSidebarView: View {
     ]
 
     private let drawingTools: [AnnotationTool] = [
-        .select, .freeDraw, .arrow, .rectangle, .circle, .line, .text, .measurement, .pixelate, .spotlight, .crop
+        .select, .freeDraw, .arrow, .rectangle, .circle, .line, .text, .numberedStep, .measurement, .pixelate, .spotlight, .crop
     ]
 
     private let stylingTools: [AnnotationTool] = [
-        .arrow, .freeDraw, .measurement, .rectangle, .circle, .line, .text
+        .arrow, .freeDraw, .measurement, .rectangle, .circle, .line, .text, .numberedStep
     ]
 
     private var showStyleControls: Bool {
@@ -70,11 +70,11 @@ struct EditorSidebarView: View {
         return false
     }
 
-    private var isTextContext: Bool {
-        if currentTool == .text { return true }
+    private var usesFontSizeContext: Bool {
+        if currentTool == .text || currentTool == .numberedStep { return true }
         if let id = selectedAnnotationID,
            let ann = annotations.first(where: { $0.id == id }),
-           ann.tool == .text { return true }
+           (ann.tool == .text || ann.tool == .numberedStep) { return true }
         return false
     }
 
@@ -82,7 +82,7 @@ struct EditorSidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView(.vertical, showsIndicators: false) {
+            ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 0) {
                     toolsSection
                     sectionDivider
@@ -438,9 +438,9 @@ struct EditorSidebarView: View {
     private var sizePicker: some View {
         Button { sizePopoverVisible.toggle() } label: {
             HStack(spacing: 4) {
-                Image(systemName: isTextContext ? "textformat.size" : "lineweight")
+                Image(systemName: usesFontSizeContext ? "textformat.size" : "lineweight")
                     .font(.system(size: 12))
-                Text(isTextContext
+                Text(usesFontSizeContext
                      ? "\(Int(currentStyle.fontSize))pt"
                      : "\(Int(currentStyle.strokeWidth))pt")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -455,7 +455,7 @@ struct EditorSidebarView: View {
         .buttonStyle(.plain)
         .focusable(false)
         .popover(isPresented: $sizePopoverVisible, arrowEdge: .bottom) {
-            if isTextContext {
+            if usesFontSizeContext {
                 fontSizeSliderContent
             } else {
                 strokeWidthSliderContent

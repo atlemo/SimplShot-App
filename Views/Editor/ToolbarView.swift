@@ -174,12 +174,12 @@ struct EditorToolbarView: View {
 
     // MARK: - Style Controls
 
-    /// Whether the active context is a text tool/annotation.
-    private var isTextContext: Bool {
-        if currentTool == .text { return true }
+    /// Whether the active context uses font size instead of stroke width.
+    private var usesFontSizeContext: Bool {
+        if currentTool == .text || currentTool == .numberedStep { return true }
         if let id = selectedAnnotationID,
            let ann = annotations.first(where: { $0.id == id }),
-           ann.tool == .text { return true }
+           (ann.tool == .text || ann.tool == .numberedStep) { return true }
         return false
     }
 
@@ -247,10 +247,10 @@ struct EditorToolbarView: View {
             sizePopoverVisible.toggle()
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: isTextContext ? "textformat.size" : "lineweight")
+                Image(systemName: usesFontSizeContext ? "textformat.size" : "lineweight")
                     .font(.system(size: 12))
                     .foregroundStyle(.primary)
-                Text(isTextContext
+                Text(usesFontSizeContext
                      ? "\(Int(currentStyle.fontSize))pt"
                      : "\(Int(currentStyle.strokeWidth))pt")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -266,7 +266,7 @@ struct EditorToolbarView: View {
         .buttonStyle(.plain)
         .focusable(false)
         .popover(isPresented: $sizePopoverVisible, arrowEdge: .bottom) {
-            if isTextContext {
+            if usesFontSizeContext {
                 fontSizeSliderContent
             } else {
                 strokeWidthSliderContent

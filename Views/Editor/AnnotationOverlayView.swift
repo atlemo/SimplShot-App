@@ -127,7 +127,7 @@ struct AnnotationOverlayView: View {
                 }
             }
             .font(.system(size: scaledFontSize, weight: .medium))
-            .foregroundColor(.white)
+            .foregroundColor(annotation.style.textBubbleForeground)
             .padding(.horizontal, scaledFontSize * 0.55)
             .padding(.vertical, scaledFontSize * 0.25)
             .background(
@@ -166,6 +166,20 @@ struct AnnotationOverlayView: View {
                 .clipped()
                 .position(x: fullW / 2, y: fullH / 2)
 
+        case .numberedStep:
+            let scaledFontSize = annotation.style.fontSize * scale
+            let radius = scaledFontSize * 0.7
+            let diameter = radius * 2
+            ZStack {
+                Circle()
+                    .fill(annotation.style.strokeColor)
+                    .frame(width: diameter, height: diameter)
+                Text("\(annotation.stepNumber)")
+                    .font(.system(size: scaledFontSize * 0.75, weight: .bold, design: .rounded))
+                    .foregroundColor(annotation.style.textBubbleForeground)
+            }
+            .position(x: start.x, y: start.y)
+
         case .select, .crop:
             EmptyView()
         }
@@ -190,7 +204,7 @@ struct AnnotationOverlayView: View {
             HandleDot(center: CGPoint(x: rect.minX, y: rect.maxY))
             HandleDot(center: CGPoint(x: rect.maxX, y: rect.maxY))
 
-        case .freeDraw, .text:
+        case .freeDraw, .text, .numberedStep:
             EmptyView()
 
         case .select, .crop:

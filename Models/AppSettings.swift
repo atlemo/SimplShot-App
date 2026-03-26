@@ -1,5 +1,8 @@
 import Foundation
 import ServiceManagement
+#if APPSTORE
+import AppKit
+#endif
 
 enum ScreenshotFormat: String, Codable, CaseIterable {
     case png
@@ -78,7 +81,12 @@ class AppSettings {
         didSet { UserDefaults.standard.set(screenshotFormat.rawValue, forKey: Constants.UserDefaultsKeys.screenshotFormat) }
     }
     var screenshotSaveURL: URL {
-        didSet { UserDefaults.standard.set(screenshotSaveURL.path, forKey: Constants.UserDefaultsKeys.screenshotSaveURL) }
+        didSet {
+            UserDefaults.standard.set(screenshotSaveURL.path, forKey: Constants.UserDefaultsKeys.screenshotSaveURL)
+#if APPSTORE
+            Self.storeBookmark(for: screenshotSaveURL)
+#endif
+        }
     }
     var screenshotTemplate: ScreenshotTemplate {
         didSet { saveTemplate() }
@@ -164,11 +172,21 @@ class AppSettings {
         }
 
         // Load save URL
+#if APPSTORE
+        if let url = Self.resolveBookmark() {
+            self.screenshotSaveURL = url
+        } else if let path = UserDefaults.standard.string(forKey: Constants.UserDefaultsKeys.screenshotSaveURL) {
+            self.screenshotSaveURL = URL(fileURLWithPath: path)
+        } else {
+            self.screenshotSaveURL = Constants.defaultScreenshotURL
+        }
+#else
         if let path = UserDefaults.standard.string(forKey: Constants.UserDefaultsKeys.screenshotSaveURL) {
             self.screenshotSaveURL = URL(fileURLWithPath: path)
         } else {
             self.screenshotSaveURL = Constants.defaultScreenshotURL
         }
+#endif
 
         // Load screenshot template
         if let data = UserDefaults.standard.data(forKey: Constants.UserDefaultsKeys.screenshotTemplate),
@@ -248,4 +266,69 @@ class AppSettings {
         customBackgroundImages.removeAll { $0 == path }
         try? FileManager.default.removeItem(atPath: path)
     }
+
+#if APPSTORE
+    /// True when the user has not yet picked a save folder via NSOpenPanel.
+    var needsSaveFolderSelection: Bool {
+        UserDefaults.standard.data(forKey: Constants.UserDefaultsKeys.screenshotSaveBookmark) == nil
+    }
+
+    /// Persist a security-scoped bookmark so the sandbox remembers access.
+    static func storeBookmark(for url: URL) {
+        do {
+            let data = try url.bookmarkData(
+                options: .withSecurityScope,
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
+            UserDefaults.standard.set(data, forKey: Constants.UserDefaultsKeys.screenshotSaveBookmark)
+        } catch {
+            print("Failed to store bookmark: \(error)")
+        }
+    }
+
+    /// Resolve a previously stored security-scoped bookmark.
+    static func resolveBookmark() -> URL? {
+        guard let data = UserDefaults.standard.data(forKey: Constants.UserDefaultsKeys.screenshotSaveBookmark) else {
+            return nil
+        }
+        do {
+            var isStale = false
+            let url = try URL(
+                resolvingBookmarkData: data,
+                options: .withSecurityScope,
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
+            if isStale {
+                // Re-store the refreshed bookmark
+                storeBookmark(for: url)
+            }
+            _ = url.startAccessingSecurityScopedResource()
+            return url
+        } catch {
+            print("Failed to resolve bookmark: \(error)")
+            return nil
+        }
+    }
+
+    /// Show an NSOpenPanel for the user to pick a save folder. Returns the chosen URL, or nil if cancelled.
+    @MainActor
+    static func promptForSaveFolder() -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+        panel.message = "Choose where SimplShot should save screenshots."
+        panel.directoryURL = Constants.suggestedScreenshotURL.deletingLastPathComponent()
+        panel.nameFieldStringValue = Constants.suggestedScreenshotURL.lastPathComponent
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return nil
+        }
+        return url
+    }
+#endif
 }

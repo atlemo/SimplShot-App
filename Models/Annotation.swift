@@ -13,6 +13,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     case text
     case pixelate
     case spotlight
+    case numberedStep
     case crop
 
     var id: String { rawValue }
@@ -29,6 +30,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .text:      return "Text"
         case .pixelate:  return "Pixelate"
         case .spotlight: return "Spotlight"
+        case .numberedStep: return "Steps"
         case .crop:      return "Crop"
         }
     }
@@ -45,6 +47,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .text:      return "textformat"
         case .pixelate:  return ""      // uses customImageName instead
         case .spotlight: return "light.overhead.left"
+        case .numberedStep: return "1.circle.fill"
         case .crop:      return "crop"
         }
     }
@@ -99,9 +102,19 @@ struct AnnotationStyle: Equatable {
         return ns.redComponent > 0.95 && ns.greenComponent > 0.95 && ns.blueComponent > 0.95
     }
 
-    /// Background color for text pills: black when the stroke is white, otherwise the stroke color.
+    /// Foreground color for text labels placed on top of the stroke color.
+    /// White bubbles need dark text for contrast; other bubble colors keep white text.
+    var textBubbleForeground: Color {
+        isWhite ? .black : .white
+    }
+
+    var cgTextBubbleForeground: CGColor {
+        NSColor(textBubbleForeground).cgColor
+    }
+
+    /// Background color for text pills and step badges.
     var textBubbleBackground: Color {
-        isWhite ? .black : strokeColor
+        strokeColor
     }
 
     var cgTextBubbleBackground: CGColor {
@@ -122,6 +135,7 @@ struct Annotation: Identifiable, Equatable {
     var points: [CGPoint]      // used by free-draw tool
     var style: AnnotationStyle
     var text: String           // only meaningful for .text tool
+    var stepNumber: Int        // only meaningful for .numberedStep tool
 
     init(
         id: UUID = UUID(),
@@ -130,7 +144,8 @@ struct Annotation: Identifiable, Equatable {
         endPoint: CGPoint,
         points: [CGPoint] = [],
         style: AnnotationStyle = AnnotationStyle(),
-        text: String = ""
+        text: String = "",
+        stepNumber: Int = 0
     ) {
         self.id = id
         self.tool = tool
@@ -139,6 +154,7 @@ struct Annotation: Identifiable, Equatable {
         self.points = points
         self.style = style
         self.text = text
+        self.stepNumber = stepNumber
     }
 
     /// The bounding rect of this annotation in image-pixel coordinates.

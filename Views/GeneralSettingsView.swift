@@ -223,6 +223,9 @@ struct PathControlPicker: NSViewRepresentable {
                 panel.directoryURL = parent.url
                 if panel.runModal() == .OK, let chosen = panel.url {
                     parent.url = chosen
+#if APPSTORE
+                    AppSettings.storeBookmark(for: chosen)
+#endif
                 }
             }
         }

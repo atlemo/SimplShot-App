@@ -146,6 +146,8 @@ class AnnotationRenderer {
         case .spotlight:
             drawSpotlight(annotation.boundingRect, opacity: annotation.style.spotlightOpacity,
                           imageWidth: context.width, imageHeight: context.height, backingScale: backingScale, in: context)
+        case .numberedStep:
+            drawNumberedStep(annotation.stepNumber, at: annotation.startPoint, style: annotation.style, backingScale: backingScale, in: context)
         case .select, .crop, .pixelate:
             break // Not drawn here (.pixelate is handled before the coordinate flip)
         }
@@ -505,10 +507,11 @@ class AnnotationRenderer {
         let fontSize = style.fontSize
         let font = CTFontCreateWithName("Helvetica Neue Medium" as CFString, fontSize, nil)
         let bgColor = style.cgTextBubbleBackground
+        let fgColor = style.cgTextBubbleForeground
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.white,
+            .foregroundColor: fgColor,
         ]
 
         // Split on newlines to support multiline text bubbles.
@@ -559,5 +562,46 @@ class AnnotationRenderer {
             CTLineDraw(ctLine, context)
             context.restoreGState()
         }
+    }
+
+    private func drawNumberedStep(_ number: Int, at point: CGPoint, style: AnnotationStyle, backingScale: CGFloat, in context: CGContext) {
+        let fontSize = style.fontSize
+        let radius = fontSize * 0.7
+        let color = style.cgStrokeColor
+
+        // Draw filled circle
+        let circleRect = CGRect(
+            x: point.x - radius,
+            y: point.y - radius,
+            width: radius * 2,
+            height: radius * 2
+        )
+        context.saveGState()
+        context.setFillColor(color)
+        context.fillEllipse(in: circleRect)
+        context.restoreGState()
+
+        // Draw number text centered in the circle
+        let labelFontSize = fontSize * 0.75
+        let font = CTFontCreateWithName("SFProRounded-Bold" as CFString, labelFontSize, nil)
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: style.cgTextBubbleForeground,
+        ]
+        let label = "\(number)"
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: label, attributes: attrs))
+        let bounds = CTLineGetBoundsWithOptions(line, [])
+        let ascent = CTFontGetAscent(font)
+        let descent = CTFontGetDescent(font)
+
+        let textX = point.x - bounds.width / 2
+        let textY = point.y + (ascent - descent) / 2
+
+        context.saveGState()
+        context.translateBy(x: textX, y: textY)
+        context.scaleBy(x: 1, y: -1)
+        context.textPosition = .zero
+        CTLineDraw(line, context)
+        context.restoreGState()
     }
 }

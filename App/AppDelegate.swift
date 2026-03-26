@@ -117,6 +117,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ScreenshotService.ensurePermission()
         showPermissionOnboardingIfNeeded()
 
+
         // Handle notification clicks to open the editor
         UNUserNotificationCenter.current().delegate = self
     }
@@ -127,6 +128,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 #endif
 
+        guard appSettings.needsSaveFolderSelection else { return }
+        // Delay slightly so the status bar item and onboarding can appear first
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self, self.appSettings.needsSaveFolderSelection else { return }
+            if let url = AppSettings.promptForSaveFolder() {
+                self.appSettings.screenshotSaveURL = url
+            }
     private func showPermissionOnboardingIfNeeded() {
 #if APPSTORE
         // AppStore build only needs Screen Recording
