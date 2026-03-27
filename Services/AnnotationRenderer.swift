@@ -77,8 +77,20 @@ class AnnotationRenderer {
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: 1, y: -1)
 
+        let spotlightAnnotations = annotations.filter { $0.tool == .spotlight }
+        if !spotlightAnnotations.isEmpty {
+            drawSpotlights(
+                spotlightAnnotations,
+                imageWidth: width,
+                imageHeight: height,
+                backingScale: backingScale,
+                in: context
+            )
+        }
+
         // 3. Draw each annotation
         for annotation in annotations {
+            if annotation.tool == .spotlight { continue }
             drawAnnotation(annotation, backingScale: backingScale, in: context)
         }
 
@@ -144,8 +156,7 @@ class AnnotationRenderer {
         case .text:
             drawText(annotation.text, at: annotation.startPoint, style: annotation.style, backingScale: backingScale, in: context)
         case .spotlight:
-            drawSpotlight(annotation.boundingRect, opacity: annotation.style.spotlightOpacity,
-                          imageWidth: context.width, imageHeight: context.height, backingScale: backingScale, in: context)
+            break
         case .numberedStep:
             drawNumberedStep(annotation.stepNumber, at: annotation.startPoint, style: annotation.style, backingScale: backingScale, in: context)
         case .select, .crop, .pixelate:
@@ -483,16 +494,29 @@ class AnnotationRenderer {
         context.draw(cgOut, in: CGRect(x: pixelRect.minX, y: ciY, width: pixelRect.width, height: pixelRect.height))
     }
 
-    /// Draws a semi-transparent black overlay over the entire image with a clear cutout for the spotlight rectangle.
-    private func drawSpotlight(_ rect: CGRect, opacity: CGFloat, imageWidth: Int, imageHeight: Int, backingScale: CGFloat, in context: CGContext) {
+    /// Draws a single dimming overlay with one clear cutout per spotlight annotation.
+    private func drawSpotlights(
+        _ annotations: [Annotation],
+        imageWidth: Int,
+        imageHeight: Int,
+        backingScale: CGFloat,
+        in context: CGContext
+    ) {
+        guard let strongestOpacity = annotations.map(\.style.spotlightOpacity).max() else { return }
         let fullRect = CGRect(x: 0, y: 0, width: imageWidth, height: imageHeight)
-        let overlayColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: opacity)
+        let overlayColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: strongestOpacity)
         let cornerRadius = 6 * backingScale
 
         context.saveGState()
         let path = CGMutablePath()
         path.addRect(fullRect)
-        path.addRoundedRect(in: rect, cornerWidth: cornerRadius, cornerHeight: cornerRadius)
+        for annotation in annotations {
+            path.addRoundedRect(
+                in: annotation.boundingRect,
+                cornerWidth: cornerRadius,
+                cornerHeight: cornerRadius
+            )
+        }
         context.addPath(path)
         context.setFillColor(overlayColor)
         context.fillPath(using: .evenOdd)

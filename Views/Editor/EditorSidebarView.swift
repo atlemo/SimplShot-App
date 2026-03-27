@@ -642,17 +642,15 @@ struct EditorSidebarView: View {
             get: { Double(currentStyle.spotlightOpacity) },
             set: { newValue in
                 currentStyle.spotlightOpacity = CGFloat(newValue)
-                applySpotlightOpacityToSelection()
+                applySpotlightOpacityToAll()
             }
         )
     }
 
-    private func applySpotlightOpacityToSelection() {
-        guard let id = selectedAnnotationID,
-              let idx = annotations.firstIndex(where: { $0.id == id }),
-              annotations[idx].tool == .spotlight
-        else { return }
-        annotations[idx].style.spotlightOpacity = currentStyle.spotlightOpacity
+    private func applySpotlightOpacityToAll() {
+        for idx in annotations.indices where annotations[idx].tool == .spotlight {
+            annotations[idx].style.spotlightOpacity = currentStyle.spotlightOpacity
+        }
     }
 
     // MARK: - Shape Style Popover (Rectangle / Circle fill toggle)

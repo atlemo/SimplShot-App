@@ -7,6 +7,7 @@ struct AnnotationOverlayView: View {
     let scale: CGFloat         // view points per image pixel
     let displayBackingScale: CGFloat // monitor backing scale (e.g. 2.0 on Retina)
     let isSelected: Bool
+    var suppressSpotlightShape: Bool = false
     /// Source image for pixelate preview (image-pixel space). Optional; falls back to a mosaic pattern.
     var sourceImage: NSImage? = nil
     var imagePixelSize: CGSize = .zero
@@ -158,13 +159,21 @@ struct AnnotationOverlayView: View {
             .position(x: rect.midX, y: rect.midY)
 
         case .spotlight:
-            let fullW = imagePixelSize.width * scale
-            let fullH = imagePixelSize.height * scale
-            SpotlightOverlayShape(cutout: rect, canvasSize: CGSize(width: fullW, height: fullH))
+            if suppressSpotlightShape {
+                EmptyView()
+            } else {
+                let fullW = imagePixelSize.width * scale
+                let fullH = imagePixelSize.height * scale
+                SpotlightOverlayShape(
+                    cutouts: [rect],
+                    canvasSize: CGSize(width: fullW, height: fullH),
+                    cornerRadius: max(6 * scale, 6)
+                )
                 .fill(Color.black.opacity(annotation.style.spotlightOpacity), style: FillStyle(eoFill: true))
                 .frame(width: fullW, height: fullH)
                 .clipped()
                 .position(x: fullW / 2, y: fullH / 2)
+            }
 
         case .numberedStep:
             let scaledFontSize = annotation.style.fontSize * scale
@@ -518,17 +527,6 @@ struct FreeDrawShape: Shape {
 // MARK: - Spotlight Overlay Shape
 
 /// A shape that fills the entire canvas except for a rectangular cutout (even-odd fill).
-private struct SpotlightOverlayShape: Shape {
-    let cutout: CGRect
-    let canvasSize: CGSize
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addRect(CGRect(origin: .zero, size: canvasSize))
-        path.addRoundedRect(in: cutout, cornerSize: CGSize(width: 6, height: 6))
-        return path
-    }
-}
 
 // MARK: - Pixelate Preview
 
@@ -648,17 +646,63 @@ struct CommittedAnnotationsView: Equatable, View {
     }
 
     var body: some View {
-        ForEach(annotations.filter { $0.id != excludeEditingID && $0.id != excludeDraggingID }) { annotation in
+        let visibleAnnotations = annotations.filter { $0.id != excludeEditingID && $0.id != excludeDraggingID }
+        let spotlightAnnotations = visibleAnnotations.filter { $0.tool == .spotlight }
+
+        if !spotlightAnnotations.isEmpty {
+            SharedSpotlightOverlay(
+                annotations: spotlightAnnotations,
+                scale: scale,
+                imagePixelSize: imagePixelSize
+            )
+            .allowsHitTesting(false)
+        }
+
+        ForEach(visibleAnnotations) { annotation in
             AnnotationOverlayView(
                 annotation: annotation,
                 scale: scale,
                 displayBackingScale: displayBackingScale,
                 isSelected: annotation.id == selectedAnnotationID,
+                suppressSpotlightShape: annotation.tool == .spotlight,
                 sourceImage: annotation.tool == .pixelate ? sourceImage : nil,
                 imagePixelSize: imagePixelSize
             )
             .allowsHitTesting(false)
         }
+    }
+}
+
+private struct SharedSpotlightOverlay: View {
+    let annotations: [Annotation]
+    let scale: CGFloat
+    let imagePixelSize: CGSize
+
+    var body: some View {
+        let fullW = imagePixelSize.width * scale
+        let fullH = imagePixelSize.height * scale
+        let cutouts = annotations.map { annotation in
+            let rect = annotation.boundingRect
+            return CGRect(
+                x: rect.origin.x * scale,
+                y: rect.origin.y * scale,
+                width: rect.width * scale,
+                height: rect.height * scale
+            )
+        }
+
+        SpotlightOverlayShape(
+            cutouts: cutouts,
+            canvasSize: CGSize(width: fullW, height: fullH),
+            cornerRadius: max(6 * scale, 6)
+        )
+        .fill(
+            Color.black.opacity(Double(annotations.map(\.style.spotlightOpacity).max() ?? 0.5)),
+            style: FillStyle(eoFill: true)
+        )
+        .frame(width: fullW, height: fullH)
+        .clipped()
+        .position(x: fullW / 2, y: fullH / 2)
     }
 }
 
@@ -674,5 +718,23 @@ struct HandleDot: View {
             .overlay(Circle().stroke(Color.accentColor, lineWidth: 1.5))
             .frame(width: size, height: size)
             .position(center)
+    }
+}
+
+private struct SpotlightOverlayShape: Shape {
+    let cutouts: [CGRect]
+    let canvasSize: CGSize
+    let cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.addRect(CGRect(origin: .zero, size: canvasSize))
+        for cutout in cutouts {
+            path.addRoundedRect(
+                in: cutout,
+                cornerSize: CGSize(width: cornerRadius, height: cornerRadius)
+            )
+        }
+        return path
     }
 }
