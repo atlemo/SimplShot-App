@@ -19,6 +19,11 @@ enum TemplateRenderError: LocalizedError {
 }
 
 class TemplateRenderer {
+    private enum ShadowStyle {
+        static let maxOpacity: CGFloat = 0.5
+        static let maxBlur: CGFloat = 60
+        static let maxYOffset: CGFloat = 28
+    }
 
     // Cache for flattenNativeCorners — keyed by image dimensions + data pointer.
     // The result depends only on the source image pixels, not on corner radius,
@@ -139,11 +144,13 @@ class TemplateRenderer {
         // 3. Drop shadow behind the screenshot.
         //    When corner radius is applied, the shadow follows the rounded rect.
         //    Otherwise, ScreenCaptureKit's transparent corners give a natural shape.
+        let clampedShadowIntensity = CGFloat(max(0, min(1, shadowIntensity)))
         context.saveGState()
         context.setShadow(
-            offset: CGSize(width: 0, height: -5),
-            blur: 25,
-            color: CGColor(gray: 0, alpha: 0.2 * shadowIntensity)
+            // CG uses a bottom-left origin; negative y moves the shadow down visually.
+            offset: CGSize(width: 0, height: -ShadowStyle.maxYOffset * backingScale * clampedShadowIntensity),
+            blur: ShadowStyle.maxBlur * backingScale * clampedShadowIntensity,
+            color: CGColor(gray: 0, alpha: ShadowStyle.maxOpacity * clampedShadowIntensity)
         )
         if anyRounded {
             // Fill a squircle to generate the shadow shape

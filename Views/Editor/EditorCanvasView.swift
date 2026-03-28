@@ -77,7 +77,7 @@ struct EditorCanvasView: View {
                 .resizable()
                 .interpolation(.high)
                 .frame(width: canvasWidth, height: canvasHeight)
-                .shadow(color: .black.opacity(0.25 * shadowIntensity), radius: 8, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.5 * shadowIntensity), radius: 60 * shadowIntensity, x: 0, y: 28 * shadowIntensity)
                 .contentShape(Rectangle())
                 .gesture(canvasGesture)
                 .onTapGesture(count: 2) { location in

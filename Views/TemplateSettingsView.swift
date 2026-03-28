@@ -93,9 +93,10 @@ struct TemplatePreviewView: View {
                 in: layout.canvasSize,
                 radius: windowCornerRadius
             )
-            let shadowOpacity = 0.08 + CGFloat(shadowIntensity) * 0.18
-            let shadowRadius = 2 + CGFloat(shadowIntensity) * 6
-            let shadowYOffset = 1 + CGFloat(shadowIntensity) * 2
+            let clampedShadowIntensity = CGFloat(max(0, min(1, shadowIntensity)))
+            let shadowOpacity = 0.5 * clampedShadowIntensity
+            let shadowRadius = 60 * clampedShadowIntensity
+            let shadowYOffset = 28 * clampedShadowIntensity
 
             HStack(spacing: 0) {
                 ZStack(alignment: .topLeading) {

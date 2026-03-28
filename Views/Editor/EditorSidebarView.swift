@@ -407,7 +407,6 @@ struct EditorSidebarView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .focusable(false)
         .help(tool.label)
 
         if tool == .spotlight {
