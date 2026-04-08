@@ -247,7 +247,13 @@ struct EditorSidebarView: View {
         HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("Shadow")
-                Slider(value: $shadowIntensity, in: 0...1)
+                HStack(spacing: 8) {
+                    Slider(value: $shadowIntensity, in: 0...1)
+                    Text("\(shadowBlurPixels)px")
+                        .font(.system(size: 11, design: .monospaced))
+                        .frame(width: 40, alignment: .trailing)
+                        .foregroundStyle(.secondary)
+                }
             }
             .frame(maxWidth: .infinity)
 
@@ -257,7 +263,13 @@ struct EditorSidebarView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("Corners")
-                Slider(value: cornerRadiusBinding, in: 0...50)
+                HStack(spacing: 8) {
+                    Slider(value: cornerRadiusBinding, in: 0...50)
+                    Text("\(cornerRadius)px")
+                        .font(.system(size: 11, design: .monospaced))
+                        .frame(width: 40, alignment: .trailing)
+                        .foregroundStyle(.secondary)
+                }
             }
             .frame(maxWidth: .infinity)
         }
@@ -767,6 +779,10 @@ struct EditorSidebarView: View {
             get: { Double(cornerRadius) },
             set: { cornerRadius = Int($0) }
         )
+    }
+
+    private var shadowBlurPixels: Int {
+        Int((shadowIntensity * 60).rounded())
     }
 
     private var strokeWidthBinding: Binding<Double> {
