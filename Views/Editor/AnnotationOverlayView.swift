@@ -179,10 +179,20 @@ struct AnnotationOverlayView: View {
             let scaledFontSize = annotation.style.fontSize * scale
             let radius = scaledFontSize * 0.7
             let diameter = radius * 2
+            let borderWidth = max(2, 2 * scale)
             ZStack {
                 Circle()
                     .fill(annotation.style.strokeColor)
                     .frame(width: diameter, height: diameter)
+                    .overlay(
+                        Circle()
+                            .stroke(isSelected ? Color.white : Color.clear, lineWidth: borderWidth)
+                    )
+                    .padding(isSelected ? borderWidth : 0)
+                    .overlay(
+                        Circle()
+                            .stroke(isSelected ? annotation.style.strokeColor : Color.clear, lineWidth: borderWidth)
+                    )
                 Text("\(annotation.stepNumber)")
                     .font(.system(size: scaledFontSize * 0.75, weight: .bold, design: .rounded))
                     .foregroundColor(annotation.style.textBubbleForeground)
@@ -245,7 +255,7 @@ struct AnnotationOverlayView: View {
         let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
         Text(label)
             .font(.system(size: max(10, 11 * scale), weight: .medium, design: .monospaced))
-            .foregroundStyle(annotation.style.isWhite ? .black : .white)
+            .foregroundStyle(annotation.style.isLight ? Color.black : Color.white)
             .padding(.horizontal, max(6, 7 * scale))
             .padding(.vertical, max(3, 4 * scale))
             .background(annotation.style.strokeColor, in: Capsule())

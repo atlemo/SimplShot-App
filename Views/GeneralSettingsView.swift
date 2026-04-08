@@ -7,7 +7,7 @@ struct GeneralSettingsView: View {
 #if !APPSTORE
     @State private var accessibilityGranted = AccessibilityService.isTrusted
 #endif
-    @State private var screenRecordingGranted = AccessibilityService.hasScreenRecordingPermission
+    @State private var screenRecordingGranted = false
 
     private let labelWidth: CGFloat = 140
 
@@ -150,7 +150,12 @@ struct GeneralSettingsView: View {
 #if !APPSTORE
         accessibilityGranted = AccessibilityService.isTrusted
 #endif
-        screenRecordingGranted = AccessibilityService.hasScreenRecordingPermission
+        Task {
+            let granted = await ScreenshotService.confirmScreenRecordingPermission()
+            await MainActor.run {
+                screenRecordingGranted = granted
+            }
+        }
     }
 }
 

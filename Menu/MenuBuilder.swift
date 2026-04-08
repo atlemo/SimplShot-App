@@ -288,35 +288,37 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     }
 
     @objc func resizeAndCaptureAction() {
-        guard ensureScreenRecordingPermission(for: "capture screenshots")
-        else { return }
-
-        guard let app = menuState.selectedApp else {
-            showAlert("No application selected. Please select an application first.")
-            return
-        }
-        guard let widthPreset = appSettings.selectedWidthPreset,
-              let aspectRatio = appSettings.selectedAspectRatio else { return }
-
-        // performResize already resizes all windows
-        guard performResize() != nil else { return }
-
-        // Bring the app to the front so windows are fully visible for capture
-        app.activate()
-
-        let allWindows = windowManager.standardWindows(of: app)
-        let height = aspectRatio.height(forWidth: widthPreset.width)
-        let appName = app.name
-
-        // Capture each window, focusing it first so it has an active title bar
-        let format = appSettings.screenshotFormat
-        let saveURL = appSettings.screenshotSaveURL
-        let presetWidth = widthPreset.width
-        let windowCount = allWindows.count
-        let template = appSettings.defaultCaptureTemplate
-        let willOpenEditor = appSettings.openEditorAfterCapture && windowCount == 1
-
         Task { [windowManager, screenshotService] in
+            guard await ensureScreenRecordingPermission(for: "capture screenshots")
+            else { return }
+
+            guard let app = menuState.selectedApp else {
+                await MainActor.run {
+                    showAlert("No application selected. Please select an application first.")
+                }
+                return
+            }
+            guard let widthPreset = appSettings.selectedWidthPreset,
+                  let aspectRatio = appSettings.selectedAspectRatio else { return }
+
+            // performResize already resizes all windows
+            guard performResize() != nil else { return }
+
+            // Bring the app to the front so windows are fully visible for capture
+            app.activate()
+
+            let allWindows = windowManager.standardWindows(of: app)
+            let height = aspectRatio.height(forWidth: widthPreset.width)
+            let appName = app.name
+
+            // Capture each window, focusing it first so it has an active title bar
+            let format = appSettings.screenshotFormat
+            let saveURL = appSettings.screenshotSaveURL
+            let presetWidth = widthPreset.width
+            let windowCount = allWindows.count
+            let template = appSettings.defaultCaptureTemplate
+            let willOpenEditor = appSettings.openEditorAfterCapture && windowCount == 1
+
             // Initial delay for app activation to settle
             try? await Task.sleep(for: .milliseconds(300))
 
@@ -441,9 +443,12 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             // Use terminationHandler + continuation instead of waitUntilExit() so
             // we don't block a cooperative thread (which caused a priority inversion
             // warning: User-interactive Task waiting on a Default-QoS subprocess).
+            let terminationStatus: Int32
             do {
-                try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-                    process.terminationHandler = { _ in cont.resume() }
+                terminationStatus = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Int32, Error>) in
+                    process.terminationHandler = { process in
+                        cont.resume(returning: process.terminationStatus)
+                    }
                     do {
                         try process.run()
                     } catch {
@@ -457,8 +462,8 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 return
             }
 
-            // If nothing was written, either the user cancelled or permission is missing.
-            // Only show a warning when permission is actually not granted.
+            // If nothing was written, distinguish between user cancel, permission denial,
+            // and a sandbox/file-write problem so we do not blame Screen Recording for all failures.
             guard FileManager.default.fileExists(atPath: captureURL.path) else {
                 let hasPermission = await ScreenshotService.confirmScreenRecordingPermission()
                 if !hasPermission {
@@ -468,6 +473,10 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                             message: "SimplShot needs Screen Recording permission to capture an area screenshot.",
                             openSettings: AccessibilityService.openScreenRecordingSettings
                         )
+                    }
+                } else if terminationStatus != 0 {
+                    await MainActor.run { [self] in
+                        showAlert("Area capture did not complete. Check the selected save folder and try again.")
                     }
                 }
                 return
@@ -491,8 +500,19 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 #else
             // Move from temp dir to the configured save location.
             let destURL = saveURL.appendingPathComponent(captureFilename)
-            try? FileManager.default.createDirectory(at: saveURL, withIntermediateDirectories: true)
-            try? FileManager.default.moveItem(at: captureURL, to: destURL)
+            do {
+                try FileManager.default.createDirectory(at: saveURL, withIntermediateDirectories: true)
+                if FileManager.default.fileExists(atPath: destURL.path) {
+                    try FileManager.default.removeItem(at: destURL)
+                }
+                try FileManager.default.moveItem(at: captureURL, to: destURL)
+            } catch {
+                try? FileManager.default.removeItem(at: captureURL)
+                await MainActor.run { [self] in
+                    showAlert("SimplShot captured the screenshot but could not save it to the selected folder. Re-select the folder in Settings and try again.")
+                }
+                return
+            }
             let finalURL = destURL
 #endif
 
@@ -638,32 +658,36 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
 #if !APPSTORE
     @objc func batchCaptureAction() {
-        guard ensureAccessibilityPermission(for: "batch capture app windows"),
-              ensureScreenRecordingPermission(for: "capture screenshots")
-        else { return }
-
-        guard let app = menuState.selectedApp else {
-            showAlert("No application selected. Please select an application first.")
-            return
-        }
-        guard let aspectRatio = appSettings.selectedAspectRatio else { return }
-
-        let allWindows = windowManager.standardWindows(of: app)
-        guard !allWindows.isEmpty else {
-            showAlert("Cannot access \(app.name)'s windows. Make sure Accessibility permission is granted.")
-            return
-        }
-
-        // Bring the app to the front so windows are fully visible for capture
-        app.activate()
-
-        let presets = appSettings.enabledWidthPresets
-        let format = appSettings.screenshotFormat
-        let saveURL = appSettings.screenshotSaveURL
-        let appName = app.name
-        let template = appSettings.defaultCaptureTemplate
-
         Task {
+            guard ensureAccessibilityPermission(for: "batch capture app windows"),
+                  await ensureScreenRecordingPermission(for: "capture screenshots")
+            else { return }
+
+            guard let app = menuState.selectedApp else {
+                await MainActor.run {
+                    showAlert("No application selected. Please select an application first.")
+                }
+                return
+            }
+            guard let aspectRatio = appSettings.selectedAspectRatio else { return }
+
+            let allWindows = windowManager.standardWindows(of: app)
+            guard !allWindows.isEmpty else {
+                await MainActor.run {
+                    showAlert("Cannot access \(app.name)'s windows. Make sure Accessibility permission is granted.")
+                }
+                return
+            }
+
+            // Bring the app to the front so windows are fully visible for capture
+            app.activate()
+
+            let presets = appSettings.enabledWidthPresets
+            let format = appSettings.screenshotFormat
+            let saveURL = appSettings.screenshotSaveURL
+            let appName = app.name
+            let template = appSettings.defaultCaptureTemplate
+
             // Initial delay for app activation to settle
             try? await Task.sleep(for: .milliseconds(300))
 
@@ -889,12 +913,14 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     }
 #endif
 
-    private func ensureScreenRecordingPermission(for feature: String) -> Bool {
-        if AccessibilityService.hasScreenRecordingPermission { return true }
+    private func ensureScreenRecordingPermission(for feature: String) async -> Bool {
+        if await ScreenshotService.confirmScreenRecordingPermission() { return true }
         ScreenshotService.ensurePermission()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            guard let self else { return }
-            if !AccessibilityService.hasScreenRecordingPermission {
+        try? await Task.sleep(for: .milliseconds(600))
+        let hasPermission = await ScreenshotService.confirmScreenRecordingPermission()
+        if !hasPermission {
+            await MainActor.run { [weak self] in
+                guard let self else { return }
                 self.showPermissionAlert(
                     title: "Screen Recording Permission Required",
                     message: "SimplShot needs Screen Recording permission to \(feature).",
@@ -902,7 +928,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 )
             }
         }
-        return AccessibilityService.hasScreenRecordingPermission
+        return hasPermission
     }
 
     private func showPermissionAlert(title: String, message: String, openSettings: () -> Void) {

@@ -95,17 +95,25 @@ struct AnnotationStyle: Equatable {
         NSColor(strokeColor).cgColor
     }
 
-    /// Whether the stroke color is perceptually white.
-    var isWhite: Bool {
-        let ns = NSColor(strokeColor).usingColorSpace(.deviceRGB)
-        guard let ns else { return false }
-        return ns.redComponent > 0.95 && ns.greenComponent > 0.95 && ns.blueComponent > 0.95
+    /// Whether the stroke color is perceptually light (luminance > 0.4).
+    /// Used to decide whether to place dark or light text on top.
+    var isLight: Bool {
+        guard let ns = NSColor(strokeColor).usingColorSpace(.deviceRGB) else { return false }
+        // sRGB relative luminance (WCAG formula)
+        func linearize(_ c: CGFloat) -> CGFloat {
+            c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
+        let r = linearize(ns.redComponent)
+        let g = linearize(ns.greenComponent)
+        let b = linearize(ns.blueComponent)
+        let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return luminance > 0.4
     }
 
     /// Foreground color for text labels placed on top of the stroke color.
-    /// White bubbles need dark text for contrast; other bubble colors keep white text.
+    /// Light-colored bubbles (white, yellow, etc.) use dark text; dark bubbles use white text.
     var textBubbleForeground: Color {
-        isWhite ? .black : .white
+        isLight ? .black : .white
     }
 
     var cgTextBubbleForeground: CGColor {

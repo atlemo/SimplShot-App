@@ -161,8 +161,14 @@ class AppSettings {
     }
 
     init() {
-        // Load login item state from system
-        self.startAtLogin = SMAppService.mainApp.status == .enabled
+        // Enable launch at login by default on first run.
+        // SMAppService.status == .notRegistered means the app has never registered;
+        // .enabled/.requiresApproval/.notFound all indicate a prior decision was made.
+        let service = SMAppService.mainApp
+        if service.status == .notRegistered {
+            try? service.register()
+        }
+        self.startAtLogin = service.status == .enabled
 
         // Load editor-after-capture preference (defaults to true)
         if UserDefaults.standard.object(forKey: Constants.UserDefaultsKeys.openEditorAfterCapture) != nil {

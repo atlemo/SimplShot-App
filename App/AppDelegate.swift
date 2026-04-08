@@ -1,4 +1,5 @@
 import AppKit
+import CoreSpotlight
 import KeyboardShortcuts
 #if !APPSTORE
 import Sparkle
@@ -123,6 +124,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Handle notification clicks to open the editor
         UNUserNotificationCenter.current().delegate = self
+
+        donateSpotlightItem()
+    }
+
+    private func donateSpotlightItem() {
+        let attrs = CSSearchableItemAttributeSet(contentType: .application)
+        attrs.title = "SimplShot"
+        attrs.contentDescription = "Screenshot tool and editor for macOS"
+        attrs.keywords = [
+            "screenshot", "screen", "capture", "screen capture",
+            "screen recording", "annotation", "editor", "image editor"
+        ]
+        let item = CSSearchableItem(
+            uniqueIdentifier: "com.simplshot.app.spotlight",
+            domainIdentifier: "app",
+            attributeSet: attrs
+        )
+        CSSearchableIndex.default().indexSearchableItems([item]) { _ in }
     }
 
 #if !APPSTORE
@@ -145,25 +164,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 #endif
 
     private func showPermissionOnboardingIfNeeded() {
-#if APPSTORE
-        // AppStore build only needs Screen Recording
-        let missingPermissions = !AccessibilityService.hasScreenRecordingPermission
-#else
-        let missingPermissions = !AccessibilityService.isTrusted || !AccessibilityService.hasScreenRecordingPermission
-#endif
-        #if DEBUG
-        guard missingPermissions else { return }
-        #else
+        #if !DEBUG
         let hasShown = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.hasShownPermissionOnboarding)
-        guard !hasShown, missingPermissions else { return }
-        UserDefaults.standard.set(true, forKey: Constants.UserDefaultsKeys.hasShownPermissionOnboarding)
+        guard !hasShown else { return }
         #endif
 
-        let controller = PermissionOnboardingWindowController { [weak self] in
-            self?.onboardingWindowController = nil
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard await missingPermissionsForOnboarding() else { return }
+            #if !DEBUG
+            UserDefaults.standard.set(true, forKey: Constants.UserDefaultsKeys.hasShownPermissionOnboarding)
+            #endif
+            let controller = PermissionOnboardingWindowController { [weak self] in
+                self?.onboardingWindowController = nil
+            }
+            onboardingWindowController = controller
+            controller.showWindow(nil)
         }
-        onboardingWindowController = controller
-        controller.showWindow(nil)
+    }
+
+    private func missingPermissionsForOnboarding() async -> Bool {
+#if APPSTORE
+        return !(await ScreenshotService.confirmScreenRecordingPermission())
+#else
+        if !AccessibilityService.isTrusted {
+            return true
+        }
+        return !(await ScreenshotService.confirmScreenRecordingPermission())
+#endif
     }
 
 #if !APPSTORE
@@ -258,7 +286,7 @@ private struct PermissionOnboardingView: View {
 #if !APPSTORE
     @State private var hasAccessibility = AccessibilityService.isTrusted
 #endif
-    @State private var hasScreenRecording = AccessibilityService.hasScreenRecordingPermission
+    @State private var hasScreenRecording = false
     @State private var screenRecordingRequestedOnce = false
 
     var body: some View {
@@ -414,6 +442,11 @@ private struct PermissionOnboardingView: View {
 #if !APPSTORE
         hasAccessibility = AccessibilityService.isTrusted
 #endif
-        hasScreenRecording = AccessibilityService.hasScreenRecordingPermission
+        Task {
+            let granted = await ScreenshotService.confirmScreenRecordingPermission()
+            await MainActor.run {
+                hasScreenRecording = granted
+            }
+        }
     }
 }

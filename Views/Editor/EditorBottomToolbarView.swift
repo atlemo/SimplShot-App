@@ -98,10 +98,9 @@ struct EditorBottomToolbarView: View {
             Button(action: onTrash) {
                 Image(systemName: "trash")
                     .frame(width: 28, height: pillHeight)
-                    .contentShape(Rectangle())
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
             }
             .help("Delete Screenshot")
-            .focusable(false)
 
             Divider()
                 .frame(height: 16)
@@ -111,10 +110,9 @@ struct EditorBottomToolbarView: View {
                 Text("Save As\u{2026}")
                     .padding(.horizontal, 6)
                     .frame(height: pillHeight)
-                    .contentShape(Rectangle())
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
-            .focusable(false)
         }
         .buttonStyle(.plain)
         .frame(height: pillHeight)

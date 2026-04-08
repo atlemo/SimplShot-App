@@ -86,6 +86,11 @@ struct EditorView: View {
         _columnVisibility = State(initialValue:
             appSettings?.editorShowProSidebar == true ? .all : .detailOnly
         )
+#if !APPSTORE
+        _editorAspectRatioID = State(initialValue:
+            preferOriginalAspectRatio ? nil : appSettings?.selectedRatioID
+        )
+#endif
     }
 
     private var showProSidebar: Bool { columnVisibility != .detailOnly }
@@ -169,9 +174,6 @@ struct EditorView: View {
         navigationContent
             .onAppear {
             if let appSettings {
-#if !APPSTORE
-                editorAspectRatioID = preferOriginalAspectRatio ? nil : appSettings.selectedRatioID
-#endif
                 editorPadding = template.padding
                 editorCornerRadius = template.cornerRadius
                 if appSettings.editorUseTemplateBackground || appSettings.screenshotTemplate.isEnabled {
@@ -487,7 +489,6 @@ struct EditorView: View {
                         .font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
-                .focusable(false)
                 .help("Zoom Out")
 
                 Text("\(Int(displayZoomPercent))%")
@@ -501,7 +502,6 @@ struct EditorView: View {
                         .font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
-                .focusable(false)
                 .help("Zoom In")
 
                 Button {
@@ -511,7 +511,6 @@ struct EditorView: View {
                         .font(.system(size: 10))
                 }
                 .buttonStyle(.plain)
-                .focusable(false)
                 .help("Reset Zoom")
             }
         }

@@ -76,7 +76,6 @@ struct EditorToolbarView: View {
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
-                    .focusable(false)
                     .popover(isPresented: $gradientPopoverVisible, arrowEdge: .bottom) {
                         gradientPopoverContent
                     }
@@ -144,7 +143,6 @@ struct EditorToolbarView: View {
             )
         }
         .buttonStyle(.plain)
-        .focusable(false)
         .help(tool.label)
 
         if tool == .spotlight {
@@ -215,27 +213,29 @@ struct EditorToolbarView: View {
                     .foregroundStyle(.secondary)
             }
             .frame(width: 40, height: toolPillHeight)
-            .contentShape(Rectangle())
+            .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
-        .focusable(false)
         .popover(isPresented: $colorPopoverVisible, arrowEdge: .bottom) {
             HStack(spacing: 6) {
                 ForEach(presetColors, id: \.self) { color in
-                    Circle()
-                        .fill(color)
-                        .overlay(
-                            Circle().stroke(
-                                currentStyle.strokeColor == color ? Color.accentColor : Color.primary.opacity(0.15),
-                                lineWidth: currentStyle.strokeColor == color ? 2 : 0.5
+                    Button {
+                        currentStyle.strokeColor = color
+                        applyStyleToSelection()
+                        colorPopoverVisible = false
+                    } label: {
+                        Circle()
+                            .fill(color)
+                            .overlay(
+                                Circle().stroke(
+                                    currentStyle.strokeColor == color ? Color.accentColor : Color.primary.opacity(0.15),
+                                    lineWidth: currentStyle.strokeColor == color ? 2 : 0.5
+                                )
                             )
-                        )
-                        .frame(width: 20, height: 20)
-                        .onTapGesture {
-                            currentStyle.strokeColor = color
-                            applyStyleToSelection()
-                            colorPopoverVisible = false
-                        }
+                            .frame(width: 20, height: 20)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(10)
@@ -261,10 +261,9 @@ struct EditorToolbarView: View {
             }
             .frame(height: toolPillHeight)
             .padding(.horizontal, 8)
-            .contentShape(Rectangle())
+            .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
-        .focusable(false)
         .popover(isPresented: $sizePopoverVisible, arrowEdge: .bottom) {
             if usesFontSizeContext {
                 fontSizeSliderContent
@@ -393,9 +392,9 @@ struct EditorToolbarView: View {
                 selectedWallpaper = nil
             } label: {
                 noneCircle(size: circleSize, isSelected: selectedWallpaper == nil)
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .focusable(false)
             .help("No Background")
 
             ForEach(BuiltInGradient.allCases) { gradient in
@@ -411,9 +410,9 @@ struct EditorToolbarView: View {
                             )
                         )
                         .frame(width: circleSize, height: circleSize)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .focusable(false)
                 .help(gradient.displayName)
             }
 
@@ -433,9 +432,9 @@ struct EditorToolbarView: View {
                     )
                     .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
                     .frame(width: circleSize, height: circleSize)
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .focusable(false)
             .help("Add Custom Image")
         }
         .padding(10)
@@ -469,14 +468,15 @@ struct EditorToolbarView: View {
                             lineWidth: isSelected ? 2 : 0.5
                         )
                     )
+                    .contentShape(Circle())
             } else {
                 Circle()
                     .fill(Color.gray.opacity(0.3))
                     .frame(width: size, height: size)
+                    .contentShape(Circle())
             }
         }
         .buttonStyle(.plain)
-        .focusable(false)
         .help("Custom Image")
         .contextMenu {
             Button(role: .destructive) {
@@ -532,6 +532,7 @@ struct EditorToolbarView: View {
                             RoundedRectangle(cornerRadius: 5)
                                 .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
                         )
+                        .contentShape(RoundedRectangle(cornerRadius: 5))
                 }
                 .buttonStyle(.plain)
             }
@@ -562,6 +563,7 @@ struct EditorToolbarView: View {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
                     )
+                    .contentShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
             }
@@ -673,6 +675,7 @@ struct EditorToolbarView: View {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
     }

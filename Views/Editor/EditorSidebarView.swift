@@ -210,7 +210,6 @@ struct EditorSidebarView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .focusable(false)
             .popover(isPresented: $backgroundTypePopoverVisible, arrowEdge: .bottom) {
                 backgroundTypePopoverContent
             }
@@ -234,8 +233,6 @@ struct EditorSidebarView: View {
             sectionLabel("Padding")
             HStack(spacing: 8) {
                 Slider(value: paddingBinding, in: 20...200)
-                    .focusable(false)
-                    .focusEffectDisabled()
                 Text("\(padding)px")
                     .font(.system(size: 11, design: .monospaced))
                     .frame(width: 40, alignment: .trailing)
@@ -251,8 +248,6 @@ struct EditorSidebarView: View {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("Shadow")
                 Slider(value: $shadowIntensity, in: 0...1)
-                    .focusable(false)
-                    .focusEffectDisabled()
             }
             .frame(maxWidth: .infinity)
 
@@ -263,8 +258,6 @@ struct EditorSidebarView: View {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("Corners")
                 Slider(value: cornerRadiusBinding, in: 0...50)
-                    .focusable(false)
-                    .focusEffectDisabled()
             }
             .frame(maxWidth: .infinity)
         }
@@ -356,7 +349,6 @@ struct EditorSidebarView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .focusable(false)
     }
 
     // MARK: - Tool Button
@@ -404,7 +396,7 @@ struct EditorSidebarView: View {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(isActive ? Color.primary.opacity(0.12) : Color.clear)
             )
-            .contentShape(Rectangle())
+            .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
         .help(tool.label)
@@ -450,26 +442,29 @@ struct EditorSidebarView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
-        .focusable(false)
         .popover(isPresented: $colorPopoverVisible, arrowEdge: .bottom) {
             HStack(spacing: 6) {
                 ForEach(presetColors, id: \.self) { color in
-                    Circle()
-                        .fill(color)
-                        .overlay(
-                            Circle().stroke(
-                                currentStyle.strokeColor == color ? Color.accentColor : Color.primary.opacity(0.15),
-                                lineWidth: currentStyle.strokeColor == color ? 2 : 0.5
+                    Button {
+                        currentStyle.strokeColor = color
+                        applyStyleToSelection()
+                        colorPopoverVisible = false
+                    } label: {
+                        Circle()
+                            .fill(color)
+                            .overlay(
+                                Circle().stroke(
+                                    currentStyle.strokeColor == color ? Color.accentColor : Color.primary.opacity(0.15),
+                                    lineWidth: currentStyle.strokeColor == color ? 2 : 0.5
+                                )
                             )
-                        )
-                        .frame(width: 20, height: 20)
-                        .onTapGesture {
-                            currentStyle.strokeColor = color
-                            applyStyleToSelection()
-                            colorPopoverVisible = false
-                        }
+                            .frame(width: 20, height: 20)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(10)
@@ -492,9 +487,9 @@ struct EditorSidebarView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
-        .focusable(false)
         .popover(isPresented: $sizePopoverVisible, arrowEdge: .bottom) {
             if usesFontSizeContext {
                 fontSizeSliderContent
@@ -563,6 +558,7 @@ struct EditorSidebarView: View {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
                     )
+                    .contentShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
             }
@@ -684,6 +680,7 @@ struct EditorSidebarView: View {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
     }
@@ -911,9 +908,9 @@ struct BackgroundGridView: View, Equatable {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .frame(height: 44)
+            .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .focusable(false)
         .help("No Background")
     }
 
@@ -938,9 +935,9 @@ struct BackgroundGridView: View, Equatable {
                     )
                 )
                 .frame(height: 44)
+                .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .focusable(false)
         .help(gradient.displayName)
     }
 
@@ -971,14 +968,15 @@ struct BackgroundGridView: View, Equatable {
                             lineWidth: isSelected ? 2 : 0.5
                         )
                     )
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
             } else {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.gray.opacity(0.3))
                     .frame(height: 44)
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
             }
         }
         .buttonStyle(.plain)
-        .focusable(false)
         .help("Custom Image")
         .contextMenu {
             Button(role: .destructive) {
@@ -1009,9 +1007,9 @@ struct BackgroundGridView: View, Equatable {
                     )
                 )
                 .frame(height: 44)
+                .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .focusable(false)
         .help("Add Custom Image")
     }
 }

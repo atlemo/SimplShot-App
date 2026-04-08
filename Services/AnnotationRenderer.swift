@@ -140,7 +140,7 @@ class AnnotationRenderer {
                 from: annotation.startPoint,
                 to: annotation.endPoint,
                 color: color,
-                strokeIsWhite: annotation.style.isWhite,
+                strokeIsLight: annotation.style.isLight,
                 lineWidth: lineWidth,
                 backingScale: backingScale,
                 in: context
@@ -285,7 +285,7 @@ class AnnotationRenderer {
         context.strokePath()
     }
 
-    private func drawMeasurement(from start: CGPoint, to end: CGPoint, color: CGColor, strokeIsWhite: Bool, lineWidth: CGFloat, backingScale: CGFloat, in context: CGContext) {
+    private func drawMeasurement(from start: CGPoint, to end: CGPoint, color: CGColor, strokeIsLight: Bool, lineWidth: CGFloat, backingScale: CGFloat, in context: CGContext) {
         drawMeasurementLineWithHeads(from: start, to: end, color: color, lineWidth: lineWidth, in: context)
 
         let pixelDistance = hypot(end.x - start.x, end.y - start.y)
@@ -296,7 +296,7 @@ class AnnotationRenderer {
         let font = CTFontCreateWithName("SFMono-Medium" as CFString, labelFontSize, nil)
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: strokeIsWhite ? NSColor.black : NSColor.white
+            .foregroundColor: strokeIsLight ? NSColor.black : NSColor.white
         ]
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: label, attributes: attrs))
         let bounds = CTLineGetBoundsWithOptions(line, [])
