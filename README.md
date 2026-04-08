@@ -18,15 +18,16 @@ Live site: [www.simplshot.com](https://www.simplshot.com)
 - `ARCHITECTURE.md` architecture notes
 
 ## Requirements
-- macOS
+- macOS 26.0 or later
 - Xcode 15+
 
 ## Build
 1. Open `SimplShot.xcodeproj` in Xcode.
-2. Choose scheme:
+2. Make sure you're building on macOS 26.0 or later.
+3. Choose scheme:
    - `SimplShot` for direct distribution (Sparkle-enabled)
    - `SimplShot-AppStore` for App Store builds
-3. Build and run.
+4. Build and run.
 
 ## License
 This project is licensed under the MIT License.
