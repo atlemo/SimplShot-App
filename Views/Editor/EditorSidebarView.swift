@@ -745,7 +745,7 @@ struct EditorSidebarView: View {
     }
 
     private var sectionDivider: some View {
-        Divider()
+        EmptyView()
     }
 
     private func selectTool(_ tool: AnnotationTool) {
