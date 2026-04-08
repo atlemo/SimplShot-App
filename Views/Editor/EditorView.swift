@@ -884,13 +884,18 @@ struct EditorView: View {
         return editorAspectRatios.first(where: { $0.id == id })?.ratio
     }
 
+    private func normalizedAspectRatioID(_ id: UUID?) -> UUID? {
+        guard let id else { return nil }
+        return editorAspectRatios.contains(where: { $0.id == id }) ? id : nil
+    }
+
     private func applyEditorTemplate(_ template: EditorTemplatePreset) {
         selectedWallpaper = template.wallpaperSource
         editorPadding = template.padding
         editorCornerRadius = template.cornerRadius
         shadowIntensity = template.shadowIntensity
         screenshotAlignment = template.alignment
-        editorAspectRatioID = template.aspectRatioID
+        editorAspectRatioID = normalizedAspectRatioID(template.aspectRatioID)
     }
 
     private func overwriteSelectedTemplate() {
