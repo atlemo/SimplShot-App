@@ -141,47 +141,79 @@ class TemplateRenderer {
         let rBR = (isFlushRight || isFlushBottom) ? 0 : cornerRadius
         let anyRounded = rTL > 0 || rTR > 0 || rBL > 0 || rBR > 0
 
-        // 3. Drop shadow behind the screenshot.
-        //    When corner radius is applied, the shadow follows the rounded rect.
-        //    Otherwise, ScreenCaptureKit's transparent corners give a natural shape.
+        // 3 & 4. Shadow + clipped screenshot.
+        //
+        // Problem with the naive approach (fill black squircle → draw screenshot on top):
+        // the squircle clip's anti-aliased edge pixels partially expose the solid black fill,
+        // producing a thin dark pixelated border at the corners.
+        //
+        // Fix: build an intermediate canvas-sized image that contains the screenshot already
+        // clipped to the squircle (transparent outside it, anti-aliased at the edge).
+        // Drawing that intermediate image with setShadow active casts the shadow from the
+        // squircle's alpha edge — no black fill underneath, no border artifact.
         let clampedShadowIntensity = CGFloat(max(0, min(1, shadowIntensity)))
-        context.saveGState()
-        context.setShadow(
-            // CG uses a bottom-left origin; negative y moves the shadow down visually.
-            offset: CGSize(width: 0, height: -ShadowStyle.maxYOffset * backingScale * clampedShadowIntensity),
-            blur: ShadowStyle.maxBlur * backingScale * clampedShadowIntensity,
-            color: CGColor(gray: 0, alpha: ShadowStyle.maxOpacity * clampedShadowIntensity)
-        )
-        if anyRounded {
-            // Fill a squircle to generate the shadow shape
-            let roundedPath = squirclePath(in: screenshotRect, topLeft: rTL, topRight: rTR, bottomLeft: rBL, bottomRight: rBR)
-            context.addPath(roundedPath)
-            context.setFillColor(CGColor(gray: 0, alpha: 1))
-            context.fillPath()
-        } else {
-            // Draw the screenshot once with shadow enabled — Core Graphics
-            // uses the image's alpha channel to compute the shadow shape.
-            context.draw(screenshot, in: screenshotRect)
-        }
-        context.restoreGState()
 
-        // 4. Draw the screenshot clipped to a rounded rect (if needed).
         if anyRounded {
-            // Pre-process: eliminate native macOS rounded-corner transparency
-            // by sampling edge colors and filling the corner regions before
-            // compositing. This makes the image fully opaque so the squircle
-            // clip produces perfectly clean corners.
+            // Pre-process: eliminate native macOS rounded-corner transparency.
             let opaqueScreenshot = cachedFlattenNativeCorners(screenshot, backingScale: backingScale)
 
-            context.saveGState()
             let clipPath = squirclePath(in: screenshotRect, topLeft: rTL, topRight: rTR, bottomLeft: rBL, bottomRight: rBR)
-            context.addPath(clipPath)
-            context.clip()
-            context.draw(opaqueScreenshot, in: screenshotRect)
-            context.restoreGState()
+
+            // Build intermediate image: full-canvas transparent context with the screenshot
+            // drawn clipped to the squircle. The clip's anti-aliasing gives correct alpha
+            // at the edge so the shadow follows the squircle shape naturally.
+            if let intCtx = CGContext(
+                data: nil,
+                width: canvasWidth,
+                height: canvasHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ), let clippedImage = { () -> CGImage? in
+                intCtx.addPath(clipPath)
+                intCtx.clip()
+                intCtx.draw(opaqueScreenshot, in: screenshotRect)
+                return intCtx.makeImage()
+            }() {
+                // Draw the alpha-masked squircle image with shadow — one pass, no black fill.
+                context.saveGState()
+                context.setShadow(
+                    offset: CGSize(width: 0, height: -ShadowStyle.maxYOffset * backingScale * clampedShadowIntensity),
+                    blur: ShadowStyle.maxBlur * backingScale * clampedShadowIntensity,
+                    color: CGColor(gray: 0, alpha: ShadowStyle.maxOpacity * clampedShadowIntensity)
+                )
+                context.draw(clippedImage, in: canvasRect)
+                context.restoreGState()
+            } else {
+                // Fallback: original two-pass approach if the intermediate context fails.
+                context.saveGState()
+                context.setShadow(
+                    offset: CGSize(width: 0, height: -ShadowStyle.maxYOffset * backingScale * clampedShadowIntensity),
+                    blur: ShadowStyle.maxBlur * backingScale * clampedShadowIntensity,
+                    color: CGColor(gray: 0, alpha: ShadowStyle.maxOpacity * clampedShadowIntensity)
+                )
+                context.addPath(clipPath)
+                context.setFillColor(CGColor(gray: 0, alpha: 1))
+                context.fillPath()
+                context.restoreGState()
+
+                context.saveGState()
+                context.addPath(clipPath)
+                context.clip()
+                context.draw(opaqueScreenshot, in: screenshotRect)
+                context.restoreGState()
+            }
         } else {
-            // No corner radius — draw clean on top of shadow pass.
+            // No corner radius — draw with shadow; CG uses the image's alpha for shadow shape.
+            context.saveGState()
+            context.setShadow(
+                offset: CGSize(width: 0, height: -ShadowStyle.maxYOffset * backingScale * clampedShadowIntensity),
+                blur: ShadowStyle.maxBlur * backingScale * clampedShadowIntensity,
+                color: CGColor(gray: 0, alpha: ShadowStyle.maxOpacity * clampedShadowIntensity)
+            )
             context.draw(screenshot, in: screenshotRect)
+            context.restoreGState()
         }
 
         // 5. Extract final image
