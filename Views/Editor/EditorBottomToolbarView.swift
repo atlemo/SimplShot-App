@@ -14,25 +14,45 @@ struct EditorBottomToolbarView: View {
     var onTrash: () -> Void
     var onSaveAs: () -> Void
 
+    /// When true (DEBUG only), forces the pre-macOS 26 material fallback so you can
+    /// preview the Sonoma-era appearance without leaving your Mac.
+    @AppStorage("debugSimulateSonomaAppearance") private var simulateSonoma = false
+
+    /// True when the actual glass rendering path should be used.
+    private var useGlass: Bool {
+        guard #available(macOS 26, *) else { return false }
+        return !simulateSonoma
+    }
+
     var body: some View {
-        GlassEffectContainer(spacing: 8) {
+        glassContainer {
             HStack(spacing: 8) {
                 // Sliders pill (left) — only when template background is active and not in pro sidebar mode
                 if useTemplateBackground && !hideSliders {
                     sliders
-                        .glassEffect(in: Capsule())
+                        .pillBackground(useGlass: useGlass)
                 }
 
                 Spacer()
 
                 // Action buttons pill (right)
                 actionButtons
-                    .glassEffect(in: Capsule())
+                    .pillBackground(useGlass: useGlass)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
         .background(.clear)
+    }
+
+    /// Wraps content in GlassEffectContainer on macOS 26+; plain passthrough on older OS.
+    @ViewBuilder
+    private func glassContainer<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        if #available(macOS 26, *), !simulateSonoma {
+            GlassEffectContainer(spacing: 8) { content() }
+        } else {
+            content()
+        }
     }
 
     // MARK: - Sliders
@@ -133,5 +153,20 @@ struct EditorBottomToolbarView: View {
             get: { Double(cornerRadius) },
             set: { cornerRadius = Int($0) }
         )
+    }
+}
+
+// MARK: - Pill background helper
+
+private extension View {
+    /// Applies `.glassEffect(in: Capsule())` on macOS 26+ when glass is active,
+    /// or `.background(.ultraThinMaterial, in: Capsule())` as a Sonoma-era fallback.
+    @ViewBuilder
+    func pillBackground(useGlass: Bool) -> some View {
+        if #available(macOS 26, *), useGlass {
+            self.glassEffect(in: Capsule())
+        } else {
+            self.background(.ultraThinMaterial, in: Capsule())
+        }
     }
 }
