@@ -19,6 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 #endif
     private let hotkeyService = HotkeyService()
     private let menuState = MenuState()
+    private var colorPickerService: ColorPickerService?
     private var onboardingWindowController: PermissionOnboardingWindowController?
 #if !APPSTORE
     private var updaterController: SPUStandardUpdaterController?
@@ -53,6 +54,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             screenshotService: screenshotService
         )
 #endif
+        colorPickerService = ColorPickerService()
+        menuBuilder.onColorPicker = { [weak self] in
+            self?.colorPickerService?.startPicking()
+        }
         menuBuilder.onOpenSettings = { [weak self] in
             NSApp.activate(ignoringOtherApps: true)
             if let action = self?.openSettingsAction {

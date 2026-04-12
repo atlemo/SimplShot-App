@@ -19,6 +19,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 #endif
 
     var onOpenSettings: (() -> Void)?
+    var onColorPicker: (() -> Void)?
 #if !APPSTORE
     var onCheckForUpdates: (() -> Void)?
 #endif
@@ -241,6 +242,13 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        // --- Utility tools ---
+        let colorPickerItem = NSMenuItem(title: "Color Picker", action: #selector(openColorPicker), keyEquivalent: "")
+        colorPickerItem.target = self
+        colorPickerItem.image = NSImage(systemSymbolName: "eyedropper", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+        menu.addItem(colorPickerItem)
+
         // --- Settings & Quit ---
 #if !APPSTORE
         let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
@@ -265,6 +273,10 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     }
 
     // MARK: - Actions
+
+    @objc private func openColorPicker() {
+        onColorPicker?()
+    }
 
 #if !APPSTORE
     @objc private func selectApp(_ sender: NSMenuItem) {

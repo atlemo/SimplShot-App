@@ -29,10 +29,12 @@ struct GeneralSettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle("Open Editor automatically", isOn: $appSettings.openEditorAfterCapture)
                         .toggleStyle(.checkbox)
+#if !APPSTORE
                     Text("Only applies to single image captures")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.leading, 20)
+#endif
                 }
             }
 
