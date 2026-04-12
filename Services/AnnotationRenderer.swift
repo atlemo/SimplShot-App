@@ -150,9 +150,9 @@ class AnnotationRenderer {
         case .line:
             drawLine(from: annotation.startPoint, to: annotation.endPoint, in: context)
         case .rectangle:
-            drawRectangle(annotation.boundingRect, filled: annotation.style.fillShape, color: color, backingScale: backingScale, in: context)
+            drawRectangle(annotation.boundingRect, filled: annotation.style.fillRect, color: color, backingScale: backingScale, in: context)
         case .circle:
-            drawEllipse(in: annotation.boundingRect, filled: annotation.style.fillShape, color: color, in: context)
+            drawEllipse(in: annotation.boundingRect, filled: annotation.style.fillCircle, color: color, in: context)
         case .text:
             drawText(annotation.text, at: annotation.startPoint, style: annotation.style, backingScale: backingScale, in: context)
         case .spotlight:

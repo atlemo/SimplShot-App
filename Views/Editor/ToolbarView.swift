@@ -130,6 +130,17 @@ struct EditorToolbarView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 14, height: 14)
+                } else if tool == .arrow {
+                    ArrowStylePreview(
+                        style: currentStyle.arrowStyle,
+                        isSelected: currentTool == tool,
+                        previewSize: CGSize(width: 26, height: 18)
+                    )
+                } else if tool == .rectangle || tool == .circle {
+                    let isFilled = tool == .circle ? currentStyle.fillCircle : currentStyle.fillRect
+                    let fillIcon = tool == .circle ? "circle.fill" : "rectangle.fill"
+                    Image(systemName: isFilled ? fillIcon : tool.systemImage)
+                        .font(.system(size: 14))
                 } else {
                     Image(systemName: tool.systemImage)
                         .font(.system(size: 14))
@@ -199,6 +210,16 @@ struct EditorToolbarView: View {
         .padding(.horizontal, 4)
     }
 
+    private var strokeColorBinding: Binding<Color> {
+        Binding(
+            get: { currentStyle.strokeColor },
+            set: { newColor in
+                currentStyle.strokeColor = newColor
+                applyStyleToSelection()
+            }
+        )
+    }
+
     private var colorPicker: some View {
         Button {
             colorPopoverVisible.toggle()
@@ -237,6 +258,11 @@ struct EditorToolbarView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                Rectangle()
+                    .fill(Color.primary.opacity(0.15))
+                    .frame(width: 1, height: 20)
+                    .padding(.horizontal, 2)
+                RainbowColorPickerButton(color: strokeColorBinding)
             }
             .padding(10)
         }
@@ -654,9 +680,14 @@ struct EditorToolbarView: View {
     }
 
     private func shapeStyleOption(filled: Bool, label: String, icon: String) -> some View {
-        let isSelected = currentStyle.fillShape == filled
+        let currentFill = currentTool == .circle ? currentStyle.fillCircle : currentStyle.fillRect
+        let isSelected = currentFill == filled
         return Button {
-            currentStyle.fillShape = filled
+            if currentTool == .circle {
+                currentStyle.fillCircle = filled
+            } else {
+                currentStyle.fillRect = filled
+            }
             applyStyleToSelection()
             shapeStylePopoverVisible = false
         } label: {
@@ -730,6 +761,7 @@ struct EditorToolbarView: View {
 struct ArrowStylePreview: View {
     let style: ArrowStyle
     let isSelected: Bool
+    var previewSize: CGSize = CGSize(width: 44, height: 26)
 
     var body: some View {
         Canvas { ctx, size in
@@ -791,7 +823,7 @@ struct ArrowStylePreview: View {
                 ctx.stroke(head, with: .color(color), style: StrokeStyle(lineWidth: lw, lineCap: .round))
             }
         }
-        .frame(width: 44, height: 26)
+        .frame(width: previewSize.width, height: previewSize.height)
     }
 }
 
@@ -864,6 +896,44 @@ private class ScrollWheelNSView: NSView {
 private extension View {
     func onScrollWheel(_ handler: @escaping (_ direction: Int) -> Void) -> some View {
         modifier(ScrollWheelModifier(handler: handler))
+    }
+}
+
+// MARK: - Rainbow Color Picker Button
+
+/// A circular color-wheel button that opens NSColorPanel.
+/// Use `color` binding to read/write the selected color.
+struct RainbowColorPickerButton: View {
+    @Binding var color: Color
+
+    private static let wheelColors: [Color] = [
+        .red, Color(hue: 0.08, saturation: 1, brightness: 1),
+        .yellow, Color(hue: 0.25, saturation: 1, brightness: 1),
+        .green, Color(hue: 0.5, saturation: 1, brightness: 1),
+        .cyan, .blue,
+        Color(hue: 0.75, saturation: 1, brightness: 1),
+        .purple, .pink, .red
+    ]
+
+    var body: some View {
+        Button {
+            let panel = NSColorPanel.shared
+            panel.color = NSColor(color)
+            panel.isContinuous = true
+            panel.orderFront(nil)
+        } label: {
+            Circle()
+                .fill(AngularGradient(colors: Self.wheelColors, center: .center))
+                .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
+                .frame(width: 20, height: 20)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Custom Color")
+        .onReceive(NotificationCenter.default.publisher(for: NSColorPanel.colorDidChangeNotification)) { _ in
+            guard NSColorPanel.shared.isVisible else { return }
+            color = Color(nsColor: NSColorPanel.shared.color)
+        }
     }
 }
 

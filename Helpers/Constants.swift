@@ -2,16 +2,17 @@ import Foundation
 
 enum Constants {
     static let defaultWidthPresets: [WidthPreset] = [
-        WidthPreset(width: 960, isBuiltIn: true),
-        WidthPreset(width: 1280, isBuiltIn: true),
-        WidthPreset(width: 1920, isBuiltIn: true),
+        WidthPreset(width: 960, isBuiltIn: true, isEnabled: true),
+        WidthPreset(width: 1280, isBuiltIn: true, isEnabled: true),
+        WidthPreset(width: 1440, isBuiltIn: true, isEnabled: true),
+        WidthPreset(width: 1920, isBuiltIn: true, isEnabled: false),
     ]
 
     static let defaultAspectRatios: [AspectRatio] = [
-        AspectRatio(widthComponent: 16, heightComponent: 9, isBuiltIn: true),
-        AspectRatio(widthComponent: 4, heightComponent: 3, isBuiltIn: true),
-        AspectRatio(widthComponent: 3, heightComponent: 2, isBuiltIn: true),
-        AspectRatio(widthComponent: 1, heightComponent: 1, isBuiltIn: true),
+        AspectRatio(widthComponent: 16, heightComponent: 9, isBuiltIn: true, isEnabled: true),
+        AspectRatio(widthComponent: 4, heightComponent: 3, isBuiltIn: true, isEnabled: true),
+        AspectRatio(widthComponent: 3, heightComponent: 2, isBuiltIn: true, isEnabled: false),
+        AspectRatio(widthComponent: 1, heightComponent: 1, isBuiltIn: true, isEnabled: true),
     ]
 
     static let defaultScreenshotURL: URL = {

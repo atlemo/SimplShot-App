@@ -87,7 +87,8 @@ struct AnnotationStyle: Equatable {
     var fontSize: CGFloat = 48
     var pixelationScale: CGFloat = 20
     var arrowStyle: ArrowStyle = .chevron
-    var fillShape: Bool = false
+    var fillRect: Bool = false
+    var fillCircle: Bool = false
     var spotlightOpacity: CGFloat = 0.5
 
     /// CGColor for use in Core Graphics rendering.

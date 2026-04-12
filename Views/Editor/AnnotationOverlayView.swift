@@ -103,14 +103,14 @@ struct AnnotationOverlayView: View {
 
         case .rectangle:
             RoundedRectangle(cornerRadius: 6)
-                .fill(annotation.style.fillShape ? annotation.style.strokeColor : Color.clear)
+                .fill(annotation.style.fillRect ? annotation.style.strokeColor : Color.clear)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
 
         case .circle:
             Ellipse()
-                .fill(annotation.style.fillShape ? annotation.style.strokeColor : Color.clear)
+                .fill(annotation.style.fillCircle ? annotation.style.strokeColor : Color.clear)
                 .overlay(Ellipse().stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)

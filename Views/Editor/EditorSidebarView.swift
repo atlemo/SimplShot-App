@@ -397,6 +397,17 @@ struct EditorSidebarView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 14, height: 14)
+                } else if tool == .arrow {
+                    ArrowStylePreview(
+                        style: currentStyle.arrowStyle,
+                        isSelected: isActive,
+                        previewSize: CGSize(width: 26, height: 18)
+                    )
+                } else if tool == .rectangle || tool == .circle {
+                    let isFilled = tool == .circle ? currentStyle.fillCircle : currentStyle.fillRect
+                    let fillIcon = tool == .circle ? "circle.fill" : "rectangle.fill"
+                    Image(systemName: isFilled ? fillIcon : tool.systemImage)
+                        .font(.system(size: 14))
                 } else {
                     Image(systemName: tool.systemImage)
                         .font(.system(size: 14))
@@ -440,6 +451,16 @@ struct EditorSidebarView: View {
 
     // MARK: - Color Button
 
+    private var strokeColorBinding: Binding<Color> {
+        Binding(
+            get: { currentStyle.strokeColor },
+            set: { newColor in
+                currentStyle.strokeColor = newColor
+                applyStyleToSelection()
+            }
+        )
+    }
+
     private var colorButton: some View {
         Button { colorPopoverVisible.toggle() } label: {
             HStack(spacing: 4) {
@@ -478,6 +499,11 @@ struct EditorSidebarView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                Rectangle()
+                    .fill(Color.primary.opacity(0.15))
+                    .frame(width: 1, height: 20)
+                    .padding(.horizontal, 2)
+                RainbowColorPickerButton(color: strokeColorBinding)
             }
             .padding(10)
         }
@@ -671,9 +697,14 @@ struct EditorSidebarView: View {
     }
 
     private func shapeStyleOption(filled: Bool, label: String, icon: String) -> some View {
-        let isSelected = currentStyle.fillShape == filled
+        let currentFill = currentTool == .circle ? currentStyle.fillCircle : currentStyle.fillRect
+        let isSelected = currentFill == filled
         return Button {
-            currentStyle.fillShape = filled
+            if currentTool == .circle {
+                currentStyle.fillCircle = filled
+            } else {
+                currentStyle.fillRect = filled
+            }
             applyStyleToSelection()
             shapeStylePopoverVisible = false
         } label: {
