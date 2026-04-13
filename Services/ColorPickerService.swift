@@ -259,6 +259,7 @@ final class ColorPickerService {
         panel.ignoresMouseEvents = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isMovable = false
+        panel.acceptsMouseMovedEvents = true
 
         let view = ColorPickerOverlayView(frame: NSRect(origin: .zero, size: screen.frame.size))
         view.onMouseMoved = { [weak self] point in
@@ -294,6 +295,11 @@ final class ColorPickerService {
         let view = MagnifierView(frame: NSRect(x: 0, y: 0, width: size, height: size))
         panel.contentView = view
         panel.orderFront(nil)
+
+        // Position at the current cursor location immediately.
+        let mouse = NSEvent.mouseLocation
+        let half = magnifierSize / 2
+        panel.setFrameOrigin(NSPoint(x: mouse.x - half, y: mouse.y - half))
 
         magnifierPanel = panel
         magnifierView = view
