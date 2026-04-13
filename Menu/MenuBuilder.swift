@@ -165,20 +165,6 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        // --- Dimensions display ---
-        let dimText: String
-        if let wp = appSettings.selectedWidthPreset, let ar = appSettings.selectedAspectRatio {
-            let h = ar.height(forWidth: wp.width)
-            dimText = "Dimensions: \(wp.width) × \(h)"
-        } else {
-            dimText = "Dimensions: —"
-        }
-        let dimItem = NSMenuItem(title: dimText, action: nil, keyEquivalent: "")
-        dimItem.isEnabled = false
-        menu.addItem(dimItem)
-
-        menu.addItem(.separator())
-
         // --- Resize & Capture actions ---
         let canCapture = menuState.canResize && appSettings.selectedWidthPreset != nil && appSettings.selectedAspectRatio != nil
 
@@ -247,10 +233,13 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         colorPickerItem.target = self
         colorPickerItem.image = NSImage(systemSymbolName: "eyedropper", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+        applyShortcut(.colorPicker, to: colorPickerItem)
         menu.addItem(colorPickerItem)
 
         // --- Settings & Quit ---
 #if !APPSTORE
+        menu.addItem(.separator())
+
         let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         checkForUpdatesItem.target = self
         checkForUpdatesItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)?
@@ -275,6 +264,10 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     // MARK: - Actions
 
     @objc private func openColorPicker() {
+        onColorPicker?()
+    }
+
+    @objc func openColorPickerAction() {
         onColorPicker?()
     }
 

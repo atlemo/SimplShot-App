@@ -5,9 +5,9 @@ struct SettingsView: View {
 
     private var settingsHeight: CGFloat {
 #if APPSTORE
-        400
+        300
 #else
-        480
+        380
 #endif
     }
 
@@ -21,6 +21,8 @@ struct SettingsView: View {
 #endif
             TemplateSettingsView(appSettings: appSettings)
                 .tabItem { Label("Template", systemImage: "photo") }
+            ShortcutsSettingsView()
+                .tabItem { Label("Shortcuts", systemImage: "keyboard") }
             AboutSettingsView()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }

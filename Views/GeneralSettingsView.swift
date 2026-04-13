@@ -1,6 +1,5 @@
 import SwiftUI
 import Combine
-import KeyboardShortcuts
 
 struct GeneralSettingsView: View {
     @Bindable var appSettings: AppSettings
@@ -62,20 +61,6 @@ struct GeneralSettingsView: View {
 
             Divider().padding(.horizontal)
 
-            // --- Keyboard Shortcuts ---
-            settingsRow("Keyboard shortcuts:") {
-                VStack(alignment: .leading, spacing: 12) {
-#if !APPSTORE
-                    shortcutRow("Capture", shortcut: .resizeAndCapture)
-                    shortcutRow("Capture all widths", shortcut: .batchCapture)
-#endif
-                    shortcutRow("Capture Area", shortcut: .freeSizeCapture)
-                    shortcutRow("Capture OCR", shortcut: .captureTextOCR)
-                }
-            }
-
-            Divider().padding(.horizontal)
-
             // --- Permissions ---
             settingsRow("Permissions:") {
                 VStack(alignment: .leading, spacing: 10) {
@@ -133,17 +118,6 @@ struct GeneralSettingsView: View {
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 12)
-    }
-
-    // MARK: - Shortcut row
-
-    private func shortcutRow(_ label: String, shortcut: KeyboardShortcuts.Name) -> some View {
-        HStack {
-            Text(label)
-                .font(.system(size: 13))
-                .frame(maxWidth: .infinity, alignment: .leading)
-            KeyboardShortcuts.Recorder("", name: shortcut)
-        }
     }
 
     // MARK: - Permission row

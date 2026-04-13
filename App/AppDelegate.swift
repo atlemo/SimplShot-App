@@ -97,6 +97,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             },
             onCaptureTextOCR: { [weak self] in
                 self?.menuBuilder.captureTextOCRAction()
+            },
+            onColorPicker: { [weak self] in
+                self?.menuBuilder.openColorPickerAction()
+            },
+            onOpenScreenshotsFolder: { [weak self] in
+                self?.menuBuilder.openScreenshotsFolderAction()
             }
         )
 #else
@@ -106,6 +112,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             },
             onCaptureTextOCR: { [weak self] in
                 self?.menuBuilder.captureTextOCRAction()
+            },
+            onColorPicker: { [weak self] in
+                self?.menuBuilder.openColorPickerAction()
+            },
+            onOpenScreenshotsFolder: { [weak self] in
+                self?.menuBuilder.openScreenshotsFolderAction()
             }
         )
 #endif
