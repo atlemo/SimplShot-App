@@ -9,7 +9,7 @@ struct TemplateSettingsView: View {
         VStack(spacing: 0) {
             settingsRow("Preview:") {
                 TemplatePreviewView(
-                    template: appSettings.defaultCaptureTemplate,
+                    template: previewTemplate,
                     aspectRatio: previewAspectRatio,
                     alignment: appSettings.defaultCaptureTemplatePreset?.alignment ?? .middleCenter,
                     shadowIntensity: appSettings.defaultCaptureTemplatePreset?.shadowIntensity ?? 1.0
@@ -21,21 +21,23 @@ struct TemplateSettingsView: View {
             Divider().padding(.horizontal)
 
             settingsRow("Template:") {
-                Picker("", selection: $appSettings.defaultCaptureTemplateID) {
-                    ForEach(appSettings.editorTemplates) { template in
-                        Text(template.name)
-                            .tag(Optional(template.id))
+                VStack(alignment: .leading, spacing: 8) {
+                    Picker("", selection: $appSettings.defaultCaptureTemplateID) {
+                        ForEach(appSettings.editorTemplates) { template in
+                            Text(template.name)
+                                .tag(Optional(template.id))
+                        }
                     }
+                    .labelsHidden()
+
+                    Text("Choose a template to apply to your screenshots. Leave this off if you want screenshots saved as-is, without a background.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Toggle("Apply selected template to screenshots", isOn: $appSettings.screenshotTemplate.isEnabled)
+                        .toggleStyle(.checkbox)
                 }
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            Divider().padding(.horizontal)
-
-            settingsRow("Apply:") {
-                Toggle("Apply selected template to screenshots", isOn: $appSettings.screenshotTemplate.isEnabled)
-                    .toggleStyle(.checkbox)
             }
         }
         .padding(.vertical, 12)
@@ -60,6 +62,19 @@ struct TemplateSettingsView: View {
     }
 
     // MARK: - Helpers
+
+    /// A template for the preview that always shows the background if the selected preset has one,
+    /// regardless of whether "Apply selected template" is currently enabled.
+    private var previewTemplate: ScreenshotTemplate {
+        let base = appSettings.defaultCaptureTemplate
+        let hasWallpaper = appSettings.defaultCaptureTemplatePreset?.wallpaperSource != nil
+        return ScreenshotTemplate(
+            isEnabled: hasWallpaper,
+            wallpaperSource: base.wallpaperSource,
+            padding: base.padding,
+            cornerRadius: base.cornerRadius
+        )
+    }
 
     private var previewAspectRatio: Double {
 #if !APPSTORE
@@ -145,6 +160,8 @@ struct TemplatePreviewView: View {
             } else {
                 Color.gray
             }
+        case .customColor(let color):
+            Color(red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
         }
     }
 

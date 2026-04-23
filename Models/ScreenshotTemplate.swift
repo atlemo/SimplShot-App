@@ -28,7 +28,7 @@ enum CanvasAlignment: String, CaseIterable, Codable {
     }
 }
 
-struct CodableColor: Codable, Equatable {
+struct CodableColor: Codable, Equatable, Hashable {
     let red: CGFloat
     let green: CGFloat
     let blue: CGFloat
@@ -249,6 +249,7 @@ enum BuiltInGradient: String, Codable, CaseIterable, Identifiable {
 enum WallpaperSource: Codable, Equatable {
     case builtInGradient(BuiltInGradient)
     case customImage(path: String)
+    case customColor(CodableColor)
 }
 
 struct ScreenshotTemplate: Codable {

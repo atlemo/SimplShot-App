@@ -52,6 +52,7 @@ enum Constants {
         static let hasShownPermissionOnboarding = "hasShownPermissionOnboarding"
         static let screenshotSaveBookmark = "screenshotSaveBookmark"
         static let customBackgroundImages = "customBackgroundImages"
+        static let customColors = "customColors"
         static let annotationSaveCount = "annotationSaveCount"
         static let editorTemplates = "editorTemplates"
         static let selectedEditorTemplateID = "selectedEditorTemplateID"

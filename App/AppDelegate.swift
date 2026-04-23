@@ -143,6 +143,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         UNUserNotificationCenter.current().delegate = self
 
         donateSpotlightItem()
+        cleanupStrandedTempFiles()
+    }
+
+    /// Removes stranded safe-save temp files (`.sb-XXXXXXXX-XXXXXX` suffix) that
+    /// `CGImageDestinationFinalize` leaves behind when the app crashes mid-write.
+    private func cleanupStrandedTempFiles() {
+        let saveDir = appSettings.screenshotSaveURL
+        guard let items = try? FileManager.default.contentsOfDirectory(
+            at: saveDir, includingPropertiesForKeys: nil
+        ) else { return }
+        for url in items where url.lastPathComponent.contains(".sb-") {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     private func donateSpotlightItem() {

@@ -30,6 +30,9 @@ struct EditorSidebarView: View {
     var customBackgroundImages: [String]
     var onAddCustomImage: () -> Void
     var onRemoveCustomImage: (String) -> Void
+    var customColors: [CodableColor]
+    var onAddCustomColor: (CodableColor) -> Void
+    var onRemoveCustomColor: (CodableColor) -> Void
     var onOverwriteTemplate: () -> Void
     var onSaveAsNewTemplate: () -> Void
     var canUndo: Bool
@@ -44,10 +47,13 @@ struct EditorSidebarView: View {
     @State private var sizePopoverVisible = false
     @State private var pixelatePopoverVisible = false
     @State private var arrowStylePopoverVisible = false
-    @State private var shapeStylePopoverVisible = false
+    @State private var rectStylePopoverVisible = false
+    @State private var circleStylePopoverVisible = false
     @State private var spotlightPopoverVisible = false
     @State private var backgroundTypePopoverVisible = false
     @State private var backgroundType: BackgroundType = .gradients
+    @State private var backgroundsHeaderHovered = false
+    @State private var hoveredTool: AnnotationTool? = nil
 
     enum BackgroundType: String, CaseIterable, Identifiable {
         case gradients = "Gradients"
@@ -201,27 +207,41 @@ struct EditorSidebarView: View {
                 HStack(spacing: 4) {
                     Text("Backgrounds")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(backgroundsHeaderHovered ? .primary : .secondary)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(backgroundsHeaderHovered ? .secondary : .tertiary)
                     Spacer()
                 }
-                .contentShape(Rectangle())
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(backgroundsHeaderHovered ? Color.primary.opacity(0.07) : Color.clear)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 5))
             }
             .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+            .onHover { backgroundsHeaderHovered = $0 }
             .popover(isPresented: $backgroundTypePopoverVisible, arrowEdge: .bottom) {
                 backgroundTypePopoverContent
             }
 
-            let items = backgroundType == .gradients ? BuiltInGradient.gradients : BuiltInGradient.solidColors
+            let isSolidColors = backgroundType == .solidColors
+            let items = isSolidColors ? BuiltInGradient.solidColors : BuiltInGradient.gradients
             BackgroundGridView(
                 gradientItems: items,
                 selectedWallpaper: selectedWallpaper,
-                customBackgroundImages: customBackgroundImages,
+                customBackgroundImages: isSolidColors ? [] : customBackgroundImages,
+                customColors: isSolidColors ? customColors : [],
+                showCustomColorPicker: isSolidColors,
                 onSelectWallpaper: { selectedWallpaper = $0 },
                 onRemoveCustomImage: onRemoveCustomImage,
-                onAddCustomImage: onAddCustomImage
+                onAddCustomImage: isSolidColors ? {} : onAddCustomImage,
+                onAddCustomColor: onAddCustomColor,
+                onRemoveCustomColor: onRemoveCustomColor
             )
         }
         .padding(.horizontal, 14)
@@ -381,13 +401,18 @@ struct EditorSidebarView: View {
                 arrowStylePopoverVisible.toggle()
                 return
             }
-            if (tool == .rectangle || tool == .circle), currentTool == tool {
-                shapeStylePopoverVisible.toggle()
+            if tool == .rectangle, currentTool == .rectangle {
+                rectStylePopoverVisible.toggle()
+                return
+            }
+            if tool == .circle, currentTool == .circle {
+                circleStylePopoverVisible.toggle()
                 return
             }
             pixelatePopoverVisible = false
             arrowStylePopoverVisible = false
-            shapeStylePopoverVisible = false
+            rectStylePopoverVisible = false
+            circleStylePopoverVisible = false
             spotlightPopoverVisible = false
             selectTool(tool)
         } label: {
@@ -417,12 +442,21 @@ struct EditorSidebarView: View {
             .frame(height: 30)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isActive ? Color.primary.opacity(0.12) : Color.clear)
+                    .fill(isActive ? Color.primary.opacity(0.12) : hoveredTool == tool ? Color.primary.opacity(0.06) : Color.clear)
             )
             .contentShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(alignment: .bottom) {
+                if isActive && hasSecondaryOptions(tool) {
+                    Image(systemName: "chevron.compact.down")
+                        .font(.system(size: 7, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.bottom, 2)
+                }
+            }
         }
         .buttonStyle(.plain)
-        .help(tool.label)
+        .help(isActive && hasSecondaryOptions(tool) ? "Click again to change style" : tool.label)
+        .onHover { isHovering in hoveredTool = isHovering ? tool : nil }
 
         if tool == .spotlight {
             button
@@ -439,9 +473,14 @@ struct EditorSidebarView: View {
                 .popover(isPresented: $arrowStylePopoverVisible, arrowEdge: .trailing) {
                     arrowStylePopoverContent
                 }
-        } else if tool == .rectangle || tool == .circle {
+        } else if tool == .rectangle {
             button
-                .popover(isPresented: $shapeStylePopoverVisible, arrowEdge: .trailing) {
+                .popover(isPresented: $rectStylePopoverVisible, arrowEdge: .trailing) {
+                    shapeStylePopoverContent
+                }
+        } else if tool == .circle {
+            button
+                .popover(isPresented: $circleStylePopoverVisible, arrowEdge: .trailing) {
                     shapeStylePopoverContent
                 }
         } else {
@@ -706,7 +745,8 @@ struct EditorSidebarView: View {
                 currentStyle.fillRect = filled
             }
             applyStyleToSelection()
-            shapeStylePopoverVisible = false
+            rectStylePopoverVisible = false
+            circleStylePopoverVisible = false
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: icon)
@@ -769,10 +809,15 @@ struct EditorSidebarView: View {
 
     // MARK: - Helpers
 
+    private func hasSecondaryOptions(_ tool: AnnotationTool) -> Bool {
+        tool == .arrow || tool == .rectangle || tool == .circle || tool == .pixelate
+    }
+
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(.secondary)
+            .padding(.leading, 5)
     }
 
     private var sectionDivider: some View {
@@ -909,15 +954,24 @@ struct BackgroundGridView: View, Equatable {
     let gradientItems: [BuiltInGradient]
     let selectedWallpaper: WallpaperSource?
     let customBackgroundImages: [String]
+    var customColors: [CodableColor] = []
+    var showCustomColorPicker: Bool = false
     // Closures — excluded from Equatable comparison (they always change identity)
     var onSelectWallpaper: (WallpaperSource?) -> Void
     var onRemoveCustomImage: (String) -> Void
     var onAddCustomImage: () -> Void
+    var onAddCustomColor: (CodableColor) -> Void = { _ in }
+    var onRemoveCustomColor: (CodableColor) -> Void = { _ in }
+
+    @State private var isPickingColor: Bool = false
+    @State private var liveColor: Color = Color(red: 0.5, green: 0.5, blue: 1.0)
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.gradientItems == rhs.gradientItems
         && lhs.selectedWallpaper == rhs.selectedWallpaper
         && lhs.customBackgroundImages == rhs.customBackgroundImages
+        && lhs.customColors == rhs.customColors
+        && lhs.showCustomColorPicker == rhs.showCustomColorPicker
     }
 
     var body: some View {
@@ -927,32 +981,83 @@ struct BackgroundGridView: View, Equatable {
             ForEach(gradientItems) { gradient in
                 gradientCell(gradient)
             }
-            ForEach(customBackgroundImages, id: \.self) { path in
-                customImageCell(path: path)
+            if showCustomColorPicker {
+                ForEach(customColors, id: \.self) { color in
+                    customColorCell(color: color)
+                }
+                if isPickingColor {
+                    liveColorCell
+                }
+                colorPickerButton
+            } else {
+                ForEach(customBackgroundImages, id: \.self) { path in
+                    customImageCell(path: path)
+                }
+                customImagePickerButton
             }
-            customImagePickerButton
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSColorPanel.colorDidChangeNotification)) { _ in
+            guard isPickingColor, NSColorPanel.shared.isVisible else { return }
+            liveColor = Color(nsColor: NSColorPanel.shared.color)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
+            guard isPickingColor,
+                  let w = notification.object as? NSWindow,
+                  w === NSColorPanel.shared
+            else { return }
+            confirmLiveColor()
+        }
+    }
+
+    private func confirmLiveColor() {
+        guard isPickingColor else { return }
+        isPickingColor = false
+        let resolved = NSColor(liveColor).usingColorSpace(.deviceRGB) ?? NSColor(liveColor)
+        let codable = CodableColor(
+            red: resolved.redComponent,
+            green: resolved.greenComponent,
+            blue: resolved.blueComponent
+        )
+        onAddCustomColor(codable)
+        onSelectWallpaper(.customColor(codable))
     }
 
     private var noneCell: some View {
         Button {
             onSelectWallpaper(nil)
         } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.white)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8).stroke(
-                            selectedWallpaper == nil ? Color.accentColor : Color.primary.opacity(0.2),
-                            lineWidth: selectedWallpaper == nil ? 2 : 0.5
+            GeometryReader { geometry in
+                let size = geometry.size
+                let squareSide = min(size.width, size.height)
+                let horizontalInset = (size.width - squareSide) / 2
+                let slashInset = squareSide * 0.18
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8).stroke(
+                                selectedWallpaper == nil ? Color.accentColor : Color.primary.opacity(0.2),
+                                lineWidth: selectedWallpaper == nil ? 2 : 0.5
+                            )
                         )
-                    )
-                Path { path in
-                    path.move(to: CGPoint(x: 8, y: 36))
-                    path.addLine(to: CGPoint(x: 36, y: 8))
+                    Path { path in
+                        path.move(
+                            to: CGPoint(
+                                x: horizontalInset + slashInset,
+                                y: size.height - slashInset
+                            )
+                        )
+                        path.addLine(
+                            to: CGPoint(
+                                x: horizontalInset + squareSide - slashInset,
+                                y: slashInset
+                            )
+                        )
+                    }
+                    .stroke(Color.red, lineWidth: 1.5)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                .stroke(Color.red, lineWidth: 1.5)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .frame(height: 44)
             .contentShape(RoundedRectangle(cornerRadius: 8))
@@ -1058,6 +1163,97 @@ struct BackgroundGridView: View, Equatable {
         }
         .buttonStyle(.plain)
         .help("Add Custom Image")
+    }
+
+    private func isCustomColorSelected(_ color: CodableColor) -> Bool {
+        if case .customColor(let current) = selectedWallpaper {
+            return current == color
+        }
+        return false
+    }
+
+    private func customColorCell(color: CodableColor) -> some View {
+        let isSelected = isCustomColorSelected(color)
+        let swiftColor = Color(red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
+        return Button {
+            onSelectWallpaper(.customColor(color))
+        } label: {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(swiftColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8).stroke(
+                        isSelected ? Color.accentColor : Color.primary.opacity(0.15),
+                        lineWidth: isSelected ? 2 : 0.5
+                    )
+                )
+                .frame(height: 44)
+                .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .help("Custom Color")
+        .contextMenu {
+            Button(role: .destructive) {
+                if isSelected {
+                    onSelectWallpaper(nil)
+                }
+                onRemoveCustomColor(color)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    private var liveColorCell: some View {
+        ZStack(alignment: .topTrailing) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(liveColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8).stroke(
+                        Color.accentColor,
+                        style: StrokeStyle(lineWidth: 2, dash: [4, 3])
+                    )
+                )
+                .frame(height: 44)
+                .contentShape(RoundedRectangle(cornerRadius: 8))
+            Button {
+                isPickingColor = false
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .shadow(color: .black.opacity(0.4), radius: 2)
+            }
+            .buttonStyle(.plain)
+            .offset(x: 4, y: -4)
+        }
+    }
+
+    private var colorPickerButton: some View {
+        Button {
+            guard !isPickingColor else { return }
+            isPickingColor = true
+            let panel = NSColorPanel.shared
+            panel.color = NSColor(liveColor)
+            panel.isContinuous = true
+            panel.orderFront(nil)
+        } label: {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(
+                    Image(systemName: "plus")
+                        .font(.system(size: 17))
+                        .foregroundStyle(.primary)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8).stroke(
+                        Color.primary.opacity(0.15), lineWidth: 0.5
+                    )
+                )
+                .frame(height: 44)
+                .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .help("Add Custom Color")
     }
 }
 

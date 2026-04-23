@@ -97,6 +97,8 @@ class TemplateRenderer {
             bgKey = "grad_\(gradient.id)_\(canvasWidth)x\(canvasHeight)"
         case .customImage(let path):
             bgKey = "img_\(path)_\(canvasWidth)x\(canvasHeight)"
+        case .customColor(let color):
+            bgKey = "color_\(color.red)_\(color.green)_\(color.blue)_\(canvasWidth)x\(canvasHeight)"
         }
 
         if bgKey == cachedBackgroundKey, let cachedBG = cachedBackgroundImage {
@@ -109,6 +111,9 @@ class TemplateRenderer {
                 drawGradient(gradient.gradientDefinition, in: context, rect: canvasRect)
             case .customImage(let path):
                 try drawCustomImage(path: path, in: context, rect: canvasRect)
+            case .customColor(let color):
+                context.setFillColor(color.cgColor)
+                context.fill(canvasRect)
             }
             cachedBackgroundImage = context.makeImage()
             cachedBackgroundKey = bgKey

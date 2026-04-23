@@ -5,7 +5,7 @@ struct SettingsView: View {
 
     private var settingsHeight: CGFloat {
 #if APPSTORE
-        300
+        360
 #else
         380
 #endif

@@ -125,6 +125,11 @@ class AppSettings {
         didSet { saveCustomBackgroundImages() }
     }
 
+    /// User-picked custom solid colors for the Color Backgrounds category.
+    var customColors: [CodableColor] {
+        didSet { saveCustomColors() }
+    }
+
     var selectedEditorTemplate: EditorTemplatePreset? {
         editorTemplates.first { $0.id == selectedEditorTemplateID }
     }
@@ -185,6 +190,14 @@ class AppSettings {
 
         // Load custom background images
         self.customBackgroundImages = UserDefaults.standard.stringArray(forKey: Constants.UserDefaultsKeys.customBackgroundImages) ?? []
+
+        // Load custom colors
+        if let data = UserDefaults.standard.data(forKey: Constants.UserDefaultsKeys.customColors),
+           let colors = try? JSONDecoder().decode([CodableColor].self, from: data) {
+            self.customColors = colors
+        } else {
+            self.customColors = []
+        }
         self.editorTemplates = []
         self.selectedEditorTemplateID = nil
         self.defaultCaptureTemplateID = nil
@@ -315,6 +328,21 @@ class AppSettings {
 
     private func saveCustomBackgroundImages() {
         UserDefaults.standard.set(customBackgroundImages, forKey: Constants.UserDefaultsKeys.customBackgroundImages)
+    }
+
+    private func saveCustomColors() {
+        if let data = try? JSONEncoder().encode(customColors) {
+            UserDefaults.standard.set(data, forKey: Constants.UserDefaultsKeys.customColors)
+        }
+    }
+
+    func addCustomColor(_ color: CodableColor) {
+        guard !customColors.contains(color) else { return }
+        customColors.append(color)
+    }
+
+    func removeCustomColor(_ color: CodableColor) {
+        customColors.removeAll { $0 == color }
     }
 
     /// Copies the image at `sourceURL` into the app's Application Support directory and

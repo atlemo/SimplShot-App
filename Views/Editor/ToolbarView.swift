@@ -114,13 +114,18 @@ struct EditorToolbarView: View {
                 arrowStylePopoverVisible.toggle()
                 return
             }
-            if (tool == .rectangle || tool == .circle), currentTool == tool {
-                shapeStylePopoverVisible.toggle()
+            if tool == .rectangle, currentTool == .rectangle {
+                rectStylePopoverVisible.toggle()
+                return
+            }
+            if tool == .circle, currentTool == .circle {
+                circleStylePopoverVisible.toggle()
                 return
             }
             pixelatePopoverVisible = false
             arrowStylePopoverVisible = false
-            shapeStylePopoverVisible = false
+            rectStylePopoverVisible = false
+            circleStylePopoverVisible = false
             spotlightPopoverVisible = false
             selectTool(tool)
         } label: {
@@ -152,9 +157,16 @@ struct EditorToolbarView: View {
                 Circle()
                     .fill(currentTool == tool ? Color.primary.opacity(0.12) : Color.clear)
             )
+            .overlay(alignment: .bottom) {
+                if currentTool == tool && hasSecondaryOptions(tool) {
+                    Image(systemName: "chevron.compact.down")
+                        .font(.system(size: 7, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .buttonStyle(.plain)
-        .help(tool.label)
+        .help(currentTool == tool && hasSecondaryOptions(tool) ? "Click again to change style" : tool.label)
 
         if tool == .spotlight {
             button
@@ -171,9 +183,14 @@ struct EditorToolbarView: View {
                 .popover(isPresented: $arrowStylePopoverVisible, arrowEdge: .bottom) {
                     arrowStylePopoverContent
                 }
-        } else if tool == .rectangle || tool == .circle {
+        } else if tool == .rectangle {
             button
-                .popover(isPresented: $shapeStylePopoverVisible, arrowEdge: .bottom) {
+                .popover(isPresented: $rectStylePopoverVisible, arrowEdge: .bottom) {
+                    shapeStylePopoverContent
+                }
+        } else if tool == .circle {
+            button
+                .popover(isPresented: $circleStylePopoverVisible, arrowEdge: .bottom) {
                     shapeStylePopoverContent
                 }
         } else {
@@ -197,7 +214,8 @@ struct EditorToolbarView: View {
     @State private var gradientPopoverVisible = false
     @State private var pixelatePopoverVisible = false
     @State private var arrowStylePopoverVisible = false
-    @State private var shapeStylePopoverVisible = false
+    @State private var rectStylePopoverVisible = false
+    @State private var circleStylePopoverVisible = false
     @State private var spotlightPopoverVisible = false
 
     private var styleControls: some View {
@@ -397,6 +415,11 @@ struct EditorToolbarView: View {
                     .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
                     .frame(width: size, height: size)
             }
+        case .customColor(let color):
+            Circle()
+                .fill(Color(red: color.red, green: color.green, blue: color.blue, opacity: color.alpha))
+                .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
+                .frame(width: size, height: size)
         }
     }
 
@@ -689,7 +712,8 @@ struct EditorToolbarView: View {
                 currentStyle.fillRect = filled
             }
             applyStyleToSelection()
-            shapeStylePopoverVisible = false
+            rectStylePopoverVisible = false
+            circleStylePopoverVisible = false
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: icon)
@@ -726,6 +750,10 @@ struct EditorToolbarView: View {
     }
 
     // MARK: - Helpers
+
+    private func hasSecondaryOptions(_ tool: AnnotationTool) -> Bool {
+        tool == .arrow || tool == .rectangle || tool == .circle || tool == .pixelate
+    }
 
     private func selectTool(_ tool: AnnotationTool) {
         if tool == .crop {
