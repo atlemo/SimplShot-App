@@ -1,5 +1,4 @@
 import AppKit
-import ScreenCaptureKit
 import SwiftUI
 
 // MARK: - Color Format
@@ -157,10 +156,8 @@ final class MagnifierView: NSView {
             width: squareSize,
             height: squareSize
         )
-        // White fill so the square reads on any background
         ctx.setFillColor(NSColor.white.withAlphaComponent(0.9).cgColor)
         ctx.fill(sq)
-        // Black border
         ctx.setStrokeColor(NSColor.black.cgColor)
         ctx.setLineWidth(1)
         ctx.stroke(sq)
@@ -217,13 +214,11 @@ final class ColorPickerService {
     private var previousApp: NSRunningApplication?
     private var isCursorHidden = false
 
-    /// Window ID of the overlay, used to exclude our panels from magnifier captures.
+    /// Window ID of the overlay — used to exclude our panels from captures via CGWindowListCreateImage.
     private var overlayWindowID: CGWindowID = kCGNullWindowID
-    private var captureDisplay: SCDisplay?
-    private var excludedCaptureWindows: [SCWindow] = []
 
-    // How many points of real content the magnifier shows (100pt circle ÷ 3× zoom).
-    private let captureSize: CGFloat = 25   // magnifierSize / 4× zoom
+    // Capture 25pt × 25pt of real content; drawn into the 100pt magnifier → 4× zoom.
+    private let captureSize: CGFloat = 25
     private let magnifierSize: CGFloat = 100
 
     func startPicking() {
@@ -240,7 +235,6 @@ final class ColorPickerService {
 
         // Store window ID after the window is on screen so it's valid.
         overlayWindowID = CGWindowID(overlayWindow?.windowNumber ?? 0)
-        configureScreenCaptureContext()
 
         hideCursor()
     }
@@ -292,7 +286,7 @@ final class ColorPickerService {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.ignoresMouseEvents = true   // clicks fall through to the overlay
+        panel.ignoresMouseEvents = true
         panel.isMovable = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
@@ -300,7 +294,6 @@ final class ColorPickerService {
         panel.contentView = view
         panel.orderFront(nil)
 
-        // Position at the current cursor location immediately.
         let mouse = NSEvent.mouseLocation
         let half = magnifierSize / 2
         panel.setFrameOrigin(NSPoint(x: mouse.x - half, y: mouse.y - half))
@@ -350,11 +343,9 @@ final class ColorPickerService {
         let overHUD = hudPanel.map { $0.frame.contains(point) } ?? false
 
         if overHUD {
-            // Show system cursor so the user can click the format tabs.
             unhideCursor()
             magnifierPanel?.orderOut(nil)
         } else {
-            // Restore picker state: hide cursor, show magnifier.
             hideCursor()
             magnifierPanel?.orderFront(nil)
 
@@ -397,8 +388,6 @@ final class ColorPickerService {
     private func cleanup() {
         isActive = false
         overlayWindowID = kCGNullWindowID
-        captureDisplay = nil
-        excludedCaptureWindows = []
         unhideCursor()
         overlayWindow?.orderOut(nil)
         overlayWindow = nil
@@ -421,8 +410,6 @@ final class ColorPickerService {
         let color: NSColor?
     }
 
-    /// Captures `captureSize × captureSize` points around `point`, excluding our
-    /// overlay and magnifier panels from the image (so they never appear in the loupe).
     private func captureArea(around point: NSPoint) -> CaptureResult {
         let captureRect = CGRect(
             x: floor(point.x - captureSize / 2),
@@ -430,92 +417,37 @@ final class ColorPickerService {
             width: captureSize,
             height: captureSize
         )
-
-        let cgImage = captureImage(in: captureRect)
-
-        guard let img = cgImage else { return CaptureResult(image: nil, color: nil) }
-
-        // Extract the center pixel for the live color readout.
-        let color = extractCenterColor(from: img)
-        return CaptureResult(image: img, color: color)
+        guard let img = captureScreen(in: captureRect) else {
+            return CaptureResult(image: nil, color: nil)
+        }
+        return CaptureResult(image: img, color: extractCenterColor(from: img))
     }
 
-    private func configureScreenCaptureContext() {
-        guard #available(macOS 14.0, *),
-              let mainScreen = NSScreen.main,
-              let screenNumber = mainScreen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-            return
-        }
-
-        let displayID = CGDirectDisplayID(screenNumber.uint32Value)
-        let excludedWindowIDs = Set(
-            [overlayWindow?.windowNumber, magnifierPanel?.windowNumber, hudPanel?.windowNumber]
-                .compactMap { $0 }
-                .map(CGWindowID.init)
+    /// Captures a rect given in NSScreen coordinates (origin bottom-left, y up).
+    /// Uses CGWindowListCreateImage with the overlay as the reference window so that
+    /// our overlay, magnifier, and HUD panels are excluded from the result.
+    private func captureScreen(in nsRect: CGRect) -> CGImage? {
+        // CGWindowListCreateImage uses CG screen coordinates: origin top-left, y down.
+        // NSEvent / NSScreen coordinates: origin bottom-left, y up.
+        let screenHeight = CGDisplayBounds(CGMainDisplayID()).height
+        let cgRect = CGRect(
+            x: nsRect.minX,
+            y: screenHeight - nsRect.maxY,
+            width: nsRect.width,
+            height: nsRect.height
         )
-        let semaphore = DispatchSemaphore(value: 0)
 
-        Task.detached(priority: .userInitiated) { [excludedWindowIDs] in
-            let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-
-            await MainActor.run {
-                self.captureDisplay = content?.displays.first(where: { $0.displayID == displayID })
-                self.excludedCaptureWindows = content?.windows.filter { excludedWindowIDs.contains($0.windowID) } ?? []
-            }
-
-            semaphore.signal()
+        if overlayWindowID != kCGNullWindowID {
+            // Capture only windows below our overlay in z-order (excludes overlay, magnifier, HUD).
+            return CGWindowListCreateImage(cgRect, .optionOnScreenBelowWindow, overlayWindowID, .bestResolution)
         }
-
-        semaphore.wait()
-    }
-
-    private func captureImage(in captureRect: CGRect) -> CGImage? {
-        if captureDisplay == nil {
-            configureScreenCaptureContext()
-        }
-
-        guard let captureDisplay else { return nil }
-        return captureImageWithScreenCaptureKit(in: captureRect, display: captureDisplay)
-    }
-
-    @available(macOS 14.0, *)
-    private func captureImageWithScreenCaptureKit(in captureRect: CGRect, display: SCDisplay) -> CGImage? {
-        let displayLocalRect = CGRect(
-            x: captureRect.minX - display.frame.minX,
-            y: captureRect.minY - display.frame.minY,
-            width: captureRect.width,
-            height: captureRect.height
-        ).intersection(CGRect(origin: .zero, size: display.frame.size))
-
-        guard !displayLocalRect.isNull, !displayLocalRect.isEmpty else { return nil }
-
-        let filter = SCContentFilter(display: display, excludingWindows: excludedCaptureWindows)
-        let config = SCStreamConfiguration()
-        let scale = max(CGFloat(filter.pointPixelScale), 1)
-
-        config.sourceRect = displayLocalRect
-        config.width = max(Int(ceil(displayLocalRect.width * scale)), 1)
-        config.height = max(Int(ceil(displayLocalRect.height * scale)), 1)
-        config.showsCursor = false
-        config.ignoreShadowsDisplay = true
-
-        var image: CGImage?
-        let semaphore = DispatchSemaphore(value: 0)
-
-        SCScreenshotManager.captureImage(contentFilter: filter, configuration: config) { capturedImage, _ in
-            image = capturedImage
-            semaphore.signal()
-        }
-
-        semaphore.wait()
-        return image
+        return CGWindowListCreateImage(cgRect, .optionOnScreenOnly, kCGNullWindowID, .bestResolution)
     }
 
     private func extractCenterColor(from image: CGImage) -> NSColor? {
         let cx = image.width / 2
         let cy = image.height / 2
 
-        // Crop a 1×1 pixel region at the exact center of the captured image.
         guard let pixel = image.cropping(to: CGRect(x: cx, y: cy, width: 1, height: 1)) else { return nil }
 
         guard let ctx = CGContext(
