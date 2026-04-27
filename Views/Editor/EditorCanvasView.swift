@@ -40,6 +40,8 @@ struct EditorCanvasView: View {
     /// active this is the screenshot content region; otherwise the full image.
     var cropBoundsRect: CGRect? = nil
 
+    var watermarkSettings: WatermarkSettings = WatermarkSettings()
+
     /// Called when the user finishes creating or modifying an annotation (for undo).
     var onCommit: () -> Void = {}
 
@@ -166,6 +168,9 @@ struct EditorCanvasView: View {
                 .position(x: pos.x, y: pos.y)
             }
 
+            // Watermark preview — non-interactive, mirrors export placement
+            watermarkPreviewOverlay
+
             // Crop overlay — on top, handles its own gestures
             if isCropping {
                 CropOverlayView(
@@ -176,6 +181,51 @@ struct EditorCanvasView: View {
             }
         }
         .frame(width: canvasWidth, height: canvasHeight)
+    }
+
+    // MARK: - Watermark Preview
+
+    @ViewBuilder
+    private var watermarkPreviewOverlay: some View {
+        if watermarkSettings.isEnabled,
+           let path = watermarkSettings.imagePath,
+           let nsImage = NSImage(contentsOfFile: path),
+           nsImage.isValid {
+            let marginH = canvasWidth * 0.02
+            let marginV = canvasHeight * 0.02
+            // widthPx is in logical points. At true-size zoom this simplifies to
+            // widthPx × zoomLevel view-points, matching what the slider label shows.
+            let targetW = max(1, CGFloat(watermarkSettings.widthPx) * scale * displayBackingScale)
+            let rawSize = nsImage.size
+            let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
+            let targetH = max(1, targetW / aspect)
+            let pos = watermarkPreviewPosition(
+                position: watermarkSettings.position,
+                targetW: targetW, targetH: targetH, marginH: marginH, marginV: marginV
+            )
+            Image(nsImage: nsImage)
+                .resizable()
+                .frame(width: targetW, height: targetH)
+                .opacity(watermarkSettings.opacity)
+                .position(x: pos.x, y: pos.y)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func watermarkPreviewPosition(
+        position: WatermarkPosition,
+        targetW: CGFloat, targetH: CGFloat, marginH: CGFloat, marginV: CGFloat
+    ) -> CGPoint {
+        switch position {
+        case .topLeft:
+            return CGPoint(x: marginH + targetW / 2, y: marginV + targetH / 2)
+        case .topRight:
+            return CGPoint(x: canvasWidth - marginH - targetW / 2, y: marginV + targetH / 2)
+        case .bottomLeft:
+            return CGPoint(x: marginH + targetW / 2, y: canvasHeight - marginV - targetH / 2)
+        case .bottomRight:
+            return CGPoint(x: canvasWidth - marginH - targetW / 2, y: canvasHeight - marginV - targetH / 2)
+        }
     }
 
     // MARK: - Gestures

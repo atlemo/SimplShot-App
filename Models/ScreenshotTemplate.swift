@@ -257,28 +257,39 @@ struct ScreenshotTemplate: Codable {
     var wallpaperSource: WallpaperSource
     var padding: Int
     var cornerRadius: Int
+    var watermarkSettings: WatermarkSettings
 
     static let `default` = ScreenshotTemplate(
         isEnabled: false,
         wallpaperSource: .builtInGradient(.oceanDreams),
         padding: 80,
-        cornerRadius: 24
+        cornerRadius: 24,
+        watermarkSettings: WatermarkSettings()
     )
 
-    /// Backwards-compatible decoding: older saved templates won't have `cornerRadius`.
+    /// Backwards-compatible decoding: older saved templates won't have `cornerRadius`
+    /// or `watermarkSettings`.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
         wallpaperSource = try container.decode(WallpaperSource.self, forKey: .wallpaperSource)
         padding = try container.decode(Int.self, forKey: .padding)
         cornerRadius = try container.decodeIfPresent(Int.self, forKey: .cornerRadius) ?? 24
+        watermarkSettings = try container.decodeIfPresent(WatermarkSettings.self, forKey: .watermarkSettings) ?? WatermarkSettings()
     }
 
-    init(isEnabled: Bool, wallpaperSource: WallpaperSource, padding: Int, cornerRadius: Int = 0) {
+    init(
+        isEnabled: Bool,
+        wallpaperSource: WallpaperSource,
+        padding: Int,
+        cornerRadius: Int = 0,
+        watermarkSettings: WatermarkSettings = WatermarkSettings()
+    ) {
         self.isEnabled = isEnabled
         self.wallpaperSource = wallpaperSource
         self.padding = padding
         self.cornerRadius = cornerRadius
+        self.watermarkSettings = watermarkSettings
     }
 }
 
@@ -291,6 +302,7 @@ struct EditorTemplatePreset: Codable, Identifiable {
     var shadowIntensity: Double
     var aspectRatioID: UUID?
     var alignment: CanvasAlignment
+    var watermarkSettings: WatermarkSettings
 
     init(
         id: UUID = UUID(),
@@ -300,7 +312,8 @@ struct EditorTemplatePreset: Codable, Identifiable {
         cornerRadius: Int,
         shadowIntensity: Double = 1.0,
         aspectRatioID: UUID? = nil,
-        alignment: CanvasAlignment = .middleCenter
+        alignment: CanvasAlignment = .middleCenter,
+        watermarkSettings: WatermarkSettings = WatermarkSettings()
     ) {
         self.id = id
         self.name = name
@@ -310,6 +323,7 @@ struct EditorTemplatePreset: Codable, Identifiable {
         self.shadowIntensity = shadowIntensity
         self.aspectRatioID = aspectRatioID
         self.alignment = alignment
+        self.watermarkSettings = watermarkSettings
     }
 
     init(from decoder: Decoder) throws {
@@ -322,6 +336,7 @@ struct EditorTemplatePreset: Codable, Identifiable {
         shadowIntensity = try container.decodeIfPresent(Double.self, forKey: .shadowIntensity) ?? 1.0
         aspectRatioID = try container.decodeIfPresent(UUID.self, forKey: .aspectRatioID)
         alignment = try container.decodeIfPresent(CanvasAlignment.self, forKey: .alignment) ?? .middleCenter
+        watermarkSettings = try container.decodeIfPresent(WatermarkSettings.self, forKey: .watermarkSettings) ?? WatermarkSettings()
     }
 
     static func `default`(from template: ScreenshotTemplate, aspectRatioID: UUID? = nil) -> EditorTemplatePreset {
@@ -332,7 +347,8 @@ struct EditorTemplatePreset: Codable, Identifiable {
             cornerRadius: template.cornerRadius,
             shadowIntensity: 1.0,
             aspectRatioID: aspectRatioID,
-            alignment: .middleCenter
+            alignment: .middleCenter,
+            watermarkSettings: template.watermarkSettings
         )
     }
 }

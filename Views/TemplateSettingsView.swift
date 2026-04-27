@@ -72,7 +72,8 @@ struct TemplateSettingsView: View {
             isEnabled: hasWallpaper,
             wallpaperSource: base.wallpaperSource,
             padding: base.padding,
-            cornerRadius: base.cornerRadius
+            cornerRadius: base.cornerRadius,
+            watermarkSettings: base.watermarkSettings
         )
     }
 
@@ -130,6 +131,8 @@ struct TemplatePreviewView: View {
                         }
                         .frame(width: layout.screenshotFrame.width, height: layout.screenshotFrame.height)
                         .offset(x: layout.screenshotFrame.minX, y: layout.screenshotFrame.minY)
+
+                    watermarkPreview(in: layout)
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .frame(width: layout.canvasSize.width, height: layout.canvasSize.height, alignment: .leading)
@@ -224,6 +227,56 @@ struct TemplatePreviewView: View {
                 height: mockScreenshotSize.height * previewScale
             )
         )
+    }
+
+    @ViewBuilder
+    private func watermarkPreview(in layout: (canvasSize: CGSize, screenshotFrame: CGRect)) -> some View {
+        if template.watermarkSettings.isEnabled,
+           let path = template.watermarkSettings.imagePath,
+           let nsImage = NSImage(contentsOfFile: path),
+           nsImage.isValid {
+            let previewScale = layout.screenshotFrame.width / CGFloat(280)
+            let marginH = layout.canvasSize.width * 0.02
+            let marginV = layout.canvasSize.height * 0.02
+            let targetW = max(1, CGFloat(template.watermarkSettings.widthPx) * previewScale)
+            let rawSize = nsImage.size
+            let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
+            let targetH = max(1, targetW / aspect)
+            let position = watermarkPosition(
+                for: template.watermarkSettings.position,
+                in: layout.canvasSize,
+                targetW: targetW,
+                targetH: targetH,
+                marginH: marginH,
+                marginV: marginV
+            )
+
+            Image(nsImage: nsImage)
+                .resizable()
+                .frame(width: targetW, height: targetH)
+                .opacity(template.watermarkSettings.opacity)
+                .position(x: position.x, y: position.y)
+        }
+    }
+
+    private func watermarkPosition(
+        for position: WatermarkPosition,
+        in canvasSize: CGSize,
+        targetW: CGFloat,
+        targetH: CGFloat,
+        marginH: CGFloat,
+        marginV: CGFloat
+    ) -> CGPoint {
+        switch position {
+        case .topLeft:
+            return CGPoint(x: marginH + targetW / 2, y: marginV + targetH / 2)
+        case .topRight:
+            return CGPoint(x: canvasSize.width - marginH - targetW / 2, y: marginV + targetH / 2)
+        case .bottomLeft:
+            return CGPoint(x: marginH + targetW / 2, y: canvasSize.height - marginV - targetH / 2)
+        case .bottomRight:
+            return CGPoint(x: canvasSize.width - marginH - targetW / 2, y: canvasSize.height - marginV - targetH / 2)
+        }
     }
 
     private func cornerRadii(for frame: CGRect, in canvasSize: CGSize, radius: CGFloat) -> RectangleCornerRadii {

@@ -70,6 +70,7 @@ struct EditorView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility
     @State private var shadowIntensity: Double = 1.0
     @State private var screenshotAlignment: CanvasAlignment = .middleCenter
+    @State private var watermarkSettings: WatermarkSettings = WatermarkSettings()
 
     init(
         imageURL: URL,
@@ -79,13 +80,15 @@ struct EditorView: View {
         onDismiss: @escaping () -> Void = {}
     ) {
         self.imageURL = imageURL
-        self.template = template ?? appSettings?.defaultCaptureTemplate ?? .default
+        let resolvedTemplate = template ?? appSettings?.defaultCaptureTemplate ?? .default
+        self.template = resolvedTemplate
         self.appSettings = appSettings
         self.preferOriginalAspectRatio = preferOriginalAspectRatio
         self.onDismiss = onDismiss
         _columnVisibility = State(initialValue:
             appSettings?.editorShowProSidebar == true ? .all : .detailOnly
         )
+        _watermarkSettings = State(initialValue: resolvedTemplate.watermarkSettings)
 #if !APPSTORE
         _editorAspectRatioID = State(initialValue:
             preferOriginalAspectRatio ? nil : appSettings?.selectedRatioID
@@ -161,6 +164,7 @@ struct EditorView: View {
             || template.shadowIntensity != shadowIntensity
             || template.aspectRatioID != editorAspectRatioID
             || template.alignment != screenshotAlignment
+            || template.watermarkSettings != watermarkSettings
     }
 
     var body: some View {
@@ -402,7 +406,9 @@ struct EditorView: View {
             onApplyCrop: applyCrop,
             onCancelCrop: cancelCrop,
             onUndo: undo,
-            onDone: saveOverwrite
+            onDone: saveOverwrite,
+            watermarkSettings: $watermarkSettings,
+            onPickWatermarkImage: pickWatermarkImage
         )
         .frame(width: 260)
         .background(.regularMaterial)
@@ -429,6 +435,7 @@ struct EditorView: View {
                                 cropRect: $cropRect,
                                 isCropping: $isCropping,
                                 cropBoundsRect: screenshotBoundsInDisplay,
+                                watermarkSettings: watermarkSettings,
                                 onCommit: pushUndo
                             )
                             .padding(20)
@@ -603,6 +610,7 @@ struct EditorView: View {
             editorTemplate.padding = editorPadding
             editorTemplate.cornerRadius = editorCornerRadius
             editorTemplate.wallpaperSource = wallpaper
+            editorTemplate.watermarkSettings = WatermarkSettings()
             if let templated = try? templateRenderer.applyTemplate(
                 editorTemplate,
                 to: croppedCG,
@@ -899,6 +907,7 @@ struct EditorView: View {
         shadowIntensity = template.shadowIntensity
         screenshotAlignment = template.alignment
         editorAspectRatioID = normalizedAspectRatioID(template.aspectRatioID)
+        watermarkSettings = template.watermarkSettings
     }
 
     private func overwriteSelectedTemplate() {
@@ -929,6 +938,7 @@ struct EditorView: View {
         templates[index].shadowIntensity = shadowIntensity
         templates[index].aspectRatioID = editorAspectRatioID
         templates[index].alignment = screenshotAlignment
+        templates[index].watermarkSettings = watermarkSettings
         appSettings.editorTemplates = templates
     }
 
@@ -959,7 +969,8 @@ struct EditorView: View {
             cornerRadius: editorCornerRadius,
             shadowIntensity: shadowIntensity,
             aspectRatioID: editorAspectRatioID,
-            alignment: screenshotAlignment
+            alignment: screenshotAlignment,
+            watermarkSettings: watermarkSettings
         )
         appSettings.editorTemplates.append(template)
         appSettings.selectedEditorTemplateID = template.id
@@ -1085,6 +1096,18 @@ struct EditorView: View {
 
     // MARK: - Custom Background Images
 
+    private func pickWatermarkImage() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.png, .jpeg, .svg, .image]
+        panel.title = "Choose Watermark Image"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        watermarkSettings.imagePath = url.path
+        watermarkSettings.isEnabled = true
+    }
+
     private func addCustomBackgroundImage() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
@@ -1123,7 +1146,7 @@ struct EditorView: View {
         guard let cgImage = currentCGImage() else { return }
 
         let renderer = AnnotationRenderer()
-        guard let outputImage = try? renderer.render(image: cgImage, annotations: annotations, backingScale: displayBackingScale, cropRect: nil)
+        guard let outputImage = try? renderer.render(image: cgImage, annotations: annotations, backingScale: displayBackingScale, cropRect: nil, watermark: watermarkSettings)
         else { return }
 
         let bitmapRep = NSBitmapImageRep(cgImage: outputImage)
@@ -1202,7 +1225,8 @@ struct EditorView: View {
             image: cgImage,
             annotations: annotations,
             backingScale: displayBackingScale,
-            cropRect: nil
+            cropRect: nil,
+            watermark: watermarkSettings
         )
 
         let ext = url.pathExtension.lowercased()

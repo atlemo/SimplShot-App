@@ -222,6 +222,9 @@ class TemplateRenderer {
         }
 
         // 5. Extract final image
+        drawWatermark(template.watermarkSettings, in: context, canvasSize: canvasRect.size, backingScale: backingScale)
+
+        // 6. Extract final image
         guard let outputImage = context.makeImage() else {
             throw TemplateRenderError.cannotCreateOutputImage
         }
@@ -508,5 +511,76 @@ class TemplateRenderer {
         let start = CGPoint(x: centerX - dx, y: centerY - dy)
         let end   = CGPoint(x: centerX + dx, y: centerY + dy)
         return (start, end)
+    }
+
+    private func drawWatermark(
+        _ watermark: WatermarkSettings,
+        in context: CGContext,
+        canvasSize: CGSize,
+        backingScale: CGFloat
+    ) {
+        guard watermark.isEnabled,
+              let path = watermark.imagePath,
+              let nsImage = NSImage(contentsOfFile: path),
+              nsImage.isValid
+        else { return }
+
+        let marginH = canvasSize.width * 0.02
+        let marginV = canvasSize.height * 0.02
+        let targetW = max(1, CGFloat(watermark.widthPx) * backingScale)
+        let rawSize = nsImage.size
+        let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
+        let targetH = max(1, targetW / aspect)
+
+        guard let wmCG = rasterize(nsImage, size: CGSize(width: targetW, height: targetH)) else {
+            return
+        }
+
+        let x: CGFloat
+        let y: CGFloat
+        switch watermark.position {
+        case .topLeft:
+            x = marginH
+            y = canvasSize.height - targetH - marginV
+        case .topRight:
+            x = canvasSize.width - targetW - marginH
+            y = canvasSize.height - targetH - marginV
+        case .bottomLeft:
+            x = marginH
+            y = marginV
+        case .bottomRight:
+            x = canvasSize.width - targetW - marginH
+            y = marginV
+        }
+
+        context.saveGState()
+        context.setAlpha(CGFloat(watermark.opacity))
+        context.draw(wmCG, in: CGRect(x: x, y: y, width: targetW, height: targetH))
+        context.restoreGState()
+    }
+
+    /// Renders an NSImage (SVG, PNG, JPG) into a CGImage at exactly `size` pixels.
+    private func rasterize(_ nsImage: NSImage, size: CGSize) -> CGImage? {
+        guard size.width > 0, size.height > 0 else { return nil }
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: nil,
+            width: Int(size.width),
+            height: Int(size.height),
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: false)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = nsCtx
+        nsImage.draw(in: NSRect(origin: .zero, size: size),
+                     from: .zero,
+                     operation: .copy,
+                     fraction: 1.0)
+        NSGraphicsContext.restoreGraphicsState()
+        return ctx.makeImage()
     }
 }

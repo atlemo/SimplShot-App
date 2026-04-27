@@ -41,6 +41,9 @@ struct EditorSidebarView: View {
     var onUndo: () -> Void
     var onDone: () -> Void
 
+    @Binding var watermarkSettings: WatermarkSettings
+    var onPickWatermarkImage: () -> Void
+
     // MARK: - Local state
 
     @State private var colorPopoverVisible = false
@@ -92,36 +95,42 @@ struct EditorSidebarView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 0) {
-                    if hasTemplate {
-                        templatesSection
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                Color.clear
+                    .frame(height: 12)
+
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if hasTemplate {
+                            templatesSection
+                            sectionDivider
+                        }
+                        toolsSection
                         sectionDivider
+                        if showStyleControls {
+                            styleSection
+                            sectionDivider
+                        }
+                        if isCropping {
+                            cropSection
+                            sectionDivider
+                        }
+                        if hasTemplate {
+                            backgroundsSection
+                            sectionDivider
+                            paddingSection
+                            sectionDivider
+                            shadowCornersSection
+                            sectionDivider
+                            alignmentRatioSection
+                            sectionDivider
+                            watermarkSection
+                            sectionDivider
+                        }
                     }
-                    toolsSection
-                    sectionDivider
-                    if showStyleControls {
-                        styleSection
-                        sectionDivider
-                    }
-                    if isCropping {
-                        cropSection
-                        sectionDivider
-                    }
-                    if hasTemplate {
-                        backgroundsSection
-                        sectionDivider
-                        paddingSection
-                        sectionDivider
-                        shadowCornersSection
-                        sectionDivider
-                        alignmentRatioSection
-                        sectionDivider
-                    }
+                    .padding(.bottom, 16)
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 16)
             }
         }
     }
@@ -328,6 +337,103 @@ struct EditorSidebarView: View {
         .padding(.vertical, 12)
     }
 
+    // MARK: - Watermark Section
+
+    private var watermarkSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                sectionLabel("Watermark")
+                Spacer()
+                Toggle("", isOn: $watermarkSettings.isEnabled)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .labelsHidden()
+            }
+
+            if watermarkSettings.isEnabled {
+                // File picker row — styled like a popup/dropdown button
+                watermarkFilePickerRow
+
+                // Position grid (2×2)
+                VStack(alignment: .leading, spacing: 4) {
+                    sectionLabel("Position")
+                    VStack(spacing: 3) {
+                        HStack(spacing: 3) {
+                            watermarkPositionButton(.topLeft)
+                            watermarkPositionButton(.topRight)
+                        }
+                        HStack(spacing: 3) {
+                            watermarkPositionButton(.bottomLeft)
+                            watermarkPositionButton(.bottomRight)
+                        }
+                    }
+                }
+
+                // Opacity
+                VStack(alignment: .leading, spacing: 4) {
+                    sectionLabel("Opacity")
+                    HStack(spacing: 8) {
+                        Slider(value: $watermarkSettings.opacity, in: 0...1)
+                        Text("\(Int(watermarkSettings.opacity * 100))%")
+                            .font(.system(size: 11, design: .monospaced))
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                // Size — widthPx stores the direct export pixel width (15–300 px)
+                VStack(alignment: .leading, spacing: 4) {
+                    sectionLabel("Size")
+                    HStack(spacing: 8) {
+                        Slider(value: $watermarkSettings.widthPx, in: 15...300)
+                        Text("\(Int(watermarkSettings.widthPx))px")
+                            .font(.system(size: 11, design: .monospaced))
+                            .frame(width: 42, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    private var watermarkFilePickerRow: some View {
+        let filename = watermarkSettings.imagePath.map { ($0 as NSString).lastPathComponent } ?? "No image selected"
+        return HStack(spacing: 6) {
+            WatermarkFilePickerButton(title: filename, onPick: {})
+                .frame(maxWidth: .infinity, minHeight: 28)
+            Button("Add", action: onPickWatermarkImage)
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+        }
+    }
+
+    private func watermarkPositionButton(_ position: WatermarkPosition) -> some View {
+        let isSelected = watermarkSettings.position == position
+        return Button {
+            watermarkSettings.position = position
+        } label: {
+            VStack(spacing: 2) {
+                Image(systemName: position.systemImage)
+                    .font(.system(size: 12))
+                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+                Text(position.label)
+                    .font(.system(size: 9))
+                    .foregroundStyle(isSelected ? Color.white : Color.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.05))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .help(position.label)
+    }
+
     // MARK: - Alignment Grid
 
     private var alignmentGrid: some View {
@@ -425,7 +531,7 @@ struct EditorSidebarView: View {
                 } else if tool == .arrow {
                     ArrowStylePreview(
                         style: currentStyle.arrowStyle,
-                        isSelected: isActive,
+                        isSelected: false,
                         previewSize: CGSize(width: 26, height: 18)
                     )
                 } else if tool == .rectangle || tool == .circle {
@@ -879,6 +985,51 @@ struct EditorSidebarView: View {
                 applyStyleToSelection()
             }
         )
+    }
+}
+
+// MARK: - Watermark File Picker Button (native NSPopUpButton appearance)
+
+/// A single-item NSPopUpButton that shows a filename and triggers a file-picker panel on click.
+/// Matches the visual style of SwiftUI Picker (Ratio, Templates) exactly.
+private struct WatermarkFilePickerButton: NSViewRepresentable {
+    let title: String
+    let onPick: () -> Void
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        button.controlSize = .regular
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addItem(withTitle: title)
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.didClick(_:))
+        return button
+    }
+
+    func updateNSView(_ button: NSPopUpButton, context: Context) {
+        context.coordinator.parent = self
+        if button.itemArray.first?.title != title {
+            button.removeAllItems()
+            button.addItem(withTitle: title)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject {
+        var parent: WatermarkFilePickerButton
+        init(_ parent: WatermarkFilePickerButton) { self.parent = parent }
+
+        @objc func didClick(_ sender: NSPopUpButton) {
+            // Reset displayed item immediately (we're not selecting from a list)
+            DispatchQueue.main.async {
+                sender.removeAllItems()
+                sender.addItem(withTitle: self.parent.title)
+                self.parent.onPick()
+            }
+        }
     }
 }
 

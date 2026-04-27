@@ -145,7 +145,8 @@ class AppSettings {
             isEnabled: fallback.isEnabled && preset.wallpaperSource != nil,
             wallpaperSource: preset.wallpaperSource ?? fallback.wallpaperSource,
             padding: preset.padding,
-            cornerRadius: preset.cornerRadius
+            cornerRadius: preset.cornerRadius,
+            watermarkSettings: preset.watermarkSettings
         )
     }
 

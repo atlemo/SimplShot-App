@@ -31,12 +31,14 @@ class AnnotationRenderer {
     ///     Annotation style values (strokeWidth, fontSize) are in logical points and get
     ///     multiplied by this factor to match the image's pixel density.
     ///   - cropRect: Optional crop rect in image-pixel space. `nil` means no crop.
+    ///   - watermark: Watermark settings. Applied on top of all annotations.
     /// - Returns: The composited CGImage.
     func render(
         image: CGImage,
         annotations: [Annotation],
         backingScale: CGFloat,
-        cropRect: CGRect?
+        cropRect: CGRect?,
+        watermark: WatermarkSettings = WatermarkSettings()
     ) throws -> CGImage {
         let width = image.width
         let height = image.height
@@ -94,12 +96,53 @@ class AnnotationRenderer {
             drawAnnotation(annotation, backingScale: backingScale, in: context)
         }
 
-        // 4. Extract full image
+        // 4. Draw watermark on top of all annotations.
+        //    Context is in flipped/top-left space, so CGImage drawing needs a local unflip.
+        if watermark.isEnabled, let path = watermark.imagePath,
+           let nsImage = NSImage(contentsOfFile: path), nsImage.isValid {
+            let marginH = CGFloat(width) * 0.02
+            let marginV = CGFloat(height) * 0.02
+            // widthPx is in logical points; scale to image pixels the same way
+            // strokeWidth and fontSize are scaled elsewhere (× backingScale).
+            let targetW = max(1, CGFloat(watermark.widthPx) * backingScale)
+            let rawSize = nsImage.size
+            let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
+            let targetH = max(1, targetW / aspect)
+
+            if let wmCG = rasterize(nsImage, size: CGSize(width: targetW, height: targetH)) {
+                let x: CGFloat
+                let y: CGFloat
+                switch watermark.position {
+                case .topLeft:
+                    x = marginH
+                    y = marginV
+                case .topRight:
+                    x = CGFloat(width) - targetW - marginH
+                    y = marginV
+                case .bottomLeft:
+                    x = marginH
+                    y = CGFloat(height) - targetH - marginV
+                case .bottomRight:
+                    x = CGFloat(width) - targetW - marginH
+                    y = CGFloat(height) - targetH - marginV
+                }
+
+                context.saveGState()
+                context.setAlpha(CGFloat(watermark.opacity))
+                // Undo the coordinate flip locally so the CGImage draws right-side up.
+                context.translateBy(x: x, y: y + targetH)
+                context.scaleBy(x: 1, y: -1)
+                context.draw(wmCG, in: CGRect(x: 0, y: 0, width: targetW, height: targetH))
+                context.restoreGState()
+            }
+        }
+
+        // 5. Extract full image
         guard let fullImage = context.makeImage() else {
             throw RenderError.cannotCreateOutputImage
         }
 
-        // 5. Crop if needed
+        // 6. Crop if needed
         if let crop = cropRect {
             // crop is in top-left-origin pixel coords.
             // CGImage.cropping(to:) uses top-left origin when the image
@@ -586,6 +629,34 @@ class AnnotationRenderer {
             CTLineDraw(ctLine, context)
             context.restoreGState()
         }
+    }
+
+    // MARK: - Watermark Helpers
+
+    /// Renders an NSImage (SVG, PNG, JPG) into a CGImage at exactly `size` pixels.
+    /// Using NSGraphicsContext ensures SVG is rasterized at the target resolution.
+    private func rasterize(_ nsImage: NSImage, size: CGSize) -> CGImage? {
+        guard size.width > 0, size.height > 0 else { return nil }
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: nil,
+            width: Int(size.width),
+            height: Int(size.height),
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: false)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = nsCtx
+        nsImage.draw(in: NSRect(origin: .zero, size: size),
+                     from: .zero,
+                     operation: .copy,
+                     fraction: 1.0)
+        NSGraphicsContext.restoreGraphicsState()
+        return ctx.makeImage()
     }
 
     private func drawNumberedStep(_ number: Int, at point: CGPoint, style: AnnotationStyle, backingScale: CGFloat, in context: CGContext) {
