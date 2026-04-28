@@ -236,8 +236,8 @@ struct TemplatePreviewView: View {
            let nsImage = NSImage(contentsOfFile: path),
            nsImage.isValid {
             let previewScale = layout.screenshotFrame.width / CGFloat(280)
-            let marginH = layout.canvasSize.width * 0.02
-            let marginV = layout.canvasSize.height * 0.02
+            let marginH = CGFloat(template.watermarkSettings.edgeOffset) * previewScale
+            let marginV = CGFloat(template.watermarkSettings.bottomOffset) * previewScale
             let targetW = max(1, CGFloat(template.watermarkSettings.widthPx) * previewScale)
             let rawSize = nsImage.size
             let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0

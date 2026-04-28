@@ -1,4 +1,6 @@
 import AppKit
+import CoreImage
+import ScreenCaptureKit
 import SwiftUI
 
 // MARK: - Color Format
@@ -214,8 +216,11 @@ final class ColorPickerService {
     private var previousApp: NSRunningApplication?
     private var isCursorHidden = false
 
-    /// Window ID of the overlay — used to exclude our panels from captures via CGWindowListCreateImage.
-    private var overlayWindowID: CGWindowID = kCGNullWindowID
+    private var captureStream: SCStream?
+    private var streamOutput: ColorPickerStreamOutput?
+    private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+    private var latestCIImage: CIImage?
+    private var excludedWindowNumbers: Set<Int> = []
 
     // Capture 25pt × 25pt of real content; drawn into the 100pt magnifier → 4× zoom.
     private let captureSize: CGFloat = 25
@@ -233,10 +238,48 @@ final class ColorPickerService {
         NSApp.activate(ignoringOtherApps: true)
         overlayWindow?.makeKeyAndOrderFront(nil)
 
-        // Store window ID after the window is on screen so it's valid.
-        overlayWindowID = CGWindowID(overlayWindow?.windowNumber ?? 0)
+        // Collect window numbers of our own panels so the stream can exclude them.
+        excludedWindowNumbers = [
+            overlayWindow?.windowNumber,
+            magnifierPanel?.windowNumber,
+            hudPanel?.windowNumber
+        ].compactMap { $0 }.filter { $0 != 0 }.reduce(into: Set()) { $0.insert($1) }
+
+        Task { await startCaptureStream() }
 
         hideCursor()
+    }
+
+    private func startCaptureStream() async {
+        guard let screen = NSScreen.main,
+              let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+        else { return }
+
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            guard let display = content.displays.first(where: { $0.displayID == displayID }) else { return }
+
+            let windowsToExclude = content.windows.filter { excludedWindowNumbers.contains(Int($0.windowID)) }
+            let filter = SCContentFilter(display: display, excludingWindows: windowsToExclude)
+
+            let scale = Float(screen.backingScaleFactor)
+            let config = SCStreamConfiguration()
+            config.width = Int(screen.frame.width * CGFloat(scale))
+            config.height = Int(screen.frame.height * CGFloat(scale))
+            config.showsCursor = false
+            config.minimumFrameInterval = CMTime(value: 1, timescale: 60)
+
+            let output = ColorPickerStreamOutput { [weak self] ciImage in
+                Task { @MainActor [weak self] in self?.latestCIImage = ciImage }
+            }
+            let stream = SCStream(filter: filter, configuration: config, delegate: nil)
+            try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: .global(qos: .userInteractive))
+            try await stream.startCapture()
+            captureStream = stream
+            streamOutput = output
+        } catch {
+            // Permission not yet granted or unavailable — captureScreen returns nil gracefully.
+        }
     }
 
     // MARK: - Window Setup
@@ -387,7 +430,12 @@ final class ColorPickerService {
 
     private func cleanup() {
         isActive = false
-        overlayWindowID = kCGNullWindowID
+        excludedWindowNumbers = []
+        latestCIImage = nil
+        let stream = captureStream
+        captureStream = nil
+        streamOutput = nil
+        Task { try? await stream?.stopCapture() }
         unhideCursor()
         overlayWindow?.orderOut(nil)
         overlayWindow = nil
@@ -424,24 +472,19 @@ final class ColorPickerService {
     }
 
     /// Captures a rect given in NSScreen coordinates (origin bottom-left, y up).
-    /// Uses CGWindowListCreateImage with the overlay as the reference window so that
-    /// our overlay, magnifier, and HUD panels are excluded from the result.
+    /// Crops from the latest SCStream frame, which excludes our overlay/magnifier/HUD panels.
     private func captureScreen(in nsRect: CGRect) -> CGImage? {
-        // CGWindowListCreateImage uses CG screen coordinates: origin top-left, y down.
-        // NSEvent / NSScreen coordinates: origin bottom-left, y up.
-        let screenHeight = CGDisplayBounds(CGMainDisplayID()).height
-        let cgRect = CGRect(
-            x: nsRect.minX,
-            y: screenHeight - nsRect.maxY,
-            width: nsRect.width,
-            height: nsRect.height
+        guard let ciImage = latestCIImage else { return nil }
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        // CIImage (from SCStream) uses bottom-left origin — same as NSScreen — so no Y-flip needed.
+        let pixelRect = CGRect(
+            x: nsRect.minX * scale,
+            y: nsRect.minY * scale,
+            width: nsRect.width * scale,
+            height: nsRect.height * scale
         )
-
-        if overlayWindowID != kCGNullWindowID {
-            // Capture only windows below our overlay in z-order (excludes overlay, magnifier, HUD).
-            return CGWindowListCreateImage(cgRect, .optionOnScreenBelowWindow, overlayWindowID, .bestResolution)
-        }
-        return CGWindowListCreateImage(cgRect, .optionOnScreenOnly, kCGNullWindowID, .bestResolution)
+        let cropped = ciImage.cropped(to: pixelRect)
+        return ciContext.createCGImage(cropped, from: cropped.extent)
     }
 
     private func extractCenterColor(from image: CGImage) -> NSColor? {
@@ -472,5 +515,20 @@ final class ColorPickerService {
         guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
               let cgColor = CGColor(colorSpace: colorSpace, components: components) else { return nil }
         return NSColor(cgColor: cgColor)
+    }
+}
+
+// MARK: - SCStream output handler
+
+private final class ColorPickerStreamOutput: NSObject, SCStreamOutput, SCStreamDelegate {
+    private let onFrame: (CIImage) -> Void
+
+    init(onFrame: @escaping (CIImage) -> Void) {
+        self.onFrame = onFrame
+    }
+
+    func stream(_ stream: SCStream, didOutputSampleBuffer buffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard type == .screen, let imageBuffer = buffer.imageBuffer else { return }
+        onFrame(CIImage(cvImageBuffer: imageBuffer))
     }
 }

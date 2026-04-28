@@ -525,8 +525,8 @@ class TemplateRenderer {
               nsImage.isValid
         else { return }
 
-        let marginH = canvasSize.width * 0.02
-        let marginV = canvasSize.height * 0.02
+        let marginH = CGFloat(watermark.edgeOffset) * backingScale
+        let marginV = CGFloat(watermark.bottomOffset) * backingScale
         let targetW = max(1, CGFloat(watermark.widthPx) * backingScale)
         let rawSize = nsImage.size
         let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0

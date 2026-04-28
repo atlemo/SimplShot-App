@@ -191,8 +191,8 @@ struct EditorCanvasView: View {
            let path = watermarkSettings.imagePath,
            let nsImage = NSImage(contentsOfFile: path),
            nsImage.isValid {
-            let marginH = canvasWidth * 0.02
-            let marginV = canvasHeight * 0.02
+            let marginH = CGFloat(watermarkSettings.edgeOffset) * scale * displayBackingScale
+            let marginV = CGFloat(watermarkSettings.bottomOffset) * scale * displayBackingScale
             // widthPx is in logical points. At true-size zoom this simplifies to
             // widthPx × zoomLevel view-points, matching what the slider label shows.
             let targetW = max(1, CGFloat(watermarkSettings.widthPx) * scale * displayBackingScale)

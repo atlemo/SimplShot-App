@@ -411,7 +411,7 @@ struct EditorView: View {
             onPickWatermarkImage: pickWatermarkImage
         )
         .frame(width: 260)
-        .background(.regularMaterial)
+        .background(.thickMaterial)
     }
 
     // MARK: - Detail Content

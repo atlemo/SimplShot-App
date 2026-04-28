@@ -53,15 +53,31 @@ struct EditorSidebarView: View {
     @State private var rectStylePopoverVisible = false
     @State private var circleStylePopoverVisible = false
     @State private var spotlightPopoverVisible = false
-    @State private var backgroundTypePopoverVisible = false
-    @State private var backgroundType: BackgroundType = .gradients
-    @State private var backgroundsHeaderHovered = false
     @State private var hoveredTool: AnnotationTool? = nil
+    @State private var hoveredSection: SidebarSection? = nil
+    @AppStorage(Constants.UserDefaultsKeys.editorSidebarCollapsedSections)
+    private var collapsedSectionsStorage: String = ""
+    @AppStorage(Constants.UserDefaultsKeys.editorSidebarBackgroundType)
+    private var backgroundTypeRawValue: String = BackgroundType.gradients.rawValue
+
+    private enum SidebarSection: String, Hashable {
+        case templates
+        case tools
+        case crop
+        case backgrounds
+        case shadowCorners
+        case alignmentRatio
+        case watermark
+    }
 
     enum BackgroundType: String, CaseIterable, Identifiable {
         case gradients = "Gradients"
         case solidColors = "Solid Colors"
         var id: String { rawValue }
+    }
+
+    private var backgroundType: BackgroundType {
+        BackgroundType(rawValue: backgroundTypeRawValue) ?? .gradients
     }
 
     private let presetColors: [Color] = [
@@ -108,10 +124,6 @@ struct EditorSidebarView: View {
                         }
                         toolsSection
                         sectionDivider
-                        if showStyleControls {
-                            styleSection
-                            sectionDivider
-                        }
                         if isCropping {
                             cropSection
                             sectionDivider
@@ -119,9 +131,7 @@ struct EditorSidebarView: View {
                         if hasTemplate {
                             backgroundsSection
                             sectionDivider
-                            paddingSection
-                            sectionDivider
-                            shadowCornersSection
+                            paddingShadowCornersSection
                             sectionDivider
                             alignmentRatioSection
                             sectionDivider
@@ -139,22 +149,24 @@ struct EditorSidebarView: View {
 
     private var templatesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("Templates")
-            TemplatePopupPicker(
-                items: editorTemplates.map { ($0.id, templateDisplayName(for: $0)) },
-                selection: $selectedEditorTemplateID
-            )
-            .frame(maxWidth: .infinity, minHeight: 28)
+            groupHeader("Templates", section: .templates)
+            if !isCollapsed(.templates) {
+                TemplatePopupPicker(
+                    items: editorTemplates.map { ($0.id, templateDisplayName(for: $0)) },
+                    selection: $selectedEditorTemplateID
+                )
+                .frame(maxWidth: .infinity, minHeight: 28)
 
-            HStack(spacing: 8) {
-                Button("Save", action: onOverwriteTemplate)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(selectedEditorTemplateID == nil || !hasUnsavedTemplateChanges)
+                HStack(spacing: 8) {
+                    Button("Save", action: onOverwriteTemplate)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(selectedEditorTemplateID == nil || !hasUnsavedTemplateChanges)
 
-                Button("Save as new", action: onSaveAsNewTemplate)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    Button("Save as new", action: onSaveAsNewTemplate)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -170,24 +182,20 @@ struct EditorSidebarView: View {
 
     private var toolsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("Tools")
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 5), spacing: 4) {
-                ForEach(drawingTools) { tool in
-                    sidebarToolButton(tool)
+            groupHeader("Tools", section: .tools)
+            if !isCollapsed(.tools) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 5), spacing: 4) {
+                    ForEach(drawingTools) { tool in
+                        sidebarToolButton(tool)
+                    }
                 }
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-    }
-
-    private var styleSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("Color and size")
-            HStack(spacing: 8) {
-                colorButton
-                sizePicker
-                Spacer()
+                if showStyleControls {
+                    HStack(spacing: 8) {
+                        colorButton
+                        sizePicker
+                        Spacer()
+                    }
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -196,14 +204,16 @@ struct EditorSidebarView: View {
 
     private var cropSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("Crop")
-            HStack(spacing: 8) {
-                Button("Apply", action: onApplyCrop)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                Button("Cancel", action: onCancelCrop)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+            groupHeader("Crop", section: .crop)
+            if !isCollapsed(.crop) {
+                HStack(spacing: 8) {
+                    Button("Apply", action: onApplyCrop)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    Button("Cancel", action: onCancelCrop)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -212,126 +222,112 @@ struct EditorSidebarView: View {
 
     private var backgroundsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Button { backgroundTypePopoverVisible.toggle() } label: {
-                HStack(spacing: 4) {
-                    Text("Backgrounds")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(backgroundsHeaderHovered ? .primary : .secondary)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(backgroundsHeaderHovered ? .secondary : .tertiary)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(backgroundsHeaderHovered ? Color.primary.opacity(0.07) : Color.clear)
+            groupHeader("Background", section: .backgrounds)
+            if !isCollapsed(.backgrounds) {
+                StringPopupPicker(
+                    items: BackgroundType.allCases.map(\.rawValue),
+                    selection: $backgroundTypeRawValue
                 )
-                .contentShape(RoundedRectangle(cornerRadius: 5))
-            }
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity)
-            .onHover { backgroundsHeaderHovered = $0 }
-            .popover(isPresented: $backgroundTypePopoverVisible, arrowEdge: .bottom) {
-                backgroundTypePopoverContent
-            }
+                .frame(maxWidth: .infinity)
 
-            let isSolidColors = backgroundType == .solidColors
-            let items = isSolidColors ? BuiltInGradient.solidColors : BuiltInGradient.gradients
-            BackgroundGridView(
-                gradientItems: items,
-                selectedWallpaper: selectedWallpaper,
-                customBackgroundImages: isSolidColors ? [] : customBackgroundImages,
-                customColors: isSolidColors ? customColors : [],
-                showCustomColorPicker: isSolidColors,
-                onSelectWallpaper: { selectedWallpaper = $0 },
-                onRemoveCustomImage: onRemoveCustomImage,
-                onAddCustomImage: isSolidColors ? {} : onAddCustomImage,
-                onAddCustomColor: onAddCustomColor,
-                onRemoveCustomColor: onRemoveCustomColor
-            )
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-    }
-
-    private var paddingSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("Padding")
-            HStack(spacing: 8) {
-                Slider(value: paddingBinding, in: 20...200)
-                Text("\(padding)px")
-                    .font(.system(size: 11, design: .monospaced))
-                    .frame(width: 40, alignment: .trailing)
-                    .foregroundStyle(.secondary)
+                let isSolidColors = backgroundType == .solidColors
+                let items = isSolidColors ? BuiltInGradient.solidColors : BuiltInGradient.gradients
+                BackgroundGridView(
+                    gradientItems: items,
+                    selectedWallpaper: selectedWallpaper,
+                    customBackgroundImages: isSolidColors ? [] : customBackgroundImages,
+                    customColors: isSolidColors ? customColors : [],
+                    showCustomColorPicker: isSolidColors,
+                    onSelectWallpaper: { selectedWallpaper = $0 },
+                    onRemoveCustomImage: onRemoveCustomImage,
+                    onAddCustomImage: isSolidColors ? {} : onAddCustomImage,
+                    onAddCustomColor: onAddCustomColor,
+                    onRemoveCustomColor: onRemoveCustomColor
+                )
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
     }
 
-    private var shadowCornersSection: some View {
-        HStack(alignment: .top, spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                sectionLabel("Shadow")
+    private var paddingShadowCornersSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            groupHeader("Padding, shadows and corners", section: .shadowCorners)
+            if !isCollapsed(.shadowCorners) {
                 HStack(spacing: 8) {
-                    Slider(value: $shadowIntensity, in: 0...1)
-                    Text("\(shadowBlurPixels)px")
+                    Slider(value: paddingBinding, in: 20...200)
+                    Text("\(padding)px")
                         .font(.system(size: 11, design: .monospaced))
                         .frame(width: 40, alignment: .trailing)
                         .foregroundStyle(.secondary)
                 }
-            }
-            .frame(maxWidth: .infinity)
+                .padding(.bottom, 4)
+                HStack(alignment: .top, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        sectionLabel("Shadow")
+                        HStack(spacing: 8) {
+                            Slider(value: $shadowIntensity, in: 0...1)
+                            Text("\(shadowBlurPixels)px")
+                                .font(.system(size: 11, design: .monospaced))
+                                .frame(width: 40, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
 
-            Divider()
-                .padding(.horizontal, 10)
-                .padding(.top, 2)
+                    Divider()
+                        .padding(.horizontal, 10)
+                        .padding(.top, 2)
 
-            VStack(alignment: .leading, spacing: 8) {
-                sectionLabel("Corners")
-                HStack(spacing: 8) {
-                    Slider(value: cornerRadiusBinding, in: 0...50)
-                    Text("\(cornerRadius)px")
-                        .font(.system(size: 11, design: .monospaced))
-                        .frame(width: 40, alignment: .trailing)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        sectionLabel("Corners")
+                        HStack(spacing: 8) {
+                            Slider(value: cornerRadiusBinding, in: 0...50)
+                            Text("\(cornerRadius)px")
+                                .font(.system(size: 11, design: .monospaced))
+                                .frame(width: 40, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
             }
-            .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
     }
 
     private var alignmentRatioSection: some View {
-        HStack(alignment: .top, spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                sectionLabel("Alignment")
-                alignmentGrid
-            }
-            .frame(maxWidth: .infinity)
-
-            Divider()
-                .padding(.horizontal, 10)
-                .padding(.top, 2)
-
-            VStack(alignment: .leading, spacing: 8) {
-                sectionLabel("Ratio")
-                Picker("", selection: $selectedAspectRatioID) {
-                    Text("Auto")
-                        .tag(Optional<UUID>.none)
-                    ForEach(aspectRatios) { ratio in
-                        Text(ratio.label)
-                            .tag(Optional(ratio.id))
+        VStack(alignment: .leading, spacing: 10) {
+            groupHeader("Alignment and ratio", section: .alignmentRatio)
+            if !isCollapsed(.alignmentRatio) {
+                HStack(alignment: .top, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        sectionLabel("Alignment")
+                        alignmentGrid
                     }
+                    .frame(maxWidth: .infinity)
+
+                    Divider()
+                        .padding(.horizontal, 10)
+                        .padding(.top, 2)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        sectionLabel("Ratio")
+                        Picker("", selection: $selectedAspectRatioID) {
+                            Text("Auto")
+                                .tag(Optional<UUID>.none)
+                            ForEach(aspectRatios) { ratio in
+                                Text(ratio.label)
+                                    .tag(Optional(ratio.id))
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -341,31 +337,45 @@ struct EditorSidebarView: View {
 
     private var watermarkSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                sectionLabel("Watermark")
-                Spacer()
-                Toggle("", isOn: $watermarkSettings.isEnabled)
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .labelsHidden()
-            }
+            watermarkHeader
 
-            if watermarkSettings.isEnabled {
+            if watermarkSettings.isEnabled && !isCollapsed(.watermark) {
                 // File picker row — styled like a popup/dropdown button
                 watermarkFilePickerRow
 
-                // Position grid (2×2)
+                // Position
                 VStack(alignment: .leading, spacing: 4) {
                     sectionLabel("Position")
-                    VStack(spacing: 3) {
-                        HStack(spacing: 3) {
-                            watermarkPositionButton(.topLeft)
-                            watermarkPositionButton(.topRight)
+                    Picker("", selection: $watermarkSettings.position) {
+                        ForEach(WatermarkPosition.allCases) { pos in
+                            Text(pos.label).tag(pos)
                         }
-                        HStack(spacing: 3) {
-                            watermarkPositionButton(.bottomLeft)
-                            watermarkPositionButton(.bottomRight)
-                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+
+                // Bottom offset
+                VStack(alignment: .leading, spacing: 4) {
+                    sectionLabel("Bottom offset")
+                    HStack(spacing: 8) {
+                        Slider(value: $watermarkSettings.bottomOffset, in: 0...100)
+                        Text("\(Int(watermarkSettings.bottomOffset))px")
+                            .font(.system(size: 11, design: .monospaced))
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                // Edge offset
+                VStack(alignment: .leading, spacing: 4) {
+                    sectionLabel("Edge offset")
+                    HStack(spacing: 8) {
+                        Slider(value: $watermarkSettings.edgeOffset, in: 0...100)
+                        Text("\(Int(watermarkSettings.edgeOffset))px")
+                            .font(.system(size: 11, design: .monospaced))
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -398,6 +408,31 @@ struct EditorSidebarView: View {
         .padding(.vertical, 12)
     }
 
+    private var watermarkHeader: some View {
+        HStack(spacing: 8) {
+            groupHeaderLabel("Watermark", isHovered: hoveredSection == .watermark)
+            Spacer()
+            Toggle("", isOn: $watermarkSettings.isEnabled)
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+            collapseIcon(for: .watermark, isHovered: hoveredSection == .watermark)
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 5)
+                .fill(hoveredSection == .watermark ? Color.primary.opacity(0.07) : Color.clear)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 5))
+        .onTapGesture {
+            toggleSection(.watermark)
+        }
+        .onHover { isHovering in
+            hoveredSection = isHovering ? .watermark : (hoveredSection == .watermark ? nil : hoveredSection)
+        }
+    }
+
     private var watermarkFilePickerRow: some View {
         let filename = watermarkSettings.imagePath.map { ($0 as NSString).lastPathComponent } ?? "No image selected"
         return HStack(spacing: 6) {
@@ -409,30 +444,7 @@ struct EditorSidebarView: View {
         }
     }
 
-    private func watermarkPositionButton(_ position: WatermarkPosition) -> some View {
-        let isSelected = watermarkSettings.position == position
-        return Button {
-            watermarkSettings.position = position
-        } label: {
-            VStack(spacing: 2) {
-                Image(systemName: position.systemImage)
-                    .font(.system(size: 12))
-                    .foregroundStyle(isSelected ? Color.white : Color.primary)
-                Text(position.label)
-                    .font(.system(size: 9))
-                    .foregroundStyle(isSelected ? Color.white : Color.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.05))
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
-        .help(position.label)
-    }
+
 
     // MARK: - Alignment Grid
 
@@ -874,43 +886,6 @@ struct EditorSidebarView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Background Type Popover
-
-    private var backgroundTypePopoverContent: some View {
-        VStack(spacing: 2) {
-            backgroundTypeButton(.gradients)
-            backgroundTypeButton(.solidColors)
-        }
-        .padding(6)
-        .frame(width: 160)
-    }
-
-    private func backgroundTypeButton(_ type: BackgroundType) -> some View {
-        let isSelected = backgroundType == type
-        return Button {
-            backgroundType = type
-            backgroundTypePopoverVisible = false
-        } label: {
-            HStack {
-                Text(type.rawValue)
-                    .font(.system(size: 12))
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color.accentColor)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
     // Gradient cells moved to BackgroundGridView (Equatable) below.
 
     // MARK: - Helpers
@@ -926,8 +901,71 @@ struct EditorSidebarView: View {
             .padding(.leading, 5)
     }
 
+    private func groupHeader(_ text: String, section: SidebarSection) -> some View {
+        Button {
+            toggleSection(section)
+        } label: {
+            HStack(spacing: 8) {
+                groupHeaderLabel(text, isHovered: hoveredSection == section)
+                Spacer()
+                collapseIcon(for: section, isHovered: hoveredSection == section)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(hoveredSection == section ? Color.primary.opacity(0.07) : Color.clear)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 5))
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering in
+            hoveredSection = isHovering ? section : (hoveredSection == section ? nil : hoveredSection)
+        }
+        .help(isCollapsed(section) ? "Expand section" : "Collapse section")
+    }
+
+    private func groupHeaderLabel(_ text: String, isHovered: Bool = false) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(isHovered ? .primary : .secondary)
+    }
+
+    private func collapseIcon(for section: SidebarSection, isHovered: Bool) -> some View {
+        Image(systemName: isCollapsed(section) ? "chevron.right" : "chevron.down")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(isHovered ? .secondary : .tertiary)
+            .frame(width: 18, height: 18)
+    }
+
     private var sectionDivider: some View {
         EmptyView()
+    }
+
+    private func isCollapsed(_ section: SidebarSection) -> Bool {
+        persistedCollapsedSections.contains(section)
+    }
+
+    private func toggleSection(_ section: SidebarSection) {
+        var sections = persistedCollapsedSections
+        if isCollapsed(section) {
+            sections.remove(section)
+        } else {
+            sections.insert(section)
+        }
+        collapsedSectionsStorage = sections
+            .map(\.rawValue)
+            .sorted()
+            .joined(separator: ",")
+    }
+
+    private var persistedCollapsedSections: Set<SidebarSection> {
+        Set(
+            collapsedSectionsStorage
+                .split(separator: ",")
+                .compactMap { SidebarSection(rawValue: String($0)) }
+        )
     }
 
     private func selectTool(_ tool: AnnotationTool) {
@@ -1091,6 +1129,64 @@ private struct TemplatePopupPicker: NSViewRepresentable {
                   let id = UUID(uuidString: idString)
             else { return }
             parent.selection = id
+        }
+    }
+}
+
+private struct StringPopupPicker: NSViewRepresentable {
+    let items: [String]
+    @Binding var selection: String
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        button.controlSize = .regular
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.selectionChanged(_:))
+        context.coordinator.update(button: button, items: items, selection: selection)
+        return button
+    }
+
+    func updateNSView(_ button: NSPopUpButton, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.update(button: button, items: items, selection: selection)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject {
+        var parent: StringPopupPicker
+
+        init(parent: StringPopupPicker) {
+            self.parent = parent
+        }
+
+        func update(button: NSPopUpButton, items: [String], selection: String) {
+            let existingTitles = button.itemArray.map(\.title)
+            let needsReload = existingTitles != items || button.numberOfItems != items.count
+
+            if needsReload {
+                button.removeAllItems()
+                for item in items {
+                    button.addItem(withTitle: item)
+                    button.lastItem?.representedObject = item
+                }
+            }
+
+            if let item = button.itemArray.first(where: { ($0.representedObject as? String) == selection }) {
+                button.select(item)
+            } else if button.numberOfItems > 0 {
+                button.selectItem(at: 0)
+            }
+        }
+
+        @objc func selectionChanged(_ sender: NSPopUpButton) {
+            guard let value = sender.selectedItem?.representedObject as? String else { return }
+            parent.selection = value
         }
     }
 }
@@ -1407,6 +1503,7 @@ struct BackgroundGridView: View, Equatable {
         .help("Add Custom Color")
     }
 }
+
 
 // MARK: - BuiltInGradient SwiftUI helpers (sidebar)
 

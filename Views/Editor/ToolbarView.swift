@@ -41,43 +41,45 @@ struct EditorToolbarView: View {
     }
 
     var body: some View {
-        if !showProSidebar {
-            // Tool controls shown only in simple mode (pro mode uses sidebar).
-            // No outer GlassEffectContainer — the NSToolbar is the outer glass layer.
-            // Each pill renders its own glass via .glassEffect(in: Capsule()).
-            HStack(spacing: 6) {
-                // Tool picker
-                toolPicker
+        Group {
+            if !showProSidebar {
+                // Tool controls shown only in simple mode (pro mode uses sidebar).
+                // No outer GlassEffectContainer — the NSToolbar is the outer glass layer.
+                // Each pill renders its own glass via .glassEffect(in: Capsule()).
+                HStack(spacing: 6) {
+                    // Tool picker
+                    toolPicker
 
-                // Crop controls (shown while cropping)
-                if isCropping {
-                    cropControls
-                }
-
-                // Style controls
-                if showStyleControls {
-                    styleControls
-                }
-
-                // Background label + gradient picker
-                if hasTemplate {
-                    Button {
-                        gradientPopoverVisible.toggle()
-                    } label: {
-                        HStack(spacing: 0) {
-                            Text("Background")
-                                .font(.system(size: 12))
-                                .padding(.leading, 10)
-                                .padding(.trailing, 6)
-                            Divider().frame(height: 16)
-                            gradientIndicator
-                        }
-                        .frame(height: toolPillHeight)
-                        .contentShape(Capsule())
+                    // Crop controls (shown while cropping)
+                    if isCropping {
+                        cropControls
                     }
-                    .buttonStyle(.plain)
-                    .popover(isPresented: $gradientPopoverVisible, arrowEdge: .bottom) {
-                        gradientPopoverContent
+
+                    // Style controls
+                    if showStyleControls {
+                        styleControls
+                    }
+
+                    // Background label + gradient picker
+                    if hasTemplate {
+                        Button {
+                            gradientPopoverVisible.toggle()
+                        } label: {
+                            HStack(spacing: 0) {
+                                Text("Background")
+                                    .font(.system(size: 12))
+                                    .padding(.leading, 10)
+                                    .padding(.trailing, 6)
+                                Divider().frame(height: 16)
+                                gradientIndicator
+                            }
+                            .frame(height: toolPillHeight)
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .popover(isPresented: $gradientPopoverVisible, arrowEdge: .bottom) {
+                            gradientPopoverContent
+                        }
                     }
                 }
             }

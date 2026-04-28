@@ -57,5 +57,7 @@ enum Constants {
         static let editorTemplates = "editorTemplates"
         static let selectedEditorTemplateID = "selectedEditorTemplateID"
         static let defaultCaptureTemplateID = "defaultCaptureTemplateID"
+        static let editorSidebarCollapsedSections = "editorSidebarCollapsedSections"
+        static let editorSidebarBackgroundType = "editorSidebarBackgroundType"
     }
 }

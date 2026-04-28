@@ -1,6 +1,7 @@
 import Foundation
 
-enum WatermarkPosition: String, CaseIterable, Codable {
+enum WatermarkPosition: String, CaseIterable, Codable, Identifiable {
+    var id: String { rawValue }
     case topLeft
     case topRight
     case bottomLeft
@@ -35,4 +36,8 @@ struct WatermarkSettings: Codable, Equatable {
     /// Target watermark width in the exported image (pixels). Range: 15–300.
     /// Height is derived from the watermark's aspect ratio.
     var widthPx: Double = 150
+    /// Horizontal distance from the left/right edge in exported 1× pixels. Range: 0–100.
+    var edgeOffset: Double = 20
+    /// Vertical distance from the top/bottom edge in exported 1× pixels. Range: 0–100.
+    var bottomOffset: Double = 20
 }
