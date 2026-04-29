@@ -366,6 +366,7 @@ struct EditorView: View {
                 Button("Done", action: saveOverwrite)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut("s", modifiers: .command)
+                    .help("Save, close and copy the image to your clipboard")
             }
         }
     }
@@ -408,7 +409,9 @@ struct EditorView: View {
             onUndo: undo,
             onDone: saveOverwrite,
             watermarkSettings: $watermarkSettings,
-            onPickWatermarkImage: pickWatermarkImage
+            onPickWatermarkImage: pickWatermarkImage,
+            imagePixelSize: imagePixelSize,
+            onResizeImage: resizeImage
         )
         .frame(width: 260)
         .background(.thickMaterial)
@@ -427,7 +430,8 @@ struct EditorView: View {
                                 imagePixelSize: imagePixelSize,
                                 scale: effectiveScale,
                                 displayBackingScale: displayBackingScale,
-                                shadowIntensity: selectedWallpaper == nil ? shadowIntensity : 0,
+                                shadowIntensity: 0,
+                                showBorderOutline: selectedWallpaper == nil,
                                 annotations: $annotations,
                                 selectedAnnotationID: $selectedAnnotationID,
                                 currentTool: $currentTool,
@@ -831,6 +835,58 @@ struct EditorView: View {
         cropRect = CGRect(origin: .zero, size: imagePixelSize)
         isCropping = false
         currentTool = .select
+    }
+
+    // MARK: - Resize
+
+    private func resizeImage(toWidth targetWidth: Int, height targetHeight: Int) {
+        guard let rawImg = rawImage,
+              let srcCG = rawImg.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              imagePixelSize.width > 0, targetWidth > 0, targetHeight > 0
+        else { return }
+
+        let scale = CGFloat(targetWidth) / imagePixelSize.width
+        let newW = max(1, Int((CGFloat(srcCG.width) * scale).rounded()))
+        let newH = max(1, Int((CGFloat(srcCG.height) * scale).rounded()))
+
+        let colorSpace = srcCG.colorSpace ?? CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: nil,
+            width: newW,
+            height: newH,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ), let scaledCG = {
+            ctx.interpolationQuality = .high
+            ctx.draw(srcCG, in: CGRect(x: 0, y: 0, width: newW, height: newH))
+            return ctx.makeImage()
+        }() else { return }
+
+        pushUndo()
+
+        annotations = annotations.map { ann in
+            var a = ann
+            a.startPoint = CGPoint(x: ann.startPoint.x * scale, y: ann.startPoint.y * scale)
+            a.endPoint   = CGPoint(x: ann.endPoint.x * scale,   y: ann.endPoint.y * scale)
+            if !ann.points.isEmpty {
+                a.points = ann.points.map { CGPoint(x: $0.x * scale, y: $0.y * scale) }
+            }
+            return a
+        }
+
+        screenshotCropRect = CGRect(
+            x: screenshotCropRect.minX * scale,
+            y: screenshotCropRect.minY * scale,
+            width: screenshotCropRect.width * scale,
+            height: screenshotCropRect.height * scale
+        )
+
+        let scaledNSImage = NSImage(size: NSSize(width: newW, height: newH))
+        scaledNSImage.addRepresentation(NSBitmapImageRep(cgImage: scaledCG))
+        rawImage = scaledNSImage
+        applyDisplayImage(from: scaledNSImage)
     }
 
     // MARK: - Annotation Helpers

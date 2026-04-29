@@ -29,6 +29,7 @@ struct EditorCanvasView: View {
     let scale: CGFloat          // view-points per image-pixel (from parent)
     let displayBackingScale: CGFloat  // monitor backing scale for true 1x measurements
     var shadowIntensity: Double = 0 // drop shadow opacity (0 = none, 1 = full)
+    var showBorderOutline: Bool = false
 
     @Binding var annotations: [Annotation]
     @Binding var selectedAnnotationID: UUID?
@@ -80,6 +81,11 @@ struct EditorCanvasView: View {
                 .interpolation(.high)
                 .frame(width: canvasWidth, height: canvasHeight)
                 .shadow(color: .black.opacity(0.5 * shadowIntensity), radius: 60 * shadowIntensity, x: 0, y: 28 * shadowIntensity)
+                .overlay(
+                    showBorderOutline
+                        ? RoundedRectangle(cornerRadius: 0).stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                        : nil
+                )
                 .contentShape(Rectangle())
                 .gesture(canvasGesture)
                 .onTapGesture(count: 2) { location in

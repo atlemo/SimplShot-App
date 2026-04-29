@@ -44,7 +44,17 @@ struct EditorSidebarView: View {
     @Binding var watermarkSettings: WatermarkSettings
     var onPickWatermarkImage: () -> Void
 
+    var imagePixelSize: CGSize
+    var onResizeImage: (Int, Int) -> Void
+
     // MARK: - Local state
+
+    @State private var resizeWidthStr: String = ""
+    @State private var resizeHeightStr: String = ""
+    @State private var resizeAspectRatio: Double = 1.0
+
+    private enum ResizeFocus: Hashable { case width, height }
+    @FocusState private var resizeFocused: ResizeFocus?
 
     @State private var colorPopoverVisible = false
     @State private var sizePopoverVisible = false
@@ -67,6 +77,7 @@ struct EditorSidebarView: View {
         case backgrounds
         case shadowCorners
         case alignmentRatio
+        case resizeImage
         case watermark
     }
 
@@ -134,6 +145,8 @@ struct EditorSidebarView: View {
                             paddingShadowCornersSection
                             sectionDivider
                             alignmentRatioSection
+                            sectionDivider
+                            resizeImageSection
                             sectionDivider
                             watermarkSection
                             sectionDivider
@@ -331,6 +344,78 @@ struct EditorSidebarView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+    }
+
+    // MARK: - Resize Image Section
+
+    private var resizeImageSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            groupHeader("Resize Image", section: .resizeImage)
+            if !isCollapsed(.resizeImage) {
+                HStack(spacing: 8) {
+                    Text("Width:")
+                        .font(.system(size: 12))
+                        .frame(width: 44, alignment: .leading)
+                    TextField("", text: $resizeWidthStr)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 70)
+                        .focused($resizeFocused, equals: .width)
+                        .onChange(of: resizeWidthStr) { _, _ in
+                            guard resizeFocused == .width else { return }
+                            if let w = Int(resizeWidthStr), w > 0, resizeAspectRatio > 0 {
+                                resizeHeightStr = "\(max(1, Int((Double(w) / resizeAspectRatio).rounded())))"
+                            }
+                        }
+                        .onSubmit { commitResize() }
+                    Text("px")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                HStack(spacing: 8) {
+                    Text("Height:")
+                        .font(.system(size: 12))
+                        .frame(width: 44, alignment: .leading)
+                    TextField("", text: $resizeHeightStr)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 70)
+                        .focused($resizeFocused, equals: .height)
+                        .onChange(of: resizeHeightStr) { _, _ in
+                            guard resizeFocused == .height else { return }
+                            if let h = Int(resizeHeightStr), h > 0, resizeAspectRatio > 0 {
+                                resizeWidthStr = "\(max(1, Int((Double(h) * resizeAspectRatio).rounded())))"
+                            }
+                        }
+                        .onSubmit { commitResize() }
+                    Text("px")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Button("Resize", action: commitResize)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled({
+                    guard let w = Int(resizeWidthStr), let h = Int(resizeHeightStr), w > 0, h > 0 else { return true }
+                    return w == Int(imagePixelSize.width) && h == Int(imagePixelSize.height)
+                }())
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .onAppear { initResizeFields() }
+        .onChange(of: imagePixelSize) { _, _ in initResizeFields() }
+    }
+
+    private func initResizeFields() {
+        guard imagePixelSize.width > 0, imagePixelSize.height > 0 else { return }
+        resizeAspectRatio = imagePixelSize.width / imagePixelSize.height
+        resizeWidthStr = "\(Int(imagePixelSize.width))"
+        resizeHeightStr = "\(Int(imagePixelSize.height))"
+    }
+
+    private func commitResize() {
+        guard let w = Int(resizeWidthStr), let h = Int(resizeHeightStr), w > 0, h > 0 else { return }
+        guard w != Int(imagePixelSize.width) || h != Int(imagePixelSize.height) else { return }
+        onResizeImage(w, h)
     }
 
     // MARK: - Watermark Section
