@@ -135,13 +135,15 @@ final class MagnifierView: NSView {
         ctx.addEllipse(in: circleRect)
         ctx.clip()
 
+        // Fill with fallback grey first so any residual transparent pixels in
+        // the captured image don't show through to the panel's clear background.
+        ctx.setFillColor(NSColor(white: 0.88, alpha: 1).cgColor)
+        ctx.fill(b)
+
         if let image = magnifiedContent {
             // AppKit's CGContext already has a y-flip in its CTM, which corrects
             // the CGImage's y-down orientation. Draw directly — no extra flip needed.
             ctx.draw(image, in: b)
-        } else {
-            ctx.setFillColor(NSColor(white: 0.88, alpha: 1).cgColor)
-            ctx.fill(b)
         }
         ctx.restoreGState()
 
@@ -268,6 +270,7 @@ final class ColorPickerService {
             config.height = Int(screen.frame.height * CGFloat(scale))
             config.showsCursor = false
             config.minimumFrameInterval = CMTime(value: 1, timescale: 60)
+            config.pixelFormat = kCVPixelFormatType_32BGRA
 
             let output = ColorPickerStreamOutput { [weak self] ciImage in
                 Task { @MainActor [weak self] in self?.latestCIImage = ciImage }
@@ -484,7 +487,11 @@ final class ColorPickerService {
             height: nsRect.height * scale
         )
         let cropped = ciImage.cropped(to: pixelRect)
-        return ciContext.createCGImage(cropped, from: cropped.extent)
+        // Glass/vibrancy windows can produce alpha < 1.0 in the SCKit frame.
+        // Composite over opaque black to flatten alpha before sampling or display.
+        let background = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 1)).cropped(to: cropped.extent)
+        let flattened = cropped.composited(over: background)
+        return ciContext.createCGImage(flattened, from: flattened.extent)
     }
 
     private func extractCenterColor(from image: CGImage) -> NSColor? {

@@ -103,15 +103,31 @@ struct AnnotationOverlayView: View {
 
         case .rectangle:
             RoundedRectangle(cornerRadius: 6)
-                .fill(annotation.style.fillRect ? annotation.style.strokeColor : Color.clear)
+                .fill(annotation.style.fillColor ?? Color.clear)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
 
         case .circle:
             Ellipse()
-                .fill(annotation.style.fillCircle ? annotation.style.strokeColor : Color.clear)
+                .fill(annotation.style.fillColor ?? Color.clear)
                 .overlay(Ellipse().stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth))
+                .frame(width: rect.width, height: rect.height)
+                .position(x: rect.midX, y: rect.midY)
+
+        case .triangle:
+            TriangleShape()
+                .fill(annotation.style.fillColor ?? Color.clear)
+                .overlay(TriangleShape().stroke(annotation.style.strokeColor,
+                    style: StrokeStyle(lineWidth: annotation.style.strokeWidth, lineJoin: .round)))
+                .frame(width: rect.width, height: rect.height)
+                .position(x: rect.midX, y: rect.midY)
+
+        case .star:
+            StarShape()
+                .fill(annotation.style.fillColor ?? Color.clear)
+                .overlay(StarShape().stroke(annotation.style.strokeColor,
+                    style: StrokeStyle(lineWidth: annotation.style.strokeWidth, lineJoin: .round)))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
 
@@ -206,6 +222,7 @@ struct AnnotationOverlayView: View {
 
     // MARK: - Selection Handles
 
+
     @ViewBuilder
     private var selectionHandles: some View {
         let start = scaled(annotation.startPoint)
@@ -216,7 +233,7 @@ struct AnnotationOverlayView: View {
             HandleDot(center: start)
             HandleDot(center: end)
 
-        case .rectangle, .circle, .pixelate, .spotlight:
+        case .rectangle, .circle, .triangle, .star, .pixelate, .spotlight:
             let rect = scaledBoundingRect
             HandleDot(center: CGPoint(x: rect.minX, y: rect.minY))
             HandleDot(center: CGPoint(x: rect.maxX, y: rect.minY))
@@ -531,6 +548,40 @@ struct FreeDrawShape: Shape {
             out = next
         }
         return out
+    }
+}
+
+// MARK: - Triangle Shape
+
+struct TriangleShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { p in
+            p.move(to: CGPoint(x: rect.midX, y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+            p.closeSubpath()
+        }
+    }
+}
+
+// MARK: - Star Shape
+
+struct StarShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let cx = rect.midX
+        let cy = rect.midY
+        let outerR = min(rect.width, rect.height) / 2
+        let innerR = outerR * 0.4
+        let points = 5
+        return Path { p in
+            for i in 0..<(points * 2) {
+                let angle = CGFloat(i) * .pi / CGFloat(points) - .pi / 2
+                let r = i.isMultiple(of: 2) ? outerR : innerR
+                let pt = CGPoint(x: cx + r * cos(angle), y: cy + r * sin(angle))
+                if i == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
+            }
+            p.closeSubpath()
+        }
     }
 }
 

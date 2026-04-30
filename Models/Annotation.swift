@@ -9,6 +9,8 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     case measurement
     case rectangle
     case circle
+    case triangle
+    case star
     case line
     case text
     case pixelate
@@ -20,35 +22,39 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .select:    return "Select"
-        case .arrow:     return "Arrow"
-        case .freeDraw:  return "Free Drawing"
-        case .measurement: return "Measurement"
-        case .rectangle: return "Rectangle"
-        case .circle:    return "Circle"
-        case .line:      return "Line"
-        case .text:      return "Text"
-        case .pixelate:  return "Pixelate"
-        case .spotlight: return "Spotlight"
+        case .select:       return "Select"
+        case .arrow:        return "Arrow"
+        case .freeDraw:     return "Free Drawing"
+        case .measurement:  return "Measurement"
+        case .rectangle:    return "Rectangle"
+        case .circle:       return "Circle"
+        case .triangle:     return "Triangle"
+        case .star:         return "Star"
+        case .line:         return "Line"
+        case .text:         return "Text"
+        case .pixelate:     return "Pixelate"
+        case .spotlight:    return "Spotlight"
         case .numberedStep: return "Steps"
-        case .crop:      return "Crop"
+        case .crop:         return "Crop"
         }
     }
 
     var systemImage: String {
         switch self {
-        case .select:    return "cursorarrow"
-        case .arrow:     return "arrow.up.right"
-        case .freeDraw:  return "pencil.and.scribble"
-        case .measurement: return "ruler"
-        case .rectangle: return "rectangle"
-        case .circle:    return "circle"
-        case .line:      return "line.diagonal"
-        case .text:      return "textformat"
-        case .pixelate:  return ""      // uses customImageName instead
-        case .spotlight: return "light.overhead.left"
+        case .select:       return "cursorarrow"
+        case .arrow:        return "arrow.up.right"
+        case .freeDraw:     return "pencil.and.scribble"
+        case .measurement:  return "ruler"
+        case .rectangle:    return "rectangle"
+        case .circle:       return "circle"
+        case .triangle:     return "triangle"
+        case .star:         return "star"
+        case .line:         return "line.diagonal"
+        case .text:         return "textformat"
+        case .pixelate:     return ""       // uses customImageName instead
+        case .spotlight:    return "light.overhead.left"
         case .numberedStep: return "1.circle.fill"
-        case .crop:      return "crop"
+        case .crop:         return "crop"
         }
     }
 
@@ -58,6 +64,11 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .pixelate: return "PixelateIcon"
         default:        return nil
         }
+    }
+
+    /// True for the four shape tools that share the shapes group button.
+    var isShapeTool: Bool {
+        self == .rectangle || self == .circle || self == .triangle || self == .star
     }
 }
 
@@ -87,13 +98,20 @@ struct AnnotationStyle: Equatable {
     var fontSize: CGFloat = 48
     var pixelationScale: CGFloat = 20
     var arrowStyle: ArrowStyle = .chevron
-    var fillRect: Bool = false
-    var fillCircle: Bool = false
+    /// Fill color for shape tools (rectangle, circle, triangle, star).
+    /// nil = outline-only; a Color value = fill with that color.
+    var fillColor: Color? = nil
     var spotlightOpacity: CGFloat = 0.5
 
     /// CGColor for use in Core Graphics rendering.
     var cgStrokeColor: CGColor {
         NSColor(strokeColor).cgColor
+    }
+
+    /// CGColor fill for shape tools. nil when no fill is set.
+    var cgFillColor: CGColor? {
+        guard let fillColor else { return nil }
+        return NSColor(fillColor).cgColor
     }
 
     /// Whether the stroke color is perceptually light (luminance > 0.4).

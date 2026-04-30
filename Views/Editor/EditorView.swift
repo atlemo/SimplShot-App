@@ -55,6 +55,9 @@ struct EditorView: View {
     @State private var screenshotCropRect: CGRect = .zero
     /// Saved crop rect before entering crop mode, so cancel restores it.
     @State private var preCropScreenshotCropRect: CGRect = .zero
+    /// Pre-crop undo snapshot, captured at the start of enterCropMode() so that
+    /// applyCrop() can push the correct pre-crop state rather than the expanded-image state.
+    @State private var preCropSnapshot: EditorSnapshot? = nil
 
     // Zoom state
     @State private var zoomLevel: CGFloat = 1.0  // 1.0 = fit to view
@@ -661,21 +664,20 @@ struct EditorView: View {
             height: cropRect.height
         )
 
-        // No-op if the crop covers the full current screenshot.
+        // If the crop covers the full current screenshot or is unchanged, cancel crop mode
+        // (restore pre-crop state) instead of leaving annotations stranded in full-image coords.
         let currentScreenshotBounds = CGRect(origin: .zero, size: screenshotCropRect.size)
         guard rawRelativeCrop != currentScreenshotBounds,
               !rawRelativeCrop.isEmpty
         else {
-            isCropping = false
-            currentTool = .select
+            cancelCrop()
             return
         }
 
         // Clamp to current screenshot bounds.
         let clampedRawRelative = rawRelativeCrop.intersection(currentScreenshotBounds)
         guard !clampedRawRelative.isEmpty else {
-            isCropping = false
-            currentTool = .select
+            cancelCrop()
             return
         }
 
@@ -688,12 +690,18 @@ struct EditorView: View {
         )
 
         guard newScreenshotCropRect != screenshotCropRect else {
-            isCropping = false
-            currentTool = .select
+            cancelCrop()
             return
         }
 
-        pushUndo()
+        // Push the pre-crop state captured in enterCropMode() so undo restores the
+        // correct cropped image (not the expanded full-image intermediate state).
+        if let snapshot = preCropSnapshot {
+            undoStack.append(snapshot)
+            preCropSnapshot = nil
+        } else {
+            pushUndo()
+        }
 
         // Compute annotation shift: accounts for both crop origin movement and
         // any change in the gradient offset (which can shift if aspect ratio is used).
@@ -735,6 +743,17 @@ struct EditorView: View {
             cropRect = screenshotBoundsInDisplay
             return
         }
+
+        // Capture the pre-crop state for correct undo (before any state changes).
+        preCropSnapshot = EditorSnapshot(
+            annotations: annotations,
+            image: image,
+            rawImage: rawImage,
+            selectedWallpaper: selectedWallpaper,
+            imagePixelSize: imagePixelSize,
+            cropRect: cropRect,
+            screenshotCropRect: screenshotCropRect
+        )
 
         // Remember the current crop so cancel can restore it.
         preCropScreenshotCropRect = screenshotCropRect
@@ -833,6 +852,7 @@ struct EditorView: View {
         }
 
         cropRect = CGRect(origin: .zero, size: imagePixelSize)
+        preCropSnapshot = nil
         isCropping = false
         currentTool = .select
     }

@@ -193,9 +193,13 @@ class AnnotationRenderer {
         case .line:
             drawLine(from: annotation.startPoint, to: annotation.endPoint, in: context)
         case .rectangle:
-            drawRectangle(annotation.boundingRect, filled: annotation.style.fillRect, color: color, backingScale: backingScale, in: context)
+            drawRectangle(annotation.boundingRect, fillColor: annotation.style.cgFillColor, color: color, backingScale: backingScale, in: context)
         case .circle:
-            drawEllipse(in: annotation.boundingRect, filled: annotation.style.fillCircle, color: color, in: context)
+            drawEllipse(in: annotation.boundingRect, fillColor: annotation.style.cgFillColor, color: color, in: context)
+        case .triangle:
+            drawTriangle(annotation.boundingRect, fillColor: annotation.style.cgFillColor, color: color, in: context)
+        case .star:
+            drawStar(annotation.boundingRect, fillColor: annotation.style.cgFillColor, color: color, in: context)
         case .text:
             drawText(annotation.text, at: annotation.startPoint, style: annotation.style, backingScale: backingScale, in: context)
         case .spotlight:
@@ -492,24 +496,76 @@ class AnnotationRenderer {
         return out
     }
 
-    private func drawRectangle(_ rect: CGRect, filled: Bool, color: CGColor, backingScale: CGFloat, in context: CGContext) {
+    private func drawRectangle(_ rect: CGRect, fillColor: CGColor?, color: CGColor, backingScale: CGFloat, in context: CGContext) {
         let cornerRadius = 6 * backingScale
         let path = CGPath(roundedRect: rect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-        if filled {
-            context.setFillColor(color)
+        if let fill = fillColor {
+            context.setFillColor(fill)
             context.addPath(path)
             context.fillPath()
         }
-        context.addPath(path)
-        context.strokePath()
+        if color.alpha > 0 {
+            context.addPath(path)
+            context.strokePath()
+        }
     }
 
-    private func drawEllipse(in rect: CGRect, filled: Bool, color: CGColor, in context: CGContext) {
-        if filled {
-            context.setFillColor(color)
+    private func drawEllipse(in rect: CGRect, fillColor: CGColor?, color: CGColor, in context: CGContext) {
+        if let fill = fillColor {
+            context.setFillColor(fill)
             context.fillEllipse(in: rect)
         }
-        context.strokeEllipse(in: rect)
+        if color.alpha > 0 {
+            context.strokeEllipse(in: rect)
+        }
+    }
+
+    private func drawTriangle(_ rect: CGRect, fillColor: CGColor?, color: CGColor, in context: CGContext) {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        if let fill = fillColor {
+            context.setFillColor(fill)
+            context.addPath(path)
+            context.fillPath()
+        }
+        if color.alpha > 0 {
+            context.addPath(path)
+            context.strokePath()
+        }
+    }
+
+    private func drawStar(_ rect: CGRect, fillColor: CGColor?, color: CGColor, in context: CGContext) {
+        let path = starPath(in: rect)
+        if let fill = fillColor {
+            context.setFillColor(fill)
+            context.addPath(path)
+            context.fillPath()
+        }
+        if color.alpha > 0 {
+            context.addPath(path)
+            context.strokePath()
+        }
+    }
+
+    /// Builds a 5-point star CGPath inscribed in `rect`.
+    private func starPath(in rect: CGRect) -> CGPath {
+        let cx = rect.midX
+        let cy = rect.midY
+        let outerR = min(rect.width, rect.height) / 2
+        let innerR = outerR * 0.4
+        let points = 5
+        let path = CGMutablePath()
+        for i in 0..<(points * 2) {
+            let angle = CGFloat(i) * .pi / CGFloat(points) - .pi / 2
+            let r = i.isMultiple(of: 2) ? outerR : innerR
+            let pt = CGPoint(x: cx + r * cos(angle), y: cy + r * sin(angle))
+            if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+        }
+        path.closeSubpath()
+        return path
     }
 
     /// Extracts a region of `sourceImage`, pixelates it with CIPixellate, and draws it back.

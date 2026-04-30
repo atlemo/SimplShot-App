@@ -57,11 +57,11 @@ struct EditorSidebarView: View {
     @FocusState private var resizeFocused: ResizeFocus?
 
     @State private var colorPopoverVisible = false
+    @State private var fillColorPopoverVisible = false
     @State private var sizePopoverVisible = false
     @State private var pixelatePopoverVisible = false
     @State private var arrowStylePopoverVisible = false
-    @State private var rectStylePopoverVisible = false
-    @State private var circleStylePopoverVisible = false
+    @State private var shapesPopoverVisible = false
     @State private var spotlightPopoverVisible = false
     @State private var hoveredTool: AnnotationTool? = nil
     @State private var hoveredSection: SidebarSection? = nil
@@ -95,12 +95,13 @@ struct EditorSidebarView: View {
         .red, .orange, .yellow, .green, .blue, .purple, .white, .black
     ]
 
+    // .rectangle acts as the shapes-group representative (circle/triangle/star are in the shapes picker).
     private let drawingTools: [AnnotationTool] = [
-        .select, .freeDraw, .arrow, .rectangle, .circle, .line, .text, .numberedStep, .measurement, .pixelate, .spotlight, .crop
+        .select, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep, .measurement, .pixelate, .spotlight, .crop
     ]
 
     private let stylingTools: [AnnotationTool] = [
-        .arrow, .freeDraw, .measurement, .rectangle, .circle, .line, .text, .numberedStep
+        .arrow, .freeDraw, .measurement, .rectangle, .circle, .triangle, .star, .line, .text, .numberedStep
     ]
 
     private var showStyleControls: Bool {
@@ -108,6 +109,14 @@ struct EditorSidebarView: View {
         if let id = selectedAnnotationID,
            let ann = annotations.first(where: { $0.id == id }),
            stylingTools.contains(ann.tool) { return true }
+        return false
+    }
+
+    private var showFillColorControl: Bool {
+        if currentTool.isShapeTool { return true }
+        if let id = selectedAnnotationID,
+           let ann = annotations.first(where: { $0.id == id }),
+           ann.tool.isShapeTool { return true }
         return false
     }
 
@@ -145,8 +154,10 @@ struct EditorSidebarView: View {
                             paddingShadowCornersSection
                             sectionDivider
                             alignmentRatioSection
+                            #if DEBUG
                             sectionDivider
                             resizeImageSection
+                            #endif
                             sectionDivider
                             watermarkSection
                             sectionDivider
@@ -204,6 +215,9 @@ struct EditorSidebarView: View {
                 }
                 if showStyleControls {
                     HStack(spacing: 8) {
+                        if showFillColorControl {
+                            fillColorButton
+                        }
                         colorButton
                         sizePicker
                         Spacer()
@@ -588,106 +602,149 @@ struct EditorSidebarView: View {
 
     // MARK: - Tool Button
 
+    /// True when `tool` is the shapes-group representative and the current tool is any shape.
+    private var isShapeGroupActive: Bool { currentTool.isShapeTool }
+
     @ViewBuilder
     private func sidebarToolButton(_ tool: AnnotationTool) -> some View {
-        let isActive = currentTool == tool
-        let button = Button {
-            if tool == .spotlight, currentTool == .spotlight {
-                spotlightPopoverVisible.toggle()
-                return
-            }
-            if tool == .pixelate, currentTool == .pixelate {
-                pixelatePopoverVisible.toggle()
-                return
-            }
-            if tool == .arrow, currentTool == .arrow {
-                arrowStylePopoverVisible.toggle()
-                return
-            }
-            if tool == .rectangle, currentTool == .rectangle {
-                rectStylePopoverVisible.toggle()
-                return
-            }
-            if tool == .circle, currentTool == .circle {
-                circleStylePopoverVisible.toggle()
-                return
-            }
-            pixelatePopoverVisible = false
-            arrowStylePopoverVisible = false
-            rectStylePopoverVisible = false
-            circleStylePopoverVisible = false
-            spotlightPopoverVisible = false
-            selectTool(tool)
-        } label: {
-            Group {
-                if let assetName = tool.customImageName {
-                    Image(assetName)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 14, height: 14)
-                } else if tool == .arrow {
-                    ArrowStylePreview(
-                        style: currentStyle.arrowStyle,
-                        isSelected: false,
-                        previewSize: CGSize(width: 26, height: 18)
-                    )
-                } else if tool == .rectangle || tool == .circle {
-                    let isFilled = tool == .circle ? currentStyle.fillCircle : currentStyle.fillRect
-                    let fillIcon = tool == .circle ? "circle.fill" : "rectangle.fill"
-                    Image(systemName: isFilled ? fillIcon : tool.systemImage)
-                        .font(.system(size: 14))
-                } else {
-                    Image(systemName: tool.systemImage)
-                        .font(.system(size: 14))
+        // For the shapes group button (.rectangle is the representative), always show a
+        // combined icon + chevron right, and open the shapes picker on every click.
+        if tool == .rectangle {
+            let isActive = isShapeGroupActive
+            let button = Button {
+                pixelatePopoverVisible = false
+                arrowStylePopoverVisible = false
+                spotlightPopoverVisible = false
+                // Select the current active shape (or rectangle if none active) then show picker
+                if !currentTool.isShapeTool {
+                    selectTool(.rectangle)
                 }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 30)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isActive ? Color.primary.opacity(0.12) : hoveredTool == tool ? Color.primary.opacity(0.06) : Color.clear)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(alignment: .bottom) {
-                if isActive && hasSecondaryOptions(tool) {
-                    Image(systemName: "chevron.compact.down")
-                        .font(.system(size: 7, weight: .medium))
+                shapesPopoverVisible = true
+            } label: {
+                HStack(spacing: 3) {
+                    shapesGroupIcon
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 7, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .padding(.bottom, 2)
                 }
+                .frame(maxWidth: .infinity)
+                .frame(height: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isActive ? Color.primary.opacity(0.12) : hoveredTool == tool ? Color.primary.opacity(0.06) : Color.clear)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 6))
             }
-        }
-        .buttonStyle(.plain)
-        .help(isActive && hasSecondaryOptions(tool) ? "Click again to change style" : tool.label)
-        .onHover { isHovering in hoveredTool = isHovering ? tool : nil }
-
-        if tool == .spotlight {
+            .buttonStyle(.plain)
+            .help("Shapes")
+            .onHover { isHovering in hoveredTool = isHovering ? tool : nil }
+            .popover(isPresented: $shapesPopoverVisible, arrowEdge: .trailing) {
+                shapesPickerContent
+            }
             button
-                .popover(isPresented: $spotlightPopoverVisible, arrowEdge: .trailing) {
+        } else {
+            let isActive = currentTool == tool
+            let hasOptions = hasSecondaryOptions(tool)
+            let button = Button {
+                if tool == .spotlight, currentTool == .spotlight {
+                    spotlightPopoverVisible.toggle()
+                    return
+                }
+                if tool == .pixelate, currentTool == .pixelate {
+                    pixelatePopoverVisible.toggle()
+                    return
+                }
+                if tool == .arrow {
+                    pixelatePopoverVisible = false
+                    shapesPopoverVisible = false
+                    spotlightPopoverVisible = false
+                    selectTool(.arrow)
+                    arrowStylePopoverVisible = true
+                    return
+                }
+                pixelatePopoverVisible = false
+                arrowStylePopoverVisible = false
+                shapesPopoverVisible = false
+                spotlightPopoverVisible = false
+                selectTool(tool)
+            } label: {
+                HStack(spacing: 3) {
+                    Group {
+                        if let assetName = tool.customImageName {
+                            Image(assetName)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 14, height: 14)
+                        } else if tool == .arrow {
+                            ArrowStylePreview(
+                                style: currentStyle.arrowStyle,
+                                isSelected: false,
+                                previewSize: CGSize(width: 26, height: 18)
+                            )
+                        } else {
+                            Image(systemName: tool.systemImage)
+                                .font(.system(size: 14))
+                        }
+                    }
+                    if tool == .arrow || (isActive && hasOptions) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 7, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isActive ? Color.primary.opacity(0.12) : hoveredTool == tool ? Color.primary.opacity(0.06) : Color.clear)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .help(tool == .arrow ? "Arrow Style" : isActive && hasOptions ? "Click again to change style" : tool.label)
+            .onHover { isHovering in hoveredTool = isHovering ? tool : nil }
+
+            if tool == .spotlight {
+                button.popover(isPresented: $spotlightPopoverVisible, arrowEdge: .trailing) {
                     spotlightPopoverContent
                 }
-        } else if tool == .pixelate {
-            button
-                .popover(isPresented: $pixelatePopoverVisible, arrowEdge: .trailing) {
+            } else if tool == .pixelate {
+                button.popover(isPresented: $pixelatePopoverVisible, arrowEdge: .trailing) {
                     pixelatePopoverContent
                 }
-        } else if tool == .arrow {
-            button
-                .popover(isPresented: $arrowStylePopoverVisible, arrowEdge: .trailing) {
+            } else if tool == .arrow {
+                button.popover(isPresented: $arrowStylePopoverVisible, arrowEdge: .trailing) {
                     arrowStylePopoverContent
                 }
-        } else if tool == .rectangle {
-            button
-                .popover(isPresented: $rectStylePopoverVisible, arrowEdge: .trailing) {
-                    shapeStylePopoverContent
-                }
-        } else if tool == .circle {
-            button
-                .popover(isPresented: $circleStylePopoverVisible, arrowEdge: .trailing) {
-                    shapeStylePopoverContent
-                }
+            } else {
+                button
+            }
+        }
+    }
+
+    /// Icon shown on the shapes group button: active shape icon, or combined rect+circle mark.
+    @ViewBuilder
+    private var shapesGroupIcon: some View {
+        if currentTool.isShapeTool {
+            Image(systemName: currentTool.systemImage)
+                .font(.system(size: 14))
         } else {
-            button
+            Canvas { ctx, size in
+                let c = GraphicsContext.Shading.color(.primary)
+                let lw: CGFloat = 1.5
+                // Rounded rect (upper-left area)
+                ctx.stroke(
+                    Path(roundedRect: CGRect(x: 1, y: 2, width: size.width * 0.62, height: size.height * 0.58), cornerRadius: 2),
+                    with: c, lineWidth: lw
+                )
+                // Circle (lower-right, overlapping)
+                ctx.stroke(
+                    Path(ellipseIn: CGRect(x: size.width * 0.38, y: size.height * 0.38,
+                                          width: size.width * 0.58, height: size.height * 0.58)),
+                    with: c, lineWidth: lw
+                )
+            }
+            .frame(width: 16, height: 16)
         }
     }
 
@@ -703,13 +760,38 @@ struct EditorSidebarView: View {
         )
     }
 
+    private var fillColorBinding: Binding<Color> {
+        Binding(
+            get: { currentStyle.fillColor ?? .clear },
+            set: { newColor in
+                currentStyle.fillColor = newColor
+                applyStyleToSelection()
+            }
+        )
+    }
+
     private var colorButton: some View {
         Button { colorPopoverVisible.toggle() } label: {
             HStack(spacing: 4) {
-                Circle()
-                    .fill(currentStyle.strokeColor)
-                    .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
-                    .frame(width: 16, height: 16)
+                ZStack {
+                    if showFillColorControl && currentStyle.strokeColor == .clear {
+                        Circle()
+                            .fill(Color.primary.opacity(0.06))
+                            .overlay(Circle().stroke(Color.primary.opacity(0.2), lineWidth: 0.5))
+                        Path { path in
+                            let s: CGFloat = 16
+                            let inset = s * 0.22
+                            path.move(to: CGPoint(x: inset, y: s - inset))
+                            path.addLine(to: CGPoint(x: s - inset, y: inset))
+                        }
+                        .stroke(Color.red, lineWidth: 1.5)
+                        .clipShape(Circle())
+                    } else {
+                        Circle()
+                            .strokeBorder(currentStyle.strokeColor, lineWidth: 2.5)
+                    }
+                }
+                .frame(width: 16, height: 16)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -722,6 +804,41 @@ struct EditorSidebarView: View {
         .buttonStyle(.plain)
         .popover(isPresented: $colorPopoverVisible, arrowEdge: .bottom) {
             HStack(spacing: 6) {
+                if showFillColorControl {
+                    Button {
+                        currentStyle.strokeColor = .clear
+                        applyStyleToSelection()
+                        colorPopoverVisible = false
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.primary.opacity(0.06))
+                                .overlay(Circle().stroke(
+                                    currentStyle.strokeColor == .clear ? Color.accentColor : Color.primary.opacity(0.2),
+                                    lineWidth: currentStyle.strokeColor == .clear ? 2 : 0.5
+                                ))
+                            Path { path in
+                                let s: CGFloat = 20
+                                let inset = s * 0.22
+                                path.move(to: CGPoint(x: inset, y: s - inset))
+                                path.addLine(to: CGPoint(x: s - inset, y: inset))
+                            }
+                            .stroke(
+                                currentStyle.strokeColor == .clear ? Color.accentColor : Color.red,
+                                lineWidth: 1.5
+                            )
+                            .clipShape(Circle())
+                        }
+                        .frame(width: 20, height: 20)
+                        .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("No Border")
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.15))
+                        .frame(width: 1, height: 20)
+                        .padding(.horizontal, 2)
+                }
                 ForEach(presetColors, id: \.self) { color in
                     Button {
                         currentStyle.strokeColor = color
@@ -746,6 +863,109 @@ struct EditorSidebarView: View {
                     .frame(width: 1, height: 20)
                     .padding(.horizontal, 2)
                 RainbowColorPickerButton(color: strokeColorBinding)
+            }
+            .padding(10)
+        }
+    }
+
+    private var fillColorButton: some View {
+        Button { fillColorPopoverVisible.toggle() } label: {
+            HStack(spacing: 4) {
+                ZStack {
+                    if let fill = currentStyle.fillColor {
+                        Circle()
+                            .fill(fill)
+                            .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
+                    } else {
+                        Circle()
+                            .fill(Color.primary.opacity(0.06))
+                            .overlay(Circle().stroke(Color.primary.opacity(0.2), lineWidth: 0.5))
+                        Path { path in
+                            let s: CGFloat = 16
+                            let inset = s * 0.22
+                            path.move(to: CGPoint(x: inset, y: s - inset))
+                            path.addLine(to: CGPoint(x: s - inset, y: inset))
+                        }
+                        .stroke(Color.red, lineWidth: 1.5)
+                        .clipShape(Circle())
+                    }
+                }
+                .frame(width: 16, height: 16)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .help("Fill Color")
+        .popover(isPresented: $fillColorPopoverVisible, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Fill")
+                    .font(.system(size: 12, weight: .medium))
+                HStack(spacing: 6) {
+                    // No-fill option
+                    Button {
+                        currentStyle.fillColor = nil
+                        applyStyleToSelection()
+                        fillColorPopoverVisible = false
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.primary.opacity(0.06))
+                                .overlay(Circle().stroke(
+                                    currentStyle.fillColor == nil ? Color.accentColor : Color.primary.opacity(0.2),
+                                    lineWidth: currentStyle.fillColor == nil ? 2 : 0.5
+                                ))
+                            Path { path in
+                                let s: CGFloat = 20
+                                let inset = s * 0.22
+                                path.move(to: CGPoint(x: inset, y: s - inset))
+                                path.addLine(to: CGPoint(x: s - inset, y: inset))
+                            }
+                            .stroke(
+                                currentStyle.fillColor == nil ? Color.accentColor : Color.red,
+                                lineWidth: 1.5
+                            )
+                            .clipShape(Circle())
+                        }
+                        .frame(width: 20, height: 20)
+                        .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("No Fill")
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.15))
+                        .frame(width: 1, height: 20)
+                        .padding(.horizontal, 2)
+                    ForEach(presetColors, id: \.self) { color in
+                        Button {
+                            currentStyle.fillColor = color
+                            applyStyleToSelection()
+                            fillColorPopoverVisible = false
+                        } label: {
+                            Circle()
+                                .fill(color)
+                                .overlay(
+                                    Circle().stroke(
+                                        currentStyle.fillColor == color ? Color.accentColor : Color.primary.opacity(0.15),
+                                        lineWidth: currentStyle.fillColor == color ? 2 : 0.5
+                                    )
+                                )
+                                .frame(width: 20, height: 20)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.15))
+                        .frame(width: 1, height: 20)
+                        .padding(.horizontal, 2)
+                    RainbowColorPickerButton(color: fillColorBinding)
+                }
             }
             .padding(10)
         }
@@ -928,47 +1148,38 @@ struct EditorSidebarView: View {
         }
     }
 
-    // MARK: - Shape Style Popover (Rectangle / Circle fill toggle)
+    // MARK: - Shapes Picker Popover
 
-    private var shapeStylePopoverContent: some View {
-        HStack(spacing: 2) {
-            shapeStyleOption(filled: false, label: "Outline", icon: currentTool == .circle ? "circle" : "rectangle")
-            shapeStyleOption(filled: true, label: "Filled", icon: currentTool == .circle ? "circle.fill" : "rectangle.fill")
+    private var shapesPickerContent: some View {
+        let shapeTools: [AnnotationTool] = [.rectangle, .circle, .triangle, .star]
+        return HStack(spacing: 2) {
+            ForEach(shapeTools) { tool in
+                let isSelected = currentTool == tool
+                Button {
+                    selectTool(tool)
+                    shapesPopoverVisible = false
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: tool.systemImage)
+                            .font(.system(size: 20))
+                            .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                            .frame(width: 44, height: 28)
+                        Text(tool.label)
+                            .font(.system(size: 10))
+                            .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(8)
-    }
-
-    private func shapeStyleOption(filled: Bool, label: String, icon: String) -> some View {
-        let currentFill = currentTool == .circle ? currentStyle.fillCircle : currentStyle.fillRect
-        let isSelected = currentFill == filled
-        return Button {
-            if currentTool == .circle {
-                currentStyle.fillCircle = filled
-            } else {
-                currentStyle.fillRect = filled
-            }
-            applyStyleToSelection()
-            rectStylePopoverVisible = false
-            circleStylePopoverVisible = false
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
-                    .frame(width: 44, height: 26)
-                Text(label)
-                    .font(.system(size: 10))
-                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
     }
 
     // Gradient cells moved to BackgroundGridView (Equatable) below.
@@ -976,7 +1187,7 @@ struct EditorSidebarView: View {
     // MARK: - Helpers
 
     private func hasSecondaryOptions(_ tool: AnnotationTool) -> Bool {
-        tool == .arrow || tool == .rectangle || tool == .circle || tool == .pixelate
+        tool == .arrow || tool == .pixelate || tool == .spotlight
     }
 
     private func sectionLabel(_ text: String) -> some View {
