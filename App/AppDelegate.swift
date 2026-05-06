@@ -59,12 +59,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.colorPickerService?.startPicking()
         }
         menuBuilder.onOpenSettings = { [weak self] in
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.setActivationPolicy(.regular)
             if let action = self?.openSettingsAction {
                 action()
             }
-            // Ensure the Settings window comes to front
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                NSApp.activate(ignoringOtherApps: true)
                 for window in NSApp.windows where window.title.contains("Settings") || window.identifier?.rawValue.contains("settings") == true {
                     window.makeKeyAndOrderFront(nil)
                     window.orderFrontRegardless()
@@ -109,6 +109,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyService.register(
             onFreeSizeCapture: { [weak self] in
                 self?.menuBuilder.freeSizeCaptureAction()
+            },
+            onCaptureWindow: { [weak self] in
+                self?.menuBuilder.captureWindowAction()
             },
             onCaptureTextOCR: { [weak self] in
                 self?.menuBuilder.captureTextOCRAction()

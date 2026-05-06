@@ -16,6 +16,8 @@ struct ShortcutsSettingsView: View {
 #endif
                 shortcutRow("Capture Area", shortcut: .freeSizeCapture)
                 Divider().padding(.leading, 16)
+                shortcutRow("Capture Window", shortcut: .captureWindow)
+                Divider().padding(.leading, 16)
                 shortcutRow("Capture OCR", shortcut: .captureTextOCR)
                 Divider().padding(.leading, 16)
                 shortcutRow("Color Picker", shortcut: .colorPicker)

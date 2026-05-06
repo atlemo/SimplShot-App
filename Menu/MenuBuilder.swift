@@ -210,6 +210,14 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(freeSizeItem)
 
+        let captureWindowItem = NSMenuItem(title: "Capture Window", action: #selector(captureWindowAction), keyEquivalent: "")
+        captureWindowItem.target = self
+        captureWindowItem.isEnabled = true
+        applyShortcut(.captureWindow, to: captureWindowItem)
+        captureWindowItem.image = NSImage(systemSymbolName: "macwindow", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+        menu.addItem(captureWindowItem)
+
         let ocrItem = NSMenuItem(title: "Capture Text from Image (OCR)", action: #selector(captureTextOCRAction), keyEquivalent: "")
         ocrItem.target = self
         ocrItem.isEnabled = true
@@ -407,7 +415,15 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     }
 #endif
 
+    @objc func captureWindowAction() {
+        performInteractiveCapture(windowMode: true)
+    }
+
     @objc func freeSizeCaptureAction() {
+        performInteractiveCapture(windowMode: false)
+    }
+
+    private func performInteractiveCapture(windowMode: Bool) {
         // Close the menu before entering interactive capture mode
         menu.cancelTracking()
 
@@ -458,8 +474,12 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            // -o = omit window shadow when capturing a window via Spacebar
-            process.arguments = ["-i", "-o", "-x", "-t", typeFlag, captureURL.path]
+            // -o = omit window shadow, -w = start in window selection mode
+            var captureArgs = ["-i", "-o", "-x", "-t", typeFlag, captureURL.path]
+            if windowMode {
+                captureArgs.insert("-w", at: 1)
+            }
+            process.arguments = captureArgs
 
             // Use terminationHandler + continuation instead of waitUntilExit() so
             // we don't block a cooperative thread (which caused a priority inversion
@@ -478,7 +498,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 }
             } catch {
                 await MainActor.run {
-                    self.showAlert("Free capture failed: \(error.localizedDescription)")
+                    self.showAlert("Capture failed: \(error.localizedDescription)")
                 }
                 return
             }
@@ -486,10 +506,10 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             guard FileManager.default.fileExists(atPath: captureURL.path) else {
                 let permState = await ScreenRecordingPermissionManager.shared.checkPermission()
                 if permState != .granted {
-                    _ = await ensureScreenRecordingPermission(for: "capture an area screenshot")
+                    _ = await ensureScreenRecordingPermission(for: "capture screenshots")
                 } else if terminationStatus != 0 {
                     await MainActor.run { [self] in
-                        showAlert("Area capture did not complete. Check the selected save folder and try again.")
+                        showAlert("Capture did not complete. Check the selected save folder and try again.")
                     }
                 }
                 return
@@ -979,7 +999,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         }
     }
 
-    static func relaunchApp() {
+    nonisolated static func relaunchApp() {
         let url = Bundle.main.bundleURL
         let pid = ProcessInfo.processInfo.processIdentifier
         let script = "while kill -0 \(pid) 2>/dev/null; do sleep 0.1; done; open \"\(url.path)\""

@@ -6,6 +6,7 @@ extension KeyboardShortcuts.Name {
     static let batchCapture = Self("batchCapture")
 #endif
     static let freeSizeCapture = Self("freeSizeCapture")
+    static let captureWindow = Self("captureWindow")
     static let captureTextOCR = Self("captureTextOCR")
     static let colorPicker = Self("colorPicker")
     static let openScreenshotsFolder = Self("openScreenshotsFolder")
@@ -17,6 +18,7 @@ class HotkeyService {
     private var onBatchCapture: (() -> Void)?
 #endif
     private var onFreeSizeCapture: (() -> Void)?
+    private var onCaptureWindow: (() -> Void)?
     private var onCaptureTextOCR: (() -> Void)?
     private var onColorPicker: (() -> Void)?
     private var onOpenScreenshotsFolder: (() -> Void)?
@@ -61,17 +63,22 @@ class HotkeyService {
 #else
     func register(
         onFreeSizeCapture: @escaping () -> Void,
+        onCaptureWindow: @escaping () -> Void,
         onCaptureTextOCR: @escaping () -> Void,
         onColorPicker: @escaping () -> Void,
         onOpenScreenshotsFolder: @escaping () -> Void
     ) {
         self.onFreeSizeCapture = onFreeSizeCapture
+        self.onCaptureWindow = onCaptureWindow
         self.onCaptureTextOCR = onCaptureTextOCR
         self.onColorPicker = onColorPicker
         self.onOpenScreenshotsFolder = onOpenScreenshotsFolder
 
         KeyboardShortcuts.onKeyDown(for: .freeSizeCapture) { [weak self] in
             self?.onFreeSizeCapture?()
+        }
+        KeyboardShortcuts.onKeyDown(for: .captureWindow) { [weak self] in
+            self?.onCaptureWindow?()
         }
         KeyboardShortcuts.onKeyDown(for: .captureTextOCR) { [weak self] in
             self?.onCaptureTextOCR?()
