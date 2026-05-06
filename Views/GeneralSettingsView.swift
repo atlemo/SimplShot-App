@@ -145,9 +145,9 @@ struct GeneralSettingsView: View {
         accessibilityGranted = AccessibilityService.isTrusted
 #endif
         Task {
-            let granted = await ScreenshotService.confirmScreenRecordingPermission()
+            let state = await ScreenRecordingPermissionManager.shared.checkPermission()
             await MainActor.run {
-                screenRecordingGranted = granted
+                screenRecordingGranted = state == .granted
             }
         }
     }

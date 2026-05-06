@@ -59,5 +59,8 @@ enum Constants {
         static let defaultCaptureTemplateID = "defaultCaptureTemplateID"
         static let editorSidebarCollapsedSections = "editorSidebarCollapsedSections"
         static let editorSidebarBackgroundType = "editorSidebarBackgroundType"
+        static let screenRecordingWasEverGranted = "screenRecordingWasEverGranted"
+        static let screenRecordingLastGrantDate = "screenRecordingLastGrantDate"
+        static let screenRecordingHasRequested = "screenRecordingHasRequested"
     }
 }

@@ -99,6 +99,19 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     func rebuildMenu() {
         menu.removeAllItems()
 
+        if ScreenRecordingPermissionManager.shared.state != .granted {
+            let warningItem = NSMenuItem(
+                title: "Screen Recording: Not Enabled",
+                action: #selector(openPermissionSettings),
+                keyEquivalent: ""
+            )
+            warningItem.target = self
+            warningItem.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+            menu.addItem(warningItem)
+            menu.addItem(.separator())
+        }
+
 #if !APPSTORE
         // --- Application picker ---
         let appTitle = menuState.selectedApp?.name ?? "Select Application..."
@@ -271,6 +284,15 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         onColorPicker?()
     }
 
+    @objc private func openPermissionSettings() {
+        let manager = ScreenRecordingPermissionManager.shared
+        if manager.state == .grantedStale {
+            showRestartRequiredAlert()
+        } else {
+            manager.openSettings()
+        }
+    }
+
 #if !APPSTORE
     @objc private func selectApp(_ sender: NSMenuItem) {
         guard let pid = sender.representedObject as? pid_t else { return }
@@ -386,12 +408,6 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 #endif
 
     @objc func freeSizeCaptureAction() {
-        // Don't hard-block here based on a single preflight read; on some systems
-        // TCC state can be stale momentarily even when permission is already granted.
-        // We attempt capture first, then show a permission warning only if it fails
-        // and access is still missing.
-        ScreenshotService.ensurePermission()
-
         // Close the menu before entering interactive capture mode
         menu.cancelTracking()
 
@@ -467,18 +483,10 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 return
             }
 
-            // If nothing was written, distinguish between user cancel, permission denial,
-            // and a sandbox/file-write problem so we do not blame Screen Recording for all failures.
             guard FileManager.default.fileExists(atPath: captureURL.path) else {
-                let hasPermission = await ScreenshotService.confirmScreenRecordingPermission()
-                if !hasPermission {
-                    await MainActor.run { [self] in
-                        showPermissionAlert(
-                            title: "Screen Recording Permission Required",
-                            message: "SimplShot needs Screen Recording permission to capture an area screenshot.",
-                            openSettings: AccessibilityService.openScreenRecordingSettings
-                        )
-                    }
+                let permState = await ScreenRecordingPermissionManager.shared.checkPermission()
+                if permState != .granted {
+                    _ = await ensureScreenRecordingPermission(for: "capture an area screenshot")
                 } else if terminationStatus != 0 {
                     await MainActor.run { [self] in
                         showAlert("Area capture did not complete. Check the selected save folder and try again.")
@@ -549,7 +557,6 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     }
 
     @objc func captureTextOCRAction() {
-        ScreenshotService.ensurePermission()
         menu.cancelTracking()
 
         Task(priority: .medium) {
@@ -919,21 +926,31 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 #endif
 
     private func ensureScreenRecordingPermission(for feature: String) async -> Bool {
-        if await ScreenshotService.confirmScreenRecordingPermission() { return true }
-        ScreenshotService.ensurePermission()
-        try? await Task.sleep(for: .milliseconds(600))
-        let hasPermission = await ScreenshotService.confirmScreenRecordingPermission()
-        if !hasPermission {
+        let manager = ScreenRecordingPermissionManager.shared
+        let state = await manager.checkPermission()
+
+        switch state {
+        case .granted:
+            return true
+        case .grantedStale:
+            await MainActor.run { [weak self] in
+                self?.showRestartRequiredAlert()
+            }
+            return false
+        case .denied, .notDetermined, .unknown:
+            if state == .notDetermined {
+                manager.requestPermission()
+            }
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.showPermissionAlert(
                     title: "Screen Recording Permission Required",
-                    message: "SimplShot needs Screen Recording permission to \(feature).",
-                    openSettings: AccessibilityService.openScreenRecordingSettings
+                    message: "SimplShot needs Screen Recording permission to \(feature).\n\nAfter enabling it in System Settings, you'll need to restart SimplShot.",
+                    openSettings: manager.openSettings
                 )
             }
+            return false
         }
-        return hasPermission
     }
 
     private func showPermissionAlert(title: String, message: String, openSettings: () -> Void) {
@@ -947,6 +964,30 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         if alert.runModal() == .alertFirstButtonReturn {
             openSettings()
         }
+    }
+
+    private func showRestartRequiredAlert() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Restart Required"
+        alert.informativeText = "Screen Recording permission was recently changed. SimplShot needs to restart for it to take effect."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Restart Now")
+        alert.addButton(withTitle: "Later")
+        if alert.runModal() == .alertFirstButtonReturn {
+            Self.relaunchApp()
+        }
+    }
+
+    static func relaunchApp() {
+        let url = Bundle.main.bundleURL
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let script = "while kill -0 \(pid) 2>/dev/null; do sleep 0.1; done; open \"\(url.path)\""
+        let task = Process()
+        task.launchPath = "/bin/sh"
+        task.arguments = ["-c", script]
+        try? task.run()
+        NSApp.terminate(nil)
     }
 
     /// Apply a KeyboardShortcuts shortcut to a menu item without requiring @MainActor isolation.

@@ -12,6 +12,8 @@ enum ScreenshotError: LocalizedError {
     case noWindowID
     case saveFailed
     case windowNotFound
+    case permissionDenied
+    case permissionNeedsRestart
 
     var errorDescription: String? {
         switch self {
@@ -23,40 +25,15 @@ enum ScreenshotError: LocalizedError {
             return "Failed to save screenshot to disk"
         case .windowNotFound:
             return "Could not find window for capture. It may have closed."
+        case .permissionDenied:
+            return "Screen Recording permission is not granted. Enable it in System Settings › Privacy & Security › Screen Recording, then restart SimplShot."
+        case .permissionNeedsRestart:
+            return "Screen Recording permission was recently changed. Please restart SimplShot for it to take effect."
         }
     }
 }
 
 class ScreenshotService {
-    /// Request screen recording permission.
-    /// `CGRequestScreenCaptureAccess()` shows the system prompt but doesn't
-    /// always register the app in System Settings. Performing a tiny test
-    /// capture forces macOS to add SimplShot to the Screen Recording list
-    /// so the user can find and enable it.
-    static func ensurePermission() {
-        if !CGPreflightScreenCaptureAccess() {
-            CGRequestScreenCaptureAccess()
-        }
-        // Trigger a ScreenCaptureKit query so macOS registers this app in
-        // the Screen Recording privacy list even if permission is denied.
-        _Concurrency.Task {
-            try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        }
-    }
-
-    /// Confirms Screen Recording access using both TCC preflight and a
-    /// ScreenCaptureKit query. This avoids false negatives from preflight alone.
-    static func confirmScreenRecordingPermission() async -> Bool {
-        if CGPreflightScreenCaptureAccess() {
-            return true
-        }
-        do {
-            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            return true
-        } catch {
-            return false
-        }
-    }
 
     func capture(
         windowID: CGWindowID,
