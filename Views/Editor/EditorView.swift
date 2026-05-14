@@ -8,8 +8,8 @@ import WebP
 
 /// Root view for the screenshot editor window.
 struct EditorView: View {
-    /// The URL of the captured screenshot file.
-    let imageURL: URL
+    /// All image URLs loaded into this editor session.
+    let imageURLs: [URL]
 
     /// Template for applying a background. Falls back to `.default` so the
     /// editor can always add/change a gradient even when no template was passed.
@@ -23,6 +23,23 @@ struct EditorView: View {
 
     /// Callback when the editor is done (save or discard) — closes the window.
     var onDismiss: () -> Void = {}
+
+    // Multi-image session state
+    @State private var sessions: [ImageSession] = []
+    @State private var activeSessionID: UUID?
+    /// Set to true while restoreSessionState is mutating @State, so the
+    /// onChange observers don't treat session-switches as user edits
+    /// (which would re-shift annotations or overwrite app defaults).
+    @State private var isRestoringSession: Bool = false
+
+    private var activeSession: ImageSession? {
+        sessions.first(where: { $0.id == activeSessionID })
+    }
+
+    /// Convenience accessor — the active session's URL.
+    private var imageURL: URL {
+        activeSession?.imageURL ?? imageURLs[0]
+    }
 
     @State private var image: NSImage?
     @State private var rawImage: NSImage?
@@ -82,12 +99,34 @@ struct EditorView: View {
         preferOriginalAspectRatio: Bool = false,
         onDismiss: @escaping () -> Void = {}
     ) {
-        self.imageURL = imageURL
+        self.init(
+            imageURLs: [imageURL],
+            template: template,
+            appSettings: appSettings,
+            preferOriginalAspectRatio: preferOriginalAspectRatio,
+            onDismiss: onDismiss
+        )
+    }
+
+    init(
+        imageURLs: [URL],
+        template: ScreenshotTemplate? = nil,
+        appSettings: AppSettings? = nil,
+        preferOriginalAspectRatio: Bool = false,
+        onDismiss: @escaping () -> Void = {}
+    ) {
+        precondition(!imageURLs.isEmpty, "EditorView requires at least one image URL")
+        self.imageURLs = imageURLs
         let resolvedTemplate = template ?? appSettings?.defaultCaptureTemplate ?? .default
         self.template = resolvedTemplate
         self.appSettings = appSettings
         self.preferOriginalAspectRatio = preferOriginalAspectRatio
         self.onDismiss = onDismiss
+
+        let newSessions = imageURLs.map { ImageSession(imageURL: $0) }
+        _sessions = State(initialValue: newSessions)
+        _activeSessionID = State(initialValue: newSessions.first?.id)
+
         _columnVisibility = State(initialValue:
             appSettings?.editorShowProSidebar == true ? .all : .detailOnly
         )
@@ -114,7 +153,11 @@ struct EditorView: View {
 
     // Alerts
     @State private var showTrashAlert: Bool = false
-    @State private var deleteKeyMonitor: Any?
+    @State private var keyMonitor: Any?
+    /// The NSWindow hosting this editor. Captured via WindowAccessor so the
+    /// local key-event monitor can scope its handling to events targeted at
+    /// this window (when multiple editor windows are open).
+    @State private var hostingWindow: NSWindow?
 
 
     /// The actual scale applied to the image: fitScale * zoomLevel.
@@ -191,10 +234,13 @@ struct EditorView: View {
                 }
             }
             loadImage()
-            installDeleteKeyMonitorIfNeeded()
+            propagateInitialTemplateToOtherSessions()
+            preloadThumbnails()
+            installKeyMonitorIfNeeded()
         }
+        .background(WindowAccessor { hostingWindow = $0 })
         .onDisappear {
-            removeDeleteKeyMonitor()
+            removeKeyMonitor()
         }
         .onDeleteCommand(perform: deleteSelected)
         .onExitCommand {
@@ -203,6 +249,7 @@ struct EditorView: View {
             }
         }
         .onChange(of: selectedWallpaper) { oldValue, newValue in
+            guard !isRestoringSession else { return }
             let wasEnabled = oldValue != nil
             let isEnabled = newValue != nil
             appSettings?.editorUseTemplateBackground = isEnabled
@@ -220,6 +267,7 @@ struct EditorView: View {
             }
         }
         .onChange(of: editorPadding) { oldValue, newValue in
+            guard !isRestoringSession else { return }
             appSettings?.screenshotTemplate.padding = newValue
             if selectedWallpaper != nil, let rawImage {
                 let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
@@ -230,6 +278,7 @@ struct EditorView: View {
             }
         }
         .onChange(of: editorAspectRatioID) { oldID, newID in
+            guard !isRestoringSession else { return }
             if selectedWallpaper != nil, let rawImage {
                 let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
                 let oldRatio = aspectRatioValue(for: oldID)
@@ -241,6 +290,7 @@ struct EditorView: View {
             }
         }
         .onChange(of: editorCornerRadius) { _, newValue in
+            guard !isRestoringSession else { return }
             appSettings?.screenshotTemplate.cornerRadius = newValue
             if selectedWallpaper != nil, let rawImage {
                 applyDisplayImage(from: rawImage)
@@ -251,6 +301,7 @@ struct EditorView: View {
     private var bodyWithObservers: some View {
         bodyBase
         .onChange(of: screenshotAlignment) { oldAlignment, newAlignment in
+            guard !isRestoringSession else { return }
             if selectedWallpaper != nil, let rawImage {
                 let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
                 let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: oldAlignment)
@@ -266,11 +317,13 @@ struct EditorView: View {
             updateFitScale(viewSize: lastViewSize)
         }
         .onChange(of: shadowIntensity) { _, _ in
+            guard !isRestoringSession else { return }
             if selectedWallpaper != nil, let rawImage {
                 applyDisplayImage(from: rawImage)
             }
         }
         .onChange(of: isCropping) { _, newValue in
+            guard !isRestoringSession else { return }
             if newValue {
                 enterCropMode()
             }
@@ -282,6 +335,7 @@ struct EditorView: View {
             }
         }
         .onChange(of: currentTool) { _, newTool in
+            guard !isRestoringSession else { return }
             handleToolChange(newTool)
         }
         .onChange(of: appSettings?.selectedEditorTemplateID) { _, newValue in
@@ -424,41 +478,54 @@ struct EditorView: View {
 
     private var detailContent: some View {
         VStack(spacing: 0) {
-            GeometryReader { geo in
-                Group {
-                    if let image {
-                        ScrollView([.horizontal, .vertical], showsIndicators: zoomLevel > 1.0) {
-                            EditorCanvasView(
-                                image: image,
-                                imagePixelSize: imagePixelSize,
-                                scale: effectiveScale,
-                                displayBackingScale: displayBackingScale,
-                                shadowIntensity: 0,
-                                showBorderOutline: selectedWallpaper == nil,
-                                annotations: $annotations,
-                                selectedAnnotationID: $selectedAnnotationID,
-                                currentTool: $currentTool,
-                                currentStyle: $currentStyle,
-                                cropRect: $cropRect,
-                                isCropping: $isCropping,
-                                cropBoundsRect: screenshotBoundsInDisplay,
-                                watermarkSettings: watermarkSettings,
-                                onCommit: pushUndo
-                            )
-                            .padding(20)
+            ZStack(alignment: .trailing) {
+                GeometryReader { geo in
+                    Group {
+                        if let image {
+                            ScrollView([.horizontal, .vertical], showsIndicators: zoomLevel > 1.0) {
+                                EditorCanvasView(
+                                    image: image,
+                                    imagePixelSize: imagePixelSize,
+                                    scale: effectiveScale,
+                                    displayBackingScale: displayBackingScale,
+                                    shadowIntensity: 0,
+                                    showBorderOutline: selectedWallpaper == nil,
+                                    annotations: $annotations,
+                                    selectedAnnotationID: $selectedAnnotationID,
+                                    currentTool: $currentTool,
+                                    currentStyle: $currentStyle,
+                                    cropRect: $cropRect,
+                                    isCropping: $isCropping,
+                                    cropBoundsRect: screenshotBoundsInDisplay,
+                                    watermarkSettings: watermarkSettings,
+                                    onCommit: pushUndo
+                                )
+                                .padding(20)
+                            }
+                        } else {
+                            ContentUnavailableView("Unable to load image", systemImage: "photo.badge.exclamationmark")
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                    } else {
-                        ContentUnavailableView("Unable to load image", systemImage: "photo.badge.exclamationmark")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .onAppear {
+                        lastViewSize = geo.size
+                        updateFitScale(viewSize: geo.size)
+                    }
+                    .onChange(of: geo.size) { _, newSize in
+                        lastViewSize = newSize
+                        updateFitScale(viewSize: newSize)
                     }
                 }
-                .onAppear {
-                    lastViewSize = geo.size
-                    updateFitScale(viewSize: geo.size)
-                }
-                .onChange(of: geo.size) { _, newSize in
-                    lastViewSize = newSize
-                    updateFitScale(viewSize: newSize)
+
+                if sessions.count > 1 {
+                    ThumbnailStripView(
+                        sessions: sessions,
+                        activeID: activeSessionID,
+                        onSelect: { switchToSession($0) },
+                        onRemove: { removeSession($0) }
+                    )
+                    .padding(.trailing, 12)
+                    .padding(.vertical, 12)
                 }
             }
 
@@ -578,15 +645,46 @@ struct EditorView: View {
 
     // MARK: - Image Loading
 
+    /// Pre-loads thumbnails for all non-active sessions on a background queue.
+    /// Intentionally does NOT populate `session.image` / `session.rawImage` — that way
+    /// the first activation of a session falls into the `loadImage()` path and
+    /// gets the editor's current template (wallpaper, padding) applied properly.
+    private func preloadThumbnails() {
+        let targets = sessions.filter { $0.id != activeSessionID && $0.thumbnail == nil }
+        guard !targets.isEmpty else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            for session in targets {
+                guard let nsImage = NSImage(contentsOf: session.imageURL) else { continue }
+                session.generateThumbnail(from: nsImage)
+            }
+        }
+    }
+
+    /// Copy the editor's resolved template defaults (set up in `.onAppear` for the
+    /// first session) onto every other session, so switching to a never-activated
+    /// image renders with the same wallpaper/padding/etc. instead of bare defaults.
+    private func propagateInitialTemplateToOtherSessions() {
+        guard let active = activeSession else { return }
+        for session in sessions where session.id != active.id {
+            session.editorPadding = active.editorPadding
+            session.editorCornerRadius = active.editorCornerRadius
+            session.selectedWallpaper = active.selectedWallpaper
+            session.shadowIntensity = active.shadowIntensity
+            session.editorAspectRatioID = active.editorAspectRatioID
+            session.screenshotAlignment = active.screenshotAlignment
+            session.watermarkSettings = active.watermarkSettings
+        }
+    }
+
     private func loadImage() {
         guard let nsImage = NSImage(contentsOf: imageURL) else { return }
         rawImage = nsImage
-        // Initialize the crop to the full raw image bounds (non-destructive crop starts at full size).
         if let cg = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
             screenshotCropRect = CGRect(x: 0, y: 0,
                                         width: CGFloat(cg.width), height: CGFloat(cg.height))
         }
         applyDisplayImage(from: nsImage)
+        saveActiveSessionState()
     }
     private func applyDisplayImage(from source: NSImage) {
         guard let cgSource = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
@@ -1074,15 +1172,11 @@ struct EditorView: View {
         selectedAnnotationID = nil
     }
 
-    private func installDeleteKeyMonitorIfNeeded() {
-        guard deleteKeyMonitor == nil else { return }
-        deleteKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // Backspace/Delete and forward-delete keys
-            let isDeleteKey = event.keyCode == 51 || event.keyCode == 117
-            guard isDeleteKey else { return event }
-
-            // Preserve standard text editing behavior.
-            if let firstResponder = NSApp.keyWindow?.firstResponder {
+    private func installKeyMonitorIfNeeded() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Don't steal events from text editing fields.
+            if let firstResponder = event.window?.firstResponder {
                 if firstResponder is NSTextView || firstResponder is NSTextField {
                     return event
                 }
@@ -1090,20 +1184,59 @@ struct EditorView: View {
 
             // Ignore when using command/option/control modified shortcuts.
             let blockedModifiers: NSEvent.ModifierFlags = [.command, .option, .control]
-            if !event.modifierFlags.intersection(blockedModifiers).isEmpty {
-                return event
+            let hasBlockedModifier = !event.modifierFlags.intersection(blockedModifiers).isEmpty
+
+            // Backspace (51) or forward-delete (117) → delete selected annotation.
+            if event.keyCode == 51 || event.keyCode == 117 {
+                if hasBlockedModifier { return event }
+                deleteSelected()
+                return nil
             }
 
-            deleteSelected()
-            return nil
+            // Arrow keys → previous/next session. Scoped to this editor's own
+            // window so multi-window setups don't navigate in lockstep.
+            let isArrow = event.keyCode == 123 || event.keyCode == 124
+                || event.keyCode == 125 || event.keyCode == 126
+            if isArrow,
+               !hasBlockedModifier,
+               sessions.count > 1,
+               let win = hostingWindow,
+               event.window === win {
+                switch event.keyCode {
+                case 123, 126:  // left, up → previous
+                    goToPreviousSession()
+                case 124, 125:  // right, down → next
+                    goToNextSession()
+                default: break
+                }
+                return nil
+            }
+
+            return event
         }
     }
 
-    private func removeDeleteKeyMonitor() {
-        if let monitor = deleteKeyMonitor {
+    private func removeKeyMonitor() {
+        if let monitor = keyMonitor {
             NSEvent.removeMonitor(monitor)
-            deleteKeyMonitor = nil
+            keyMonitor = nil
         }
+    }
+
+    private func goToPreviousSession() {
+        guard sessions.count > 1,
+              let current = sessions.firstIndex(where: { $0.id == activeSessionID })
+        else { return }
+        let prev = (current - 1 + sessions.count) % sessions.count
+        switchToSession(sessions[prev].id)
+    }
+
+    private func goToNextSession() {
+        guard sessions.count > 1,
+              let current = sessions.firstIndex(where: { $0.id == activeSessionID })
+        else { return }
+        let next = (current + 1) % sessions.count
+        switchToSession(sessions[next].id)
     }
 
     private func trashScreenshot() {
@@ -1203,6 +1336,117 @@ struct EditorView: View {
         appSettings?.removeCustomBackgroundImage(at: path)
     }
 
+    // MARK: - Session Management
+
+    /// Snapshots the current @State values back into the active ImageSession.
+    private func saveActiveSessionState() {
+        guard let session = activeSession else { return }
+        session.image = image
+        session.rawImage = rawImage
+        session.currentDisplayCGImage = currentDisplayCGImage
+        session.imagePixelSize = imagePixelSize
+        session.screenshotCropRect = screenshotCropRect
+        session.annotations = annotations
+        session.selectedAnnotationID = selectedAnnotationID
+        session.currentTool = currentTool
+        session.currentStyle = currentStyle
+        session.isCropping = isCropping
+        session.cropRect = cropRect
+        session.preCropScreenshotCropRect = preCropScreenshotCropRect
+        session.preCropSnapshot = preCropSnapshot
+        session.zoomLevel = zoomLevel
+        session.fitScale = fitScale
+        session.selectedWallpaper = selectedWallpaper
+        session.editorAspectRatioID = editorAspectRatioID
+        session.editorPadding = editorPadding
+        session.editorCornerRadius = editorCornerRadius
+        session.shadowIntensity = shadowIntensity
+        session.screenshotAlignment = screenshotAlignment
+        session.watermarkSettings = watermarkSettings
+        session.undoStack = undoStack
+        session.templateRenderer = templateRenderer
+        session.generateThumbnail()
+    }
+
+    /// Populates @State from the given ImageSession. Sets `isRestoringSession` for
+    /// the duration of the surrounding render pass so the onChange observers don't
+    /// treat these assignments as user edits.
+    private func restoreSessionState(from session: ImageSession) {
+        isRestoringSession = true
+
+        image = session.image
+        rawImage = session.rawImage
+        currentDisplayCGImage = session.currentDisplayCGImage
+        imagePixelSize = session.imagePixelSize
+        screenshotCropRect = session.screenshotCropRect
+        annotations = session.annotations
+        selectedAnnotationID = session.selectedAnnotationID
+        currentTool = session.currentTool
+        currentStyle = session.currentStyle
+        isCropping = session.isCropping
+        cropRect = session.cropRect
+        preCropScreenshotCropRect = session.preCropScreenshotCropRect
+        preCropSnapshot = session.preCropSnapshot
+        zoomLevel = session.zoomLevel
+        fitScale = session.fitScale
+        selectedWallpaper = session.selectedWallpaper
+        editorAspectRatioID = session.editorAspectRatioID
+        editorPadding = session.editorPadding
+        editorCornerRadius = session.editorCornerRadius
+        shadowIntensity = session.shadowIntensity
+        screenshotAlignment = session.screenshotAlignment
+        watermarkSettings = session.watermarkSettings
+        undoStack = session.undoStack
+        templateRenderer = session.templateRenderer
+
+        // Clear on the next runloop tick — after SwiftUI has fired the onChange
+        // observers for the assignments above.
+        DispatchQueue.main.async {
+            isRestoringSession = false
+        }
+    }
+
+    /// Activate the session with the given id, restoring its persisted state and
+    /// loading the image from disk if it hasn't been activated yet.
+    private func switchToSession(_ id: UUID) {
+        guard id != activeSessionID,
+              let target = sessions.first(where: { $0.id == id })
+        else { return }
+        saveActiveSessionState()
+        activeSessionID = id
+        restoreSessionState(from: target)
+        if target.image == nil {
+            loadImage()
+        } else {
+            updateFitScale(viewSize: lastViewSize)
+        }
+    }
+
+    /// Remove a session from the strip. The strip is only visible when
+    /// `sessions.count > 1`, so this should never be called for the final image —
+    /// guard against misuse just in case.
+    private func removeSession(_ id: UUID) {
+        guard sessions.count > 1 else { return }
+        guard let removedIdx = sessions.firstIndex(where: { $0.id == id }) else { return }
+
+        if id == activeSessionID {
+            let nextIdx = removedIdx > 0 ? removedIdx - 1 : 1
+            let nextID = sessions[nextIdx].id
+            sessions.remove(at: removedIdx)
+            activeSessionID = nextID
+            if let target = sessions.first(where: { $0.id == nextID }) {
+                restoreSessionState(from: target)
+                if target.image == nil {
+                    loadImage()
+                } else {
+                    updateFitScale(viewSize: lastViewSize)
+                }
+            }
+        } else {
+            sessions.remove(at: removedIdx)
+        }
+    }
+
     // MARK: - Save
 
     /// Returns the current CGImage for rendering/export, using the stored reference
@@ -1254,12 +1498,71 @@ struct EditorView: View {
 
     private func saveOverwrite() {
         do {
-            try exportAndSave(to: imageURL)
+            // Sync live @State into the active session, then write every session
+            // (including the active one) from its stored state — a single path.
+            saveActiveSessionState()
+            for session in sessions {
+                try writeSession(session, to: session.imageURL)
+            }
             copyToClipboardSilent()
             requestReviewIfEligible()
             onDismiss()
         } catch {
             showSaveError(error)
+        }
+    }
+
+    /// Render and write one session to `url`. Returns silently when the session
+    /// has no image data (e.g. user never activated this image — no edits to save).
+    private func writeSession(_ session: ImageSession, to url: URL) throws {
+        let cg = session.currentDisplayCGImage
+            ?? session.image?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        guard let cgImage = cg else { return }
+
+        let renderer = AnnotationRenderer()
+        let outputImage = try renderer.render(
+            image: cgImage,
+            annotations: session.annotations,
+            backingScale: displayBackingScale,
+            cropRect: nil,
+            watermark: session.watermarkSettings
+        )
+        try Self.writeImage(outputImage, to: url)
+    }
+
+    /// Write a CGImage to disk, picking the encoder from the URL's extension.
+    private static func writeImage(_ cgImage: CGImage, to url: URL) throws {
+        let ext = url.pathExtension.lowercased()
+
+        #if !APPSTORE
+        if ext == "webp" {
+            let data = try WebPEncoder().encode(cgImage, config: .preset(.photo, quality: 80))
+            try data.write(to: url)
+            return
+        }
+        #endif
+
+        let utType: CFString
+        switch ext {
+        case "png":  utType = UTType.png.identifier as CFString
+        case "heic": utType = UTType.heic.identifier as CFString
+        default:     utType = UTType.jpeg.identifier as CFString
+        }
+
+        var properties: [CFString: Any] = [
+            kCGImagePropertyDPIWidth: 72.0,
+            kCGImagePropertyDPIHeight: 72.0,
+        ]
+        if ext != "png" {
+            properties[kCGImageDestinationLossyCompressionQuality] = 0.9
+        }
+
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, utType, 1, nil) else {
+            throw AnnotationRenderer.RenderError.cannotCreateOutputImage
+        }
+        CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw AnnotationRenderer.RenderError.cannotCreateOutputImage
         }
     }
 
@@ -1294,7 +1597,6 @@ struct EditorView: View {
         guard let cgImage = currentCGImage() else { return }
 
         let renderer = AnnotationRenderer()
-
         // Crop is applied destructively in applyCrop(), so at export time
         // the image is already the cropped region — no crop rect needed.
         let outputImage = try renderer.render(
@@ -1304,41 +1606,7 @@ struct EditorView: View {
             cropRect: nil,
             watermark: watermarkSettings
         )
-
-        let ext = url.pathExtension.lowercased()
-
-        #if !APPSTORE
-        // WebP encoding requires the swift-webp library; CGImageDestination
-        // does not support WebP encoding on macOS.
-        if ext == "webp" {
-            let data = try WebPEncoder().encode(outputImage, config: .preset(.photo, quality: 80))
-            try data.write(to: url)
-            return
-        }
-        #endif
-
-        let utType: CFString
-        switch ext {
-        case "png":  utType = UTType.png.identifier as CFString
-        case "heic": utType = UTType.heic.identifier as CFString
-        default:     utType = UTType.jpeg.identifier as CFString
-        }
-
-        var properties: [CFString: Any] = [
-            kCGImagePropertyDPIWidth: 72.0,
-            kCGImagePropertyDPIHeight: 72.0,
-        ]
-        if ext != "png" {
-            properties[kCGImageDestinationLossyCompressionQuality] = 0.9
-        }
-
-        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, utType, 1, nil) else {
-            throw AnnotationRenderer.RenderError.cannotCreateOutputImage
-        }
-        CGImageDestinationAddImage(destination, outputImage, properties as CFDictionary)
-        guard CGImageDestinationFinalize(destination) else {
-            throw AnnotationRenderer.RenderError.cannotCreateOutputImage
-        }
+        try Self.writeImage(outputImage, to: url)
     }
 
     /// Request an App Store review after the user saves their 3rd screenshot with annotations.
@@ -1369,4 +1637,18 @@ struct EditorView: View {
         alert.alertStyle = .warning
         alert.runModal()
     }
+}
+
+/// Captures the NSWindow hosting a SwiftUI view, so AppKit-level code
+/// (e.g. NSEvent local monitors) can scope its handling to this window.
+private struct WindowAccessor: NSViewRepresentable {
+    let callback: (NSWindow?) -> Void
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { [weak view] in
+            callback(view?.window)
+        }
+        return view
+    }
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }

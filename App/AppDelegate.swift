@@ -30,9 +30,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func application(_ application: NSApplication, open urls: [URL]) {
         let imageTypes: Set<String> = ["png", "jpg", "jpeg", "heic", "tiff", "tif", "gif", "bmp", "webp"]
-        for url in urls where imageTypes.contains(url.pathExtension.lowercased()) {
-            EditorWindowController.openEditor(imageURL: url, appSettings: appSettings)
-        }
+        let imageURLs = urls.filter { imageTypes.contains($0.pathExtension.lowercased()) }
+        guard !imageURLs.isEmpty else { return }
+        EditorWindowController.openEditor(imageURLs: imageURLs, appSettings: appSettings)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

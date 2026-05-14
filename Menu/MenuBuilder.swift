@@ -670,15 +670,15 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     @objc func openFileAction() {
         let panel = NSOpenPanel()
         panel.title = "Open Image"
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff, .gif, .bmp]
 
         NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
 
         EditorWindowController.openEditor(
-            imageURL: url,
+            imageURLs: panel.urls,
             template: appSettings.defaultCaptureTemplate,
             appSettings: appSettings
         )

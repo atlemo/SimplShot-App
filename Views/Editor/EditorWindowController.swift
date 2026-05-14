@@ -9,17 +9,32 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
     /// while its window is open and removes itself on close.
     private static var openEditors: Set<EditorWindowController> = []
 
-    /// Open the editor for a captured screenshot.
-    /// Multiple editors can be open simultaneously.
+    /// Open the editor for a single captured screenshot.
     static func openEditor(
         imageURL: URL,
         template: ScreenshotTemplate? = nil,
         appSettings: AppSettings? = nil,
         preferOriginalAspectRatio: Bool = false
     ) {
+        openEditor(
+            imageURLs: [imageURL],
+            template: template,
+            appSettings: appSettings,
+            preferOriginalAspectRatio: preferOriginalAspectRatio
+        )
+    }
+
+    /// Open the editor with one or more images.
+    static func openEditor(
+        imageURLs: [URL],
+        template: ScreenshotTemplate? = nil,
+        appSettings: AppSettings? = nil,
+        preferOriginalAspectRatio: Bool = false
+    ) {
+        guard !imageURLs.isEmpty else { return }
         let open = {
             let controller = EditorWindowController(
-                imageURL: imageURL,
+                imageURLs: imageURLs,
                 template: template,
                 appSettings: appSettings,
                 preferOriginalAspectRatio: preferOriginalAspectRatio
@@ -38,13 +53,12 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private init(
-        imageURL: URL,
+        imageURLs: [URL],
         template: ScreenshotTemplate? = nil,
         appSettings: AppSettings? = nil,
         preferOriginalAspectRatio: Bool = false
     ) {
-        // Use the user's last saved size, or compute one from the image
-        let windowSize = Self.savedWindowSize() ?? Self.windowSize(for: imageURL)
+        let windowSize = Self.savedWindowSize() ?? Self.windowSize(for: imageURLs[0])
 
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
@@ -55,7 +69,10 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Edit & Annotate — \(imageURL.lastPathComponent)"
+        let title = imageURLs.count > 1
+            ? "Edit & Annotate — \(imageURLs.count) images"
+            : "Edit & Annotate — \(imageURLs[0].lastPathComponent)"
+        window.title = title
         window.minSize = NSSize(width: 600, height: 500)
         window.isReleasedWhenClosed = false
 
@@ -95,7 +112,7 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
         // SwiftUI content — prevent the hosting view from shrinking the
         // window to its intrinsic content size.
         let editorView = EditorView(
-            imageURL: imageURL,
+            imageURLs: imageURLs,
             template: template,
             appSettings: appSettings,
             preferOriginalAspectRatio: preferOriginalAspectRatio
