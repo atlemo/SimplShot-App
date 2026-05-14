@@ -124,11 +124,14 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
         window?.makeKeyAndOrderFront(nil)
         window?.orderFrontRegardless()
 
-        // Re-assert on the next run loop tick for more reliable focus handoff.
-        DispatchQueue.main.async { [weak self] in
-            NSApp.activate(ignoringOtherApps: true)
-            self?.window?.makeKeyAndOrderFront(nil)
-            self?.window?.orderFrontRegardless()
+        // Re-assert after a short delay so macOS has time to finish the
+        // accessory → regular activation-policy transition.
+        for delay in [0.05, 0.2, 0.5] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let window = self?.window, window.isVisible else { return }
+                NSApp.activate(ignoringOtherApps: true)
+                window.makeKeyAndOrderFront(nil)
+            }
         }
     }
 

@@ -366,7 +366,7 @@ struct EditorView: View {
                 .disabled(undoStack.isEmpty)
             }
             ToolbarItem(placement: .automatic) {
-                Button("Done", action: saveOverwrite)
+                Button("Save & Copy", action: saveOverwrite)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut("s", modifiers: .command)
                     .help("Save, close and copy the image to your clipboard")

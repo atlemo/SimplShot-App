@@ -28,6 +28,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Closure provided by SwiftUI to open the Settings scene properly.
     var openSettingsAction: (() -> Void)?
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        let imageTypes: Set<String> = ["png", "jpg", "jpeg", "heic", "tiff", "tif", "gif", "bmp", "webp"]
+        for url in urls where imageTypes.contains(url.pathExtension.lowercased()) {
+            EditorWindowController.openEditor(imageURL: url, appSettings: appSettings)
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
 #if !APPSTORE
         // Set up batch capture service
