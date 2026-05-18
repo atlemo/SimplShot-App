@@ -1,9 +1,34 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    static let editorModeCommand = Notification.Name("SimplShotEditorModeCommand")
+}
+
 /// Manages the standalone editor window.
 /// Retains itself while the window is open so callers don't need to hold a reference.
 class EditorWindowController: NSWindowController, NSWindowDelegate {
+    private var currentEditorMode: EditorMode = .annotate
+    private var allowsEditMode: Bool = true
+    private var setEditorMode: ((EditorMode) -> Void)?
+
+    static var currentModeForKeyWindow: EditorMode? {
+        keyEditorController?.currentEditorMode
+    }
+
+    static func canSetMode(_ mode: EditorMode) -> Bool {
+        guard let controller = keyEditorController else { return true }
+        return mode != .edit || controller.allowsEditMode
+    }
+
+    static func setModeForKeyWindow(_ mode: EditorMode) {
+        guard canSetMode(mode) else { return }
+        keyEditorController?.setEditorMode?(mode)
+    }
+
+    private static var keyEditorController: EditorWindowController? {
+        NSApp.keyWindow?.windowController as? EditorWindowController
+    }
 
     /// All currently open editor windows. Each controller retains itself here
     /// while its window is open and removes itself on close.
@@ -118,15 +143,30 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
 
         // SwiftUI content — prevent the hosting view from shrinking the
         // window to its intrinsic content size.
+        setEditorMode = { [weak window] mode in
+            NotificationCenter.default.post(
+                name: .editorModeCommand,
+                object: window,
+                userInfo: ["mode": mode.rawValue]
+            )
+        }
+
         let editorView = EditorView(
             imageURLs: imageURLs,
             template: template,
             appSettings: appSettings,
             preferOriginalAspectRatio: preferOriginalAspectRatio,
-            initialMode: initialMode
-        ) { [weak self] in
-            self?.close()
-        }
+            initialMode: initialMode,
+            onDismiss: { [weak self] in
+                self?.close()
+            },
+            onModeChange: { [weak self] mode in
+                self?.currentEditorMode = mode
+            },
+            onEditModeAvailabilityChange: { [weak self] allowsEditMode in
+                self?.allowsEditMode = allowsEditMode
+            }
+        )
         let hostingView = NSHostingView(rootView: editorView)
         hostingView.sizingOptions = []  // don't let SwiftUI dictate the window size
         window.contentView = hostingView
@@ -200,12 +240,27 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
         window.delegate = self
 
+        setEditorMode = { [weak window] mode in
+            NotificationCenter.default.post(
+                name: .editorModeCommand,
+                object: window,
+                userInfo: ["mode": mode.rawValue]
+            )
+        }
+
         let editorView = EditorView(
             sessions: sessions,
-            appSettings: appSettings
-        ) { [weak self] in
-            self?.close()
-        }
+            appSettings: appSettings,
+            onDismiss: { [weak self] in
+                self?.close()
+            },
+            onModeChange: { [weak self] mode in
+                self?.currentEditorMode = mode
+            },
+            onEditModeAvailabilityChange: { [weak self] allowsEditMode in
+                self?.allowsEditMode = allowsEditMode
+            }
+        )
         let hostingView = NSHostingView(rootView: editorView)
         hostingView.sizingOptions = []
         window.contentView = hostingView

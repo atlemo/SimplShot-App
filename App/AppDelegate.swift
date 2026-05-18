@@ -28,6 +28,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Closure provided by SwiftUI to open the Settings scene properly.
     var openSettingsAction: (() -> Void)?
 
+    @MainActor
+    func openFile() {
+        menuBuilder.openFileAction()
+    }
+
+    @MainActor
+    func openScreenshotsFolder() {
+        menuBuilder.openScreenshotsFolderAction()
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         let imageTypes: Set<String> = ["png", "jpg", "jpeg", "heic", "tiff", "tif", "gif", "bmp", "webp"]
         let imageURLs = urls.filter { imageTypes.contains($0.pathExtension.lowercased()) }

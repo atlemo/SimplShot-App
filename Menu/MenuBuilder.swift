@@ -1018,7 +1018,9 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         task.launchPath = "/bin/sh"
         task.arguments = ["-c", script]
         try? task.run()
-        NSApp.terminate(nil)
+        Task { @MainActor in
+            NSApp.terminate(nil)
+        }
     }
 
     /// Apply a KeyboardShortcuts shortcut to a menu item without requiring @MainActor isolation.

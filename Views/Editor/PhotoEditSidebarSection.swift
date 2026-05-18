@@ -5,6 +5,7 @@ import SwiftUI
 /// and a crop shortcut that delegates to the existing crop flow.
 struct PhotoEditSidebarSection: View {
     @Binding var adjustments: PhotoAdjustments
+    var metadata: ImageMetadata?
     var isCropping: Bool
     var onEnterCrop: () -> Void
     var onApplyCrop: () -> Void
@@ -21,12 +22,10 @@ struct PhotoEditSidebarSection: View {
                         // While cropping, the canvas is in interactive crop mode —
                         // the adjustment sliders are hidden and replaced with Apply/Cancel.
                         activeCropSection
-                        sectionDivider
                     } else {
                         adjustmentsSection
-                        sectionDivider
                         cropSection
-                        sectionDivider
+                        metadataSection
                     }
                 }
                 .padding(.bottom, 16)
@@ -104,6 +103,22 @@ struct PhotoEditSidebarSection: View {
                 zeroPoint: 1,
                 format: "%.2f"
             )
+            adjustmentRow(
+                label: "Highlights",
+                systemImage: "sun.max.fill",
+                value: $adjustments.highlights,
+                range: 0...2,
+                zeroPoint: 1,
+                format: "%.2f"
+            )
+            adjustmentRow(
+                label: "Shadows",
+                systemImage: "circle.bottomhalf.filled",
+                value: $adjustments.shadows,
+                range: 0...1,
+                zeroPoint: 0,
+                format: "%.2f"
+            )
             temperatureRow
             adjustmentRow(
                 label: "Sharpness",
@@ -147,6 +162,38 @@ struct PhotoEditSidebarSection: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    // MARK: - Metadata section
+
+    private var metadataSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("Metadata")
+            if let metadata, !metadata.rows.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(metadata.rows, id: \.label) { row in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(row.label)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 52, alignment: .leading)
+                            Text(row.value)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                }
+            } else {
+                Text("No metadata available")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)

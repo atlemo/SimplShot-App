@@ -377,6 +377,23 @@ class AppSettings {
         customColors.removeAll { $0 == color }
     }
 
+    func removeEditorTemplate(id: UUID) {
+        guard editorTemplates.count > 1,
+              let removedIndex = editorTemplates.firstIndex(where: { $0.id == id })
+        else { return }
+
+        let replacementIndex = removedIndex == 0 ? 1 : removedIndex - 1
+        let replacementID = editorTemplates[replacementIndex].id
+        editorTemplates.remove(at: removedIndex)
+
+        if selectedEditorTemplateID == id {
+            selectedEditorTemplateID = replacementID
+        }
+        if defaultCaptureTemplateID == id {
+            defaultCaptureTemplateID = selectedEditorTemplateID ?? editorTemplates.first?.id
+        }
+    }
+
     /// Copies the image at `sourceURL` into the app's Application Support directory and
     /// adds the new path to `customBackgroundImages`. Returns the stored path.
     @discardableResult

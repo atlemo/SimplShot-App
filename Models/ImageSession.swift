@@ -1,5 +1,122 @@
 import AppKit
 import Combine
+import ImageIO
+
+struct ImageMetadata: Equatable {
+    let fileName: String
+    let timestamp: String?
+    let cameraBrand: String?
+    let lens: String?
+    let shutter: String?
+    let fStop: String?
+    let iso: String?
+    let fileSize: String?
+
+    var rows: [(label: String, value: String)] {
+        [
+            ("File", fileName),
+            Self.optionalRow("Date", timestamp),
+            Self.optionalRow("Camera", cameraBrand),
+            Self.optionalRow("Lens", lens),
+            Self.optionalRow("Shutter", shutter),
+            Self.optionalRow("F-stop", fStop),
+            Self.optionalRow("ISO", iso),
+            Self.optionalRow("Size", fileSize)
+        ].compactMap { $0 }
+    }
+
+    static func load(from url: URL) -> ImageMetadata {
+        let source = CGImageSourceCreateWithURL(url as CFURL, nil)
+        let properties = source.flatMap {
+            CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [CFString: Any]
+        } ?? [:]
+        let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:]
+        let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any] ?? [:]
+
+        let resourceValues = try? url.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey, .fileSizeKey])
+        let timestamp = stringValue(exif[kCGImagePropertyExifDateTimeOriginal])
+            ?? stringValue(tiff[kCGImagePropertyTIFFDateTime])
+            ?? formatDate(resourceValues?.creationDate ?? resourceValues?.contentModificationDate)
+
+        return ImageMetadata(
+            fileName: url.lastPathComponent,
+            timestamp: timestamp,
+            cameraBrand: stringValue(tiff[kCGImagePropertyTIFFMake]),
+            lens: stringValue(exif[kCGImagePropertyExifLensModel]),
+            shutter: shutterString(from: exif[kCGImagePropertyExifExposureTime]),
+            fStop: fStopString(from: exif[kCGImagePropertyExifFNumber]),
+            iso: isoString(from: exif[kCGImagePropertyExifISOSpeedRatings]),
+            fileSize: fileSizeString(from: resourceValues?.fileSize)
+        )
+    }
+
+    private static func optionalRow(_ label: String, _ value: String?) -> (label: String, value: String)? {
+        guard let value, !value.isEmpty else { return nil }
+        return (label, value)
+    }
+
+    private static func stringValue(_ value: Any?) -> String? {
+        switch value {
+        case let value as String:
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        case let value as NSNumber:
+            return value.stringValue
+        default:
+            return nil
+        }
+    }
+
+    private static func shutterString(from value: Any?) -> String? {
+        guard let seconds = numberValue(value), seconds > 0 else { return nil }
+        if seconds < 1 {
+            let denominator = Int((1 / seconds).rounded())
+            return "1/\(denominator)s"
+        }
+        return String(format: "%.1fs", seconds)
+    }
+
+    private static func fStopString(from value: Any?) -> String? {
+        guard let fNumber = numberValue(value), fNumber > 0 else { return nil }
+        return String(format: "f/%.1f", fNumber)
+    }
+
+    private static func isoString(from value: Any?) -> String? {
+        if let values = value as? [Any], let first = values.first {
+            return isoString(from: first)
+        }
+        guard let iso = numberValue(value), iso > 0 else { return nil }
+        return String(Int(iso.rounded()))
+    }
+
+    private static func numberValue(_ value: Any?) -> Double? {
+        switch value {
+        case let value as NSNumber:
+            return value.doubleValue
+        case let value as Double:
+            return value
+        case let value as Float:
+            return Double(value)
+        case let value as Int:
+            return Double(value)
+        default:
+            return nil
+        }
+    }
+
+    private static func formatDate(_ date: Date?) -> String? {
+        guard let date else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
+    private static func fileSizeString(from bytes: Int?) -> String? {
+        guard let bytes else { return nil }
+        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+    }
+}
 
 /// Encapsulates all per-image editing state so multiple images can coexist
 /// in a single editor window, each retaining its own annotations, crop,
@@ -19,6 +136,7 @@ class ImageSession: Identifiable, ObservableObject {
     var currentDisplayCGImage: CGImage?
     var imagePixelSize: CGSize = .zero
     var screenshotCropRect: CGRect = .zero
+    var metadata: ImageMetadata?
 
     // Annotations
     var annotations: [Annotation] = []

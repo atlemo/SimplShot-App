@@ -10,6 +10,40 @@ struct SimplShotApp: App {
         Settings {
             SettingsView(appSettings: appDelegate.appSettings)
         }
+        .commands {
+            CommandGroup(after: .newItem) {
+                Button("Open File…") {
+                    appDelegate.openFile()
+                }
+                .keyboardShortcut("o", modifiers: .command)
+
+                Button("Open Screenshots Folder") {
+                    appDelegate.openScreenshotsFolder()
+                }
+            }
+
+            CommandGroup(after: .toolbar) {
+                Divider()
+                editorModeToggle(.annotate, shortcut: "1")
+                editorModeToggle(.edit, shortcut: "2")
+                    .disabled(!EditorWindowController.canSetMode(.edit))
+                editorModeToggle(.view, shortcut: "3")
+            }
+        }
+    }
+
+    private func editorModeToggle(_ mode: EditorMode, shortcut: KeyEquivalent) -> some View {
+        Toggle(
+            mode.rawValue,
+            isOn: Binding(
+                get: { EditorWindowController.currentModeForKeyWindow == mode },
+                set: { isSelected in
+                    guard isSelected else { return }
+                    EditorWindowController.setModeForKeyWindow(mode)
+                }
+            )
+        )
+        .keyboardShortcut(shortcut, modifiers: .command)
     }
 
     /// Pass the SwiftUI `openSettings` environment action to the AppKit side

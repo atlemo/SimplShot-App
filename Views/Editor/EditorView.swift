@@ -23,6 +23,8 @@ struct EditorView: View {
 
     /// Callback when the editor is done (save or discard) — closes the window.
     var onDismiss: () -> Void = {}
+    var onModeChange: (EditorMode) -> Void = { _ in }
+    var onEditModeAvailabilityChange: (Bool) -> Void = { _ in }
 
     // Multi-image session state
     @State private var sessions: [ImageSession] = []
@@ -49,6 +51,7 @@ struct EditorView: View {
     @State private var image: NSImage?
     @State private var rawImage: NSImage?
     @State private var currentDisplayCGImage: CGImage?
+    @State private var imageMetadata: ImageMetadata?
     @State private var imagePixelSize: CGSize = .zero
     /// The display's backing scale factor (e.g. 2.0 on Retina, 3.0 on 3× displays).
     /// Used to compute "true size" — where 100% shows the image at its logical point dimensions.
@@ -110,7 +113,9 @@ struct EditorView: View {
         appSettings: AppSettings? = nil,
         preferOriginalAspectRatio: Bool = false,
         initialMode: EditorMode? = nil,
-        onDismiss: @escaping () -> Void = {}
+        onDismiss: @escaping () -> Void = {},
+        onModeChange: @escaping (EditorMode) -> Void = { _ in },
+        onEditModeAvailabilityChange: @escaping (Bool) -> Void = { _ in }
     ) {
         self.init(
             imageURLs: [imageURL],
@@ -118,7 +123,9 @@ struct EditorView: View {
             appSettings: appSettings,
             preferOriginalAspectRatio: preferOriginalAspectRatio,
             initialMode: initialMode,
-            onDismiss: onDismiss
+            onDismiss: onDismiss,
+            onModeChange: onModeChange,
+            onEditModeAvailabilityChange: onEditModeAvailabilityChange
         )
     }
 
@@ -128,7 +135,9 @@ struct EditorView: View {
         appSettings: AppSettings? = nil,
         preferOriginalAspectRatio: Bool = false,
         initialMode: EditorMode? = nil,
-        onDismiss: @escaping () -> Void = {}
+        onDismiss: @escaping () -> Void = {},
+        onModeChange: @escaping (EditorMode) -> Void = { _ in },
+        onEditModeAvailabilityChange: @escaping (Bool) -> Void = { _ in }
     ) {
         precondition(!imageURLs.isEmpty, "EditorView requires at least one image URL")
         self.imageURLs = imageURLs
@@ -137,6 +146,8 @@ struct EditorView: View {
         self.appSettings = appSettings
         self.preferOriginalAspectRatio = preferOriginalAspectRatio
         self.onDismiss = onDismiss
+        self.onModeChange = onModeChange
+        self.onEditModeAvailabilityChange = onEditModeAvailabilityChange
 
         let newSessions = imageURLs.map { ImageSession(imageURL: $0) }
         _sessions = State(initialValue: newSessions)
@@ -160,7 +171,9 @@ struct EditorView: View {
     init(
         sessions: [ImageSession],
         appSettings: AppSettings? = nil,
-        onDismiss: @escaping () -> Void = {}
+        onDismiss: @escaping () -> Void = {},
+        onModeChange: @escaping (EditorMode) -> Void = { _ in },
+        onEditModeAvailabilityChange: @escaping (Bool) -> Void = { _ in }
     ) {
         precondition(!sessions.isEmpty, "EditorView requires at least one session")
         self.imageURLs = sessions.map { $0.imageURL }
@@ -168,6 +181,8 @@ struct EditorView: View {
         self.appSettings = appSettings
         self.preferOriginalAspectRatio = false
         self.onDismiss = onDismiss
+        self.onModeChange = onModeChange
+        self.onEditModeAvailabilityChange = onEditModeAvailabilityChange
 
         _sessions = State(initialValue: sessions)
         _activeSessionID = State(initialValue: sessions.first?.id)
@@ -192,6 +207,12 @@ struct EditorView: View {
     // Alerts
     @State private var showTrashAlert: Bool = false
     @State private var keyMonitor: Any?
+    @State private var magnifyMonitor: Any?
+    @State private var middleMouseMonitor: Any?
+    @State private var middleMouseDragOrigin: NSPoint?
+    @State private var middleMouseScrollOrigin: NSPoint?
+    @State private var nsScrollView: NSScrollView?
+    @State private var canvasViewportFrame: CGRect = .zero
     /// The NSWindow hosting this editor. Captured via WindowAccessor so the
     /// local key-event monitor can scope its handling to events targeted at
     /// this window (when multiple editor windows are open).
@@ -229,6 +250,8 @@ struct EditorView: View {
     }
 
     private let zoomSteps: [CGFloat] = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0]
+    private let minZoomLevel: CGFloat = 0.25
+    private let maxZoomLevel: CGFloat = 5.0
     private var editorAspectRatios: [AspectRatio] {
 #if !APPSTORE
         appSettings?.enabledAspectRatios ?? Constants.defaultAspectRatios
@@ -275,8 +298,18 @@ struct EditorView: View {
             propagateInitialTemplateToOtherSessions()
             preloadThumbnails()
             installKeyMonitorIfNeeded()
+            onModeChange(editorMode)
+            onEditModeAvailabilityChange(!isPDFSession)
         }
         .background(WindowAccessor { hostingWindow = $0 })
+        .onReceive(NotificationCenter.default.publisher(for: .editorModeCommand)) { notification in
+            guard notification.object as? NSWindow === hostingWindow,
+                  let rawMode = notification.userInfo?["mode"] as? String,
+                  let mode = EditorMode(rawValue: rawMode),
+                  mode != .edit || !isPDFSession
+            else { return }
+            editorMode = mode
+        }
         .onDisappear {
             removeKeyMonitor()
         }
@@ -360,6 +393,10 @@ struct EditorView: View {
         .onChange(of: editorMode) { _, newMode in
             // Persist the last-used mode so the "Last Used" default-on-open option works.
             appSettings?.lastUsedEditorMode = newMode
+            onModeChange(newMode)
+        }
+        .onChange(of: isPDFSession) { _, isPDF in
+            onEditModeAvailabilityChange(!isPDF)
         }
         .onChange(of: imagePixelSize) { _, _ in
             updateFitScale(viewSize: lastViewSize)
@@ -449,13 +486,15 @@ struct EditorView: View {
                 // With multiple images the clipboard can only hold one, so we drop the
                 // "& Copy" suffix and skip the clipboard write (see saveOverwrite).
                 let isMulti = sessions.count > 1
-                Button(isMulti ? "Save All" : "Save & Copy", action: saveOverwrite)
+                Button(action: saveOverwrite) {
+                    Text(isMulti ? "Save All" : "Save & Copy")
+                        .padding(.horizontal, 6)
+                }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut("s", modifiers: .command)
                     .help(isMulti
                           ? "Save all open images and close"
                           : "Save, close and copy the image to your clipboard")
-                    .padding(.horizontal, 6)
             }
         }
     }
@@ -466,6 +505,7 @@ struct EditorView: View {
         EditorSidebarView(
             editorMode: $editorMode,
             photoAdjustments: $photoAdjustments,
+            imageMetadata: imageMetadata,
             showProSidebar: showProSidebarBinding,
             currentTool: $currentTool,
             currentStyle: $currentStyle,
@@ -538,6 +578,7 @@ struct EditorView: View {
                                     onCommit: pushUndo
                                 )
                                 .padding(20)
+                                .background(ScrollViewAccessor { nsScrollView = $0 })
                             }
                         } else {
                             ContentUnavailableView("Unable to load image", systemImage: "photo.badge.exclamationmark")
@@ -546,10 +587,12 @@ struct EditorView: View {
                     }
                     .onAppear {
                         lastViewSize = geo.size
+                        canvasViewportFrame = geo.frame(in: .global)
                         updateFitScale(viewSize: geo.size)
                     }
                     .onChange(of: geo.size) { _, newSize in
                         lastViewSize = newSize
+                        canvasViewportFrame = geo.frame(in: .global)
                         updateFitScale(viewSize: newSize)
                     }
                 }
@@ -583,6 +626,7 @@ struct EditorView: View {
                 onZoomIn: zoomIn,
                 onZoomReset: { zoomLevel = 1.0 }
             )
+            .offset(y: -3)
         }
         .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
     }
@@ -617,13 +661,13 @@ struct EditorView: View {
 
     private func zoomIn() {
         if let next = zoomSteps.first(where: { $0 > zoomLevel }) {
-            zoomLevel = next
+            zoomLevel = min(next, maxZoomLevel)
         }
     }
 
     private func zoomOut() {
         if let prev = zoomSteps.last(where: { $0 < zoomLevel }) {
-            zoomLevel = prev
+            zoomLevel = max(prev, minZoomLevel)
         }
     }
 
@@ -796,6 +840,7 @@ struct EditorView: View {
             let nsImage = NSImage(size: size)
             nsImage.addRepresentation(NSBitmapImageRep(cgImage: cgImage))
             rawImage = nsImage
+            imageMetadata = ImageMetadata.load(from: pdfSource.sourceURL)
             screenshotCropRect = CGRect(x: 0, y: 0,
                                         width: CGFloat(cgImage.width), height: CGFloat(cgImage.height))
             applyDisplayImage(from: nsImage)
@@ -805,6 +850,7 @@ struct EditorView: View {
 
         guard let nsImage = NSImage(contentsOf: imageURL) else { return }
         rawImage = nsImage
+        imageMetadata = ImageMetadata.load(from: imageURL)
         if let cg = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
             screenshotCropRect = CGRect(x: 0, y: 0,
                                         width: CGFloat(cg.width), height: CGFloat(cg.height))
@@ -1373,12 +1419,110 @@ struct EditorView: View {
 
             return event
         }
+
+        guard magnifyMonitor == nil else { return }
+        magnifyMonitor = NSEvent.addLocalMonitorForEvents(matching: .magnify) { event in
+            guard let win = hostingWindow, event.window === win else { return event }
+            handleMagnifyEvent(event)
+            return event
+        }
+
+        guard middleMouseMonitor == nil else { return }
+        middleMouseMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.otherMouseDown, .otherMouseDragged, .otherMouseUp]
+        ) { event in
+            guard event.buttonNumber == 2,
+                  let win = hostingWindow, event.window === win,
+                  zoomLevel > 1.0,
+                  let scrollView = nsScrollView
+            else { return event }
+
+            switch event.type {
+            case .otherMouseDown:
+                middleMouseDragOrigin = event.locationInWindow
+                middleMouseScrollOrigin = scrollView.contentView.bounds.origin
+                NSCursor.closedHand.push()
+                return nil
+            case .otherMouseDragged:
+                guard let dragOrigin = middleMouseDragOrigin,
+                      let scrollOrigin = middleMouseScrollOrigin else { return event }
+                let delta = NSPoint(
+                    x: event.locationInWindow.x - dragOrigin.x,
+                    y: event.locationInWindow.y - dragOrigin.y
+                )
+                let newOrigin = NSPoint(
+                    x: scrollOrigin.x - delta.x,
+                    y: scrollOrigin.y + delta.y
+                )
+                scrollView.contentView.scroll(to: newOrigin)
+                scrollView.reflectScrolledClipView(scrollView.contentView)
+                return nil
+            case .otherMouseUp:
+                middleMouseDragOrigin = nil
+                middleMouseScrollOrigin = nil
+                NSCursor.pop()
+                return nil
+            default:
+                return event
+            }
+        }
+    }
+
+    private func handleMagnifyEvent(_ event: NSEvent) {
+        let oldScale = effectiveScale
+        let newZoom = min(max(zoomLevel * (1 + event.magnification), minZoomLevel), maxZoomLevel)
+        let newScale = fitScale * newZoom
+
+        guard let scrollView = nsScrollView, oldScale > 0 else {
+            zoomLevel = newZoom
+            return
+        }
+
+        let scaleFactor = newScale / oldScale
+
+        let windowPoint = event.locationInWindow
+        let scrollOrigin = scrollView.documentVisibleRect.origin
+
+        let cursorInClip = NSPoint(
+            x: windowPoint.x - scrollView.convert(NSPoint.zero, to: nil).x,
+            y: windowPoint.y - scrollView.convert(NSPoint.zero, to: nil).y
+        )
+
+        let contentPoint = NSPoint(
+            x: scrollOrigin.x + cursorInClip.x,
+            y: scrollOrigin.y + cursorInClip.y
+        )
+
+        let newContentPoint = NSPoint(
+            x: contentPoint.x * scaleFactor,
+            y: contentPoint.y * scaleFactor
+        )
+
+        let newOrigin = NSPoint(
+            x: newContentPoint.x - cursorInClip.x,
+            y: newContentPoint.y - cursorInClip.y
+        )
+
+        zoomLevel = newZoom
+
+        DispatchQueue.main.async {
+            scrollView.contentView.scroll(to: newOrigin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
     }
 
     private func removeKeyMonitor() {
         if let monitor = keyMonitor {
             NSEvent.removeMonitor(monitor)
             keyMonitor = nil
+        }
+        if let monitor = magnifyMonitor {
+            NSEvent.removeMonitor(monitor)
+            magnifyMonitor = nil
+        }
+        if let monitor = middleMouseMonitor {
+            NSEvent.removeMonitor(monitor)
+            middleMouseMonitor = nil
         }
     }
 
@@ -1506,6 +1650,7 @@ struct EditorView: View {
         session.image = image
         session.rawImage = rawImage
         session.currentDisplayCGImage = currentDisplayCGImage
+        session.metadata = imageMetadata
         session.imagePixelSize = imagePixelSize
         session.screenshotCropRect = screenshotCropRect
         session.annotations = annotations
@@ -1538,6 +1683,7 @@ struct EditorView: View {
         image = session.image
         rawImage = session.rawImage
         currentDisplayCGImage = session.currentDisplayCGImage
+        imageMetadata = session.metadata
         imagePixelSize = session.imagePixelSize
         screenshotCropRect = session.screenshotCropRect
         annotations = session.annotations
@@ -1873,6 +2019,26 @@ private struct WindowAccessor: NSViewRepresentable {
         let view = NSView()
         DispatchQueue.main.async { [weak view] in
             callback(view?.window)
+        }
+        return view
+    }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+private struct ScrollViewAccessor: NSViewRepresentable {
+    let callback: (NSScrollView?) -> Void
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { [weak view] in
+            var current: NSView? = view
+            while let v = current {
+                if let scrollView = v as? NSScrollView {
+                    callback(scrollView)
+                    return
+                }
+                current = v.superview
+            }
+            callback(nil)
         }
         return view
     }

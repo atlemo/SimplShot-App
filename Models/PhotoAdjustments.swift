@@ -65,6 +65,10 @@ struct PhotoAdjustments: Equatable, Codable {
     var contrast: Float = 1.0
     /// CIColorControls `inputSaturation`. Range: 0…2. Default: 1.0 (no change).
     var saturation: Float = 1.0
+    /// CIHighlightShadowAdjust `inputHighlightAmount`. Range: 0…2. Default: 1.0 (no change).
+    var highlights: Float = 1.0
+    /// CIHighlightShadowAdjust `inputShadowAmount`. Range: 0…1. Default: 0 (no change).
+    var shadows: Float = 0.0
     /// CITemperatureAndTint neutral colour temperature in Kelvin. Range: 2000…10000 K. Default: 6500 (no change).
     var temperature: Float = 6500
     /// CISharpenLuminance `inputSharpness`. Range: 0…2. Default: 0 (no sharpening).
@@ -79,6 +83,8 @@ struct PhotoAdjustments: Equatable, Codable {
         brightness == 0    &&
         contrast   == 1    &&
         saturation == 1    &&
+        highlights == 1    &&
+        shadows    == 0    &&
         temperature == 6500 &&
         sharpness  == 0    &&
         noise      == 0
@@ -106,6 +112,14 @@ struct PhotoAdjustments: Equatable, Codable {
                 "inputBrightness": brightness,
                 "inputContrast":   contrast,
                 "inputSaturation": saturation
+            ])
+        }
+
+        // Highlights / Shadows
+        if highlights != 1 || shadows != 0 {
+            ci = ci.applyingFilter("CIHighlightShadowAdjust", parameters: [
+                "inputHighlightAmount": highlights,
+                "inputShadowAmount": shadows
             ])
         }
 

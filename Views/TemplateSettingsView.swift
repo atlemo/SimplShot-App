@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TemplateSettingsView: View {
     @Bindable var appSettings: AppSettings
+    @State private var templatePendingDeletion: EditorTemplatePreset?
 
     private let labelWidth: CGFloat = 140
 
@@ -22,13 +23,24 @@ struct TemplateSettingsView: View {
 
             settingsRow("Template:") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Picker("", selection: $appSettings.defaultCaptureTemplateID) {
-                        ForEach(appSettings.editorTemplates) { template in
-                            Text(template.name)
-                                .tag(Optional(template.id))
+                    HStack(spacing: 8) {
+                        Picker("", selection: $appSettings.defaultCaptureTemplateID) {
+                            ForEach(appSettings.editorTemplates) { template in
+                                Text(template.name)
+                                    .tag(Optional(template.id))
+                            }
                         }
+                        .labelsHidden()
+
+                        Button(role: .destructive) {
+                            templatePendingDeletion = appSettings.defaultCaptureTemplatePreset
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Delete selected template")
+                        .disabled(appSettings.defaultCaptureTemplatePreset == nil || appSettings.editorTemplates.count <= 1)
                     }
-                    .labelsHidden()
 
                     Text("Choose a template to apply to your screenshots. Leave this off if you want screenshots saved as-is, without a background.")
                         .font(.system(size: 11))
@@ -42,6 +54,21 @@ struct TemplateSettingsView: View {
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 8)
+        .alert("Delete Template?", isPresented: deleteTemplateAlertBinding) {
+            Button("Delete", role: .destructive) {
+                if let templatePendingDeletion {
+                    appSettings.removeEditorTemplate(id: templatePendingDeletion.id)
+                }
+                templatePendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) {
+                templatePendingDeletion = nil
+            }
+        } message: {
+            if let templatePendingDeletion {
+                Text("\"\(templatePendingDeletion.name)\" will be removed from your templates.")
+            }
+        }
     }
 
     // MARK: - Reusable row layout (matches GeneralSettingsView)
@@ -62,6 +89,17 @@ struct TemplateSettingsView: View {
     }
 
     // MARK: - Helpers
+
+    private var deleteTemplateAlertBinding: Binding<Bool> {
+        Binding(
+            get: { templatePendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    templatePendingDeletion = nil
+                }
+            }
+        )
+    }
 
     /// A template for the preview that always shows the background if the selected preset has one,
     /// regardless of whether "Apply selected template" is currently enabled.

@@ -13,6 +13,7 @@ struct EditorSidebarView: View {
     @Binding var editorMode: EditorMode
     /// Photo adjustments used in Edit mode.
     @Binding var photoAdjustments: PhotoAdjustments
+    var imageMetadata: ImageMetadata?
 
     @Binding var showProSidebar: Bool
     @Binding var currentTool: AnnotationTool
@@ -153,6 +154,7 @@ struct EditorSidebarView: View {
                 // Photo adjustment sliders + crop shortcut
                 PhotoEditSidebarSection(
                     adjustments: $photoAdjustments,
+                    metadata: imageMetadata,
                     isCropping: isCropping,
                     onEnterCrop: onEnterCrop,
                     onApplyCrop: onApplyCrop,
@@ -321,45 +323,48 @@ struct EditorSidebarView: View {
 
     private var paddingShadowCornersSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            groupHeader("Padding, shadows and corners", section: .shadowCorners)
+            groupHeader("Effects", section: .shadowCorners)
             if !isCollapsed(.shadowCorners) {
-                HStack(spacing: 8) {
-                    Slider(value: paddingBinding, in: 20...200)
-                    Text("\(padding)px")
-                        .font(.system(size: 11, design: .monospaced))
-                        .frame(width: 40, alignment: .trailing)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.bottom, 4)
-                HStack(alignment: .top, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        sectionLabel("Shadow")
-                        HStack(spacing: 8) {
-                            Slider(value: $shadowIntensity, in: 0...1)
-                            Text("\(shadowBlurPixels)px")
-                                .font(.system(size: 11, design: .monospaced))
-                                .frame(width: 40, alignment: .trailing)
-                                .foregroundStyle(.secondary)
-                        }
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Slider(value: paddingBinding, in: 20...200)
+                        Text("\(padding)px")
+                            .font(.system(size: 11, design: .monospaced))
+                            .frame(width: 40, alignment: .trailing)
+                            .foregroundStyle(.secondary)
                     }
-                    .frame(maxWidth: .infinity)
-
-                    Divider()
-                        .padding(.horizontal, 10)
-                        .padding(.top, 2)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        sectionLabel("Corners")
-                        HStack(spacing: 8) {
-                            Slider(value: cornerRadiusBinding, in: 0...50)
-                            Text("\(cornerRadius)px")
-                                .font(.system(size: 11, design: .monospaced))
-                                .frame(width: 40, alignment: .trailing)
-                                .foregroundStyle(.secondary)
+                    .padding(.bottom, 4)
+                    HStack(alignment: .top, spacing: 0) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            sectionLabel("Shadow")
+                            HStack(spacing: 8) {
+                                Slider(value: $shadowIntensity, in: 0...1)
+                                Text("\(shadowBlurPixels)px")
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .frame(width: 40, alignment: .trailing)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        .frame(maxWidth: .infinity)
+
+                        Divider()
+                            .padding(.horizontal, 10)
+                            .padding(.top, 2)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            sectionLabel("Corners")
+                            HStack(spacing: 8) {
+                                Slider(value: cornerRadiusBinding, in: 0...50)
+                                Text("\(cornerRadius)px")
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .frame(width: 40, alignment: .trailing)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity)
                 }
+                .disabled(selectedWallpaper == nil)
             }
         }
         .padding(.horizontal, 14)
@@ -1268,6 +1273,7 @@ struct EditorSidebarView: View {
         Text(text)
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(isHovered ? .primary : .secondary)
+            .textCase(.uppercase)
     }
 
     private func collapseIcon(for section: SidebarSection, isHovered: Bool) -> some View {

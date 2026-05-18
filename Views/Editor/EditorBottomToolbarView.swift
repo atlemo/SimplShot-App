@@ -134,8 +134,9 @@ struct EditorBottomToolbarView: View {
                 Label("Delete", systemImage: "trash")
                     .labelStyle(.iconOnly)
                     .frame(width: 36, height: pillHeight)
-                    .contentShape(Rectangle())
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
             }
+            .buttonStyle(ToolbarHoverButtonStyle())
             .help("Delete Screenshot")
 
             Divider().frame(height: 16).padding(.horizontal, 2)
@@ -144,8 +145,9 @@ struct EditorBottomToolbarView: View {
                 Text("Cancel")
                     .padding(.horizontal, 10)
                     .frame(height: pillHeight)
-                    .contentShape(Rectangle())
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
             }
+            .buttonStyle(ToolbarHoverButtonStyle())
             .help("Close without saving")
 
             Divider().frame(height: 16).padding(.horizontal, 2)
@@ -154,12 +156,12 @@ struct EditorBottomToolbarView: View {
                 Text("Save As\u{2026}")
                     .padding(.horizontal, 10)
                     .frame(height: pillHeight)
-                    .contentShape(Rectangle())
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
             }
+            .buttonStyle(ToolbarHoverButtonStyle())
             .help("Save a copy")
             .keyboardShortcut("s", modifiers: [.command, .shift])
         }
-        .buttonStyle(.plain)
         .padding(.horizontal, 4)
     }
 
@@ -210,6 +212,23 @@ struct EditorBottomToolbarView: View {
 
     private var cornerRadiusBinding: Binding<Double> {
         Binding(get: { Double(cornerRadius) }, set: { cornerRadius = Int($0) })
+    }
+}
+
+// MARK: - Hover button style
+
+private struct ToolbarHoverButtonStyle: ButtonStyle {
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(isHovered || configuration.isPressed ? .primary : .secondary)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isHovered ? .white.opacity(0.1) : .clear)
+            )
+            .opacity(configuration.isPressed ? 0.7 : 1.0)
+            .onHover { isHovered = $0 }
     }
 }
 
