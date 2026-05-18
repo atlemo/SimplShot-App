@@ -8,6 +8,11 @@ class ImageSession: Identifiable, ObservableObject {
     let id = UUID()
     let imageURL: URL
 
+    // PDF source — non-nil when this session represents a PDF page
+    var pdfPageSource: PDFPageSource?
+    var pdfGroupID: UUID?
+    var isPDF: Bool { pdfPageSource != nil }
+
     // Image state
     var image: NSImage?
     var rawImage: NSImage?
@@ -53,6 +58,12 @@ class ImageSession: Identifiable, ObservableObject {
 
     init(imageURL: URL) {
         self.imageURL = imageURL
+    }
+
+    init(pdfPageSource: PDFPageSource, pdfGroupID: UUID) {
+        self.imageURL = pdfPageSource.sourceURL
+        self.pdfPageSource = pdfPageSource
+        self.pdfGroupID = pdfGroupID
     }
 
     /// Generate a downscaled thumbnail. Safe to call off the main thread —

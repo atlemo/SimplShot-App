@@ -132,6 +132,85 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
         window.contentView = hostingView
     }
 
+    /// Open the editor with pre-built sessions (used for PDF pages).
+    static func openEditor(
+        sessions: [ImageSession],
+        appSettings: AppSettings? = nil
+    ) {
+        guard !sessions.isEmpty else { return }
+        let open = {
+            let controller = EditorWindowController(
+                sessions: sessions,
+                appSettings: appSettings
+            )
+            openEditors.insert(controller)
+            updateDockIconVisibility()
+            controller.showWindow(nil)
+            controller.bringToFront()
+        }
+
+        if Thread.isMainThread {
+            open()
+        } else {
+            DispatchQueue.main.async(execute: open)
+        }
+    }
+
+    private init(
+        sessions: [ImageSession],
+        appSettings: AppSettings? = nil
+    ) {
+        let windowSize = Self.savedWindowSize() ?? NSSize(width: 900, height: 700)
+
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: windowSize),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        let fileName = sessions.first?.imageURL.deletingPathExtension().lastPathComponent ?? "PDF"
+        let pageCount = sessions.count
+        window.title = pageCount > 1
+            ? "Annotate — \(fileName).pdf (\(pageCount) pages)"
+            : "Annotate — \(fileName).pdf"
+        window.minSize = NSSize(width: 600, height: 500)
+        window.isReleasedWhenClosed = false
+
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+
+        let toolbar = NSToolbar(identifier: "EditorToolbar")
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+
+        window.isOpaque = false
+        window.backgroundColor = .clear
+
+        NSWindow.removeFrame(usingName: "EditorWindow")
+        if let lastWindow = Self.openEditors.compactMap({ $0.window }).last {
+            let cascaded = window.cascadeTopLeft(from: NSPoint(
+                x: lastWindow.frame.minX,
+                y: lastWindow.frame.maxY
+            ))
+            window.cascadeTopLeft(from: cascaded)
+        } else {
+            window.center()
+        }
+
+        super.init(window: window)
+        window.delegate = self
+
+        let editorView = EditorView(
+            sessions: sessions,
+            appSettings: appSettings
+        ) { [weak self] in
+            self?.close()
+        }
+        let hostingView = NSHostingView(rootView: editorView)
+        hostingView.sizingOptions = []
+        window.contentView = hostingView
+    }
+
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")

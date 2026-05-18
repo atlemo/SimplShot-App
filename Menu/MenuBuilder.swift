@@ -669,19 +669,30 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     @objc func openFileAction() {
         let panel = NSOpenPanel()
-        panel.title = "Open Image"
+        panel.title = "Open File"
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff, .gif, .bmp]
+        panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff, .gif, .bmp, .pdf]
 
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
 
-        EditorWindowController.openEditor(
-            imageURLs: panel.urls,
-            template: appSettings.defaultCaptureTemplate,
-            appSettings: appSettings
-        )
+        let imageURLs = panel.urls.filter { $0.pathExtension.lowercased() != "pdf" }
+        let pdfURLs = panel.urls.filter { $0.pathExtension.lowercased() == "pdf" }
+
+        if !imageURLs.isEmpty {
+            EditorWindowController.openEditor(
+                imageURLs: imageURLs,
+                template: appSettings.defaultCaptureTemplate,
+                appSettings: appSettings
+            )
+        }
+
+        for pdfURL in pdfURLs {
+            let sessions = PDFService.loadPages(from: pdfURL)
+            guard !sessions.isEmpty else { continue }
+            EditorWindowController.openEditor(sessions: sessions, appSettings: appSettings)
+        }
     }
 
     @objc func openScreenshotsFolderAction() {

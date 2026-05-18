@@ -41,6 +41,11 @@ struct EditorView: View {
         activeSession?.imageURL ?? imageURLs[0]
     }
 
+    /// True when the active session is a PDF page — hides template/background UI.
+    private var isPDFSession: Bool {
+        activeSession?.isPDF ?? false
+    }
+
     @State private var image: NSImage?
     @State private var rawImage: NSImage?
     @State private var currentDisplayCGImage: CGImage?
@@ -150,6 +155,25 @@ struct EditorView: View {
             preferOriginalAspectRatio ? nil : appSettings?.selectedRatioID
         )
 #endif
+    }
+
+    init(
+        sessions: [ImageSession],
+        appSettings: AppSettings? = nil,
+        onDismiss: @escaping () -> Void = {}
+    ) {
+        precondition(!sessions.isEmpty, "EditorView requires at least one session")
+        self.imageURLs = sessions.map { $0.imageURL }
+        self.template = appSettings?.defaultCaptureTemplate ?? .default
+        self.appSettings = appSettings
+        self.preferOriginalAspectRatio = false
+        self.onDismiss = onDismiss
+
+        _sessions = State(initialValue: sessions)
+        _activeSessionID = State(initialValue: sessions.first?.id)
+        _editorMode = State(initialValue: .annotate)
+        _columnVisibility = State(initialValue: .all)
+        _watermarkSettings = State(initialValue: WatermarkSettings())
     }
 
     private var showProSidebar: Bool { columnVisibility != .detailOnly }
@@ -403,7 +427,7 @@ struct EditorView: View {
             // [Mode Toggle] — Annotate | Edit | View. Sidebar visibility is driven
             // by the mode (View hides it), so no separate panel-toggle button is needed.
             ToolbarItem(placement: .automatic) {
-                EditorModeToggle(editorMode: $editorMode)
+                EditorModeToggle(editorMode: $editorMode, isPDFSession: isPDFSession)
             }
 
             // [flexible spacer] — pins Undo & Done to far right
@@ -461,7 +485,7 @@ struct EditorView: View {
                 set: { appSettings?.selectedEditorTemplateID = $0 }
             ),
             hasUnsavedTemplateChanges: hasUnsavedTemplateChanges,
-            hasTemplate: true,
+            hasTemplate: !isPDFSession,
             customBackgroundImages: appSettings?.customBackgroundImages ?? [],
             onAddCustomImage: addCustomBackgroundImage,
             onRemoveCustomImage: removeCustomBackgroundImage,
@@ -500,6 +524,7 @@ struct EditorView: View {
                                     scale: effectiveScale,
                                     displayBackingScale: displayBackingScale,
                                     editorMode: editorMode,
+                                    pdfPageSource: activeSession?.pdfPageSource,
                                     shadowIntensity: 0,
                                     showBorderOutline: selectedWallpaper == nil,
                                     annotations: $annotations,
@@ -813,6 +838,19 @@ struct EditorView: View {
     }
 
     private func loadImage() {
+        if let pdfSource = activeSession?.pdfPageSource {
+            guard let cgImage = pdfSource.renderPage(backingScale: displayBackingScale) else { return }
+            let size = NSSize(width: cgImage.width, height: cgImage.height)
+            let nsImage = NSImage(size: size)
+            nsImage.addRepresentation(NSBitmapImageRep(cgImage: cgImage))
+            rawImage = nsImage
+            screenshotCropRect = CGRect(x: 0, y: 0,
+                                        width: CGFloat(cgImage.width), height: CGFloat(cgImage.height))
+            applyDisplayImage(from: nsImage)
+            saveActiveSessionState()
+            return
+        }
+
         guard let nsImage = NSImage(contentsOf: imageURL) else { return }
         rawImage = nsImage
         if let cg = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
@@ -851,7 +889,7 @@ struct EditorView: View {
         }
 
         var displayCG = croppedCG
-        if let wallpaper = selectedWallpaper {
+        if let wallpaper = selectedWallpaper, !isPDFSession {
             // Build a template with the current editor slider values and selected wallpaper,
             // applied to the already-cropped screenshot (never the raw+wallpaper composite).
             var editorTemplate = template
@@ -1330,6 +1368,31 @@ struct EditorView: View {
             let blockedModifiers: NSEvent.ModifierFlags = [.command, .option, .control]
             let hasBlockedModifier = !event.modifierFlags.intersection(blockedModifiers).isEmpty
 
+            // Cmd+1/2/3 → switch editor mode by visible segment position.
+            // For PDFs the Edit segment is hidden, so Cmd+2 = View and Cmd+3 unbound.
+            let isCmdOnly = event.modifierFlags
+                .intersection([.command, .option, .control, .shift]) == [.command]
+            if isCmdOnly,
+               let win = hostingWindow,
+               event.window === win,
+               event.keyCode == 18 || event.keyCode == 19 || event.keyCode == 20 {
+                let modes: [EditorMode] = isPDFSession ? [.annotate, .view] : [.annotate, .edit, .view]
+                let index: Int
+                switch event.keyCode {
+                case 18: index = 0
+                case 19: index = 1
+                case 20: index = 2
+                default: index = -1
+                }
+                if index >= 0 && index < modes.count {
+                    editorMode = modes[index]
+                    return nil
+                }
+                // Out of range (e.g. Cmd+3 in PDF mode) — swallow rather than passing through
+                // so it can't fall into some other shortcut.
+                return nil
+            }
+
             // Backspace (51) or forward-delete (117) → delete selected annotation.
             if event.keyCode == 51 || event.keyCode == 117 {
                 if hasBlockedModifier { return event }
@@ -1562,6 +1625,10 @@ struct EditorView: View {
         saveActiveSessionState()
         activeSessionID = id
         restoreSessionState(from: target)
+        // Edit mode (photo adjustments) doesn't apply to PDFs — snap to Annotate.
+        if target.isPDF && editorMode == .edit {
+            editorMode = .annotate
+        }
         if target.image == nil {
             loadImage()
         } else {
@@ -1583,6 +1650,9 @@ struct EditorView: View {
             activeSessionID = nextID
             if let target = sessions.first(where: { $0.id == nextID }) {
                 restoreSessionState(from: target)
+                if target.isPDF && editorMode == .edit {
+                    editorMode = .annotate
+                }
                 if target.image == nil {
                     loadImage()
                 } else {
@@ -1669,15 +1739,26 @@ struct EditorView: View {
 
     private func saveOverwrite() {
         do {
-            // Sync live @State into the active session, then write every session
-            // (including the active one) from its stored state — a single path.
             saveActiveSessionState()
+
+            // Group PDF sessions by their shared pdfGroupID and export each group
+            // as a single multi-page PDF. Non-PDF sessions export individually.
+            var handledPDFGroups: Set<UUID> = []
             for session in sessions {
-                try writeSession(session, to: session.imageURL)
+                if let groupID = session.pdfGroupID {
+                    guard !handledPDFGroups.contains(groupID) else { continue }
+                    handledPDFGroups.insert(groupID)
+                    let groupSessions = sessions.filter { $0.pdfGroupID == groupID }
+                    try PDFExportService.exportPDF(
+                        sessions: groupSessions,
+                        backingScale: displayBackingScale,
+                        to: session.imageURL
+                    )
+                } else {
+                    try writeSession(session, to: session.imageURL)
+                }
             }
-            // Only copy to clipboard for single-image sessions — the clipboard can
-            // only hold one image at a time, so picking one arbitrarily would be
-            // confusing in a multi-image save.
+
             if sessions.count == 1 {
                 copyToClipboardSilent()
             }
@@ -1744,24 +1825,41 @@ struct EditorView: View {
 
     private func saveAs() {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = imageURL.lastPathComponent
-        let ext = imageURL.pathExtension.lowercased()
-        let contentType: UTType
-        switch ext {
-        case "png":  contentType = .png
-        case "heic": contentType = .heic
-        #if !APPSTORE
-        case "webp": contentType = .webP
-        #endif
-        default:     contentType = .jpeg
+
+        if isPDFSession {
+            let pdfName = imageURL.deletingPathExtension().lastPathComponent + ".pdf"
+            panel.nameFieldStringValue = pdfName
+            panel.allowedContentTypes = [.pdf]
+        } else {
+            panel.nameFieldStringValue = imageURL.lastPathComponent
+            let ext = imageURL.pathExtension.lowercased()
+            let contentType: UTType
+            switch ext {
+            case "png":  contentType = .png
+            case "heic": contentType = .heic
+            #if !APPSTORE
+            case "webp": contentType = .webP
+            #endif
+            default:     contentType = .jpeg
+            }
+            panel.allowedContentTypes = [contentType]
         }
-        panel.allowedContentTypes = [contentType]
         panel.canCreateDirectories = true
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
-            try exportAndSave(to: url)
+            if isPDFSession, let groupID = activeSession?.pdfGroupID {
+                saveActiveSessionState()
+                let groupSessions = sessions.filter { $0.pdfGroupID == groupID }
+                try PDFExportService.exportPDF(
+                    sessions: groupSessions,
+                    backingScale: displayBackingScale,
+                    to: url
+                )
+            } else {
+                try exportAndSave(to: url)
+            }
             requestReviewIfEligible()
             onDismiss()
         } catch {

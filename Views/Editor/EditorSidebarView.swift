@@ -105,9 +105,13 @@ struct EditorSidebarView: View {
     ]
 
     // .rectangle acts as the shapes-group representative (circle/triangle/star are in the shapes picker).
-    private let drawingTools: [AnnotationTool] = [
-        .select, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep, .measurement, .pixelate, .spotlight, .crop
-    ]
+    // For PDF sessions, pixelate is omitted: PDFs export as vector and pixelate would force rasterization.
+    private var drawingTools: [AnnotationTool] {
+        let base: [AnnotationTool] = [
+            .select, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep, .measurement, .pixelate, .spotlight, .crop
+        ]
+        return hasTemplate ? base : base.filter { $0 != .pixelate }
+    }
 
     private let stylingTools: [AnnotationTool] = [
         .arrow, .freeDraw, .measurement, .rectangle, .circle, .triangle, .star, .line, .text, .numberedStep
@@ -197,9 +201,9 @@ struct EditorSidebarView: View {
                             resizeImageSection
                             #endif
                             sectionDivider
-                            watermarkSection
-                            sectionDivider
                         }
+                        watermarkSection
+                        sectionDivider
                     }
                     .padding(.bottom, 16)
                 }

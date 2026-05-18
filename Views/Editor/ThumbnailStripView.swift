@@ -48,27 +48,41 @@ private struct ThumbnailItem: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Group {
-                if let thumb = session.thumbnail {
-                    Image(nsImage: thumb)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } else {
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.2))
+            ZStack(alignment: .bottomTrailing) {
+                Group {
+                    if let thumb = session.thumbnail {
+                        Image(nsImage: thumb)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } else {
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.2))
+                    }
+                }
+                .frame(width: 74, height: 74)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isSelected ? Color.accentColor : Color.white.opacity(0.3),
+                                lineWidth: isSelected ? 3 : 1)
+                )
+                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+
+                if let pageIndex = session.pdfPageSource?.pageIndex {
+                    Text("\(pageIndex + 1)")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(.black.opacity(0.6)))
+                        .padding(3)
                 }
             }
-            .frame(width: 74, height: 74)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(isSelected ? Color.accentColor : Color.white.opacity(0.3),
-                            lineWidth: isSelected ? 3 : 1)
-            )
-            .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
             .contentShape(Rectangle())
             .onTapGesture { onSelect() }
-            .accessibilityLabel(session.imageURL.lastPathComponent)
+            .accessibilityLabel(session.isPDF
+                ? "Page \((session.pdfPageSource?.pageIndex ?? 0) + 1)"
+                : session.imageURL.lastPathComponent)
             .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : [.isButton])
 
             Button(action: onRemove) {

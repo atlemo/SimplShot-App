@@ -31,17 +31,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         let imageTypes: Set<String> = ["png", "jpg", "jpeg", "heic", "tiff", "tif", "gif", "bmp", "webp"]
         let imageURLs = urls.filter { imageTypes.contains($0.pathExtension.lowercased()) }
-        guard !imageURLs.isEmpty else { return }
-        // Files opened from Finder use the user's "default mode on open" preference,
-        // resolving "Last Used" to the most recently active editor mode.
-        let initialMode = appSettings.defaultEditorModeOnOpen.resolve(
-            lastUsed: appSettings.lastUsedEditorMode
-        )
-        EditorWindowController.openEditor(
-            imageURLs: imageURLs,
-            appSettings: appSettings,
-            initialMode: initialMode
-        )
+        let pdfURLs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
+
+        if !imageURLs.isEmpty {
+            let initialMode = appSettings.defaultEditorModeOnOpen.resolve(
+                lastUsed: appSettings.lastUsedEditorMode
+            )
+            EditorWindowController.openEditor(
+                imageURLs: imageURLs,
+                appSettings: appSettings,
+                initialMode: initialMode
+            )
+        }
+
+        for pdfURL in pdfURLs {
+            let sessions = PDFService.loadPages(from: pdfURL)
+            guard !sessions.isEmpty else { continue }
+            EditorWindowController.openEditor(sessions: sessions, appSettings: appSettings)
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

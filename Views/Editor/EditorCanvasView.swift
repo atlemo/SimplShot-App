@@ -1,4 +1,5 @@
 import SwiftUI
+import PDFKit
 
 // MARK: - Drag Mode
 
@@ -30,6 +31,10 @@ struct EditorCanvasView: View {
     let displayBackingScale: CGFloat  // monitor backing scale for true 1x measurements
     /// The active editor mode. Annotation interaction is gated to `.annotate` only.
     var editorMode: EditorMode = .annotate
+    /// When set, the base layer renders the PDF page as vector content instead
+    /// of a raster `Image(nsImage:)`. The `image` property is still used as
+    /// `sourceImage` for pixelate annotations.
+    var pdfPageSource: PDFPageSource? = nil
     var shadowIntensity: Double = 0 // drop shadow opacity (0 = none, 1 = full)
     var showBorderOutline: Bool = false
 
@@ -78,28 +83,37 @@ struct EditorCanvasView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             // Base image + gesture layer combined (so gestures don't block other views)
-            Image(nsImage: image)
-                .resizable()
-                .interpolation(.high)
-                .frame(width: canvasWidth, height: canvasHeight)
-                .shadow(color: .black.opacity(0.5 * shadowIntensity), radius: 60 * shadowIntensity, x: 0, y: 28 * shadowIntensity)
-                .overlay(
-                    showBorderOutline
-                        ? RoundedRectangle(cornerRadius: 0).stroke(Color.primary.opacity(0.15), lineWidth: 1)
-                        : nil
-                )
-                .contentShape(Rectangle())
-                // Annotation gestures are active only in Annotate mode.
-                // In Edit and View modes the canvas is non-interactive for drawing.
-                .gesture(editorMode == .annotate ? canvasGesture : nil)
-                .onTapGesture(count: 2) { location in
-                    guard editorMode == .annotate else { return }
-                    handleDoubleTap(at: location)
+            Group {
+                if let pdfSource = pdfPageSource,
+                   let page = pdfSource.document.page(at: pdfSource.pageIndex) {
+                    PDFPageView(page: page, pointSize: CGSize(
+                        width: imagePixelSize.width / displayBackingScale,
+                        height: imagePixelSize.height / displayBackingScale
+                    ))
+                    .frame(width: canvasWidth, height: canvasHeight)
+                } else {
+                    Image(nsImage: image)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: canvasWidth, height: canvasHeight)
                 }
-                .onTapGesture { location in
-                    guard editorMode == .annotate else { return }
-                    handleTap(at: location)
-                }
+            }
+            .shadow(color: .black.opacity(0.5 * shadowIntensity), radius: 60 * shadowIntensity, x: 0, y: 28 * shadowIntensity)
+            .overlay(
+                showBorderOutline
+                    ? RoundedRectangle(cornerRadius: 0).stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                    : nil
+            )
+            .contentShape(Rectangle())
+            .gesture(editorMode == .annotate ? canvasGesture : nil)
+            .onTapGesture(count: 2) { location in
+                guard editorMode == .annotate else { return }
+                handleDoubleTap(at: location)
+            }
+            .onTapGesture { location in
+                guard editorMode == .annotate else { return }
+                handleTap(at: location)
+            }
 
             // Committed annotations — isolated into a subview so it doesn't
             // re-evaluate on every drag tick (draggingAnnotation changes every frame,
@@ -757,6 +771,62 @@ struct EditorCanvasView: View {
         NSEvent.modifierFlags.contains(.shift)
     }
 
+}
+
+// MARK: - PDF Page View (Vector Rendering)
+
+/// Draws a `PDFPage` directly via Core Graphics so vector content stays sharp
+/// at any zoom level. The view re-renders on every resize/display change.
+private struct PDFPageView: NSViewRepresentable {
+    let page: PDFPage
+    let pointSize: CGSize
+
+    func makeNSView(context: Context) -> _PDFPageNSView {
+        let v = _PDFPageNSView()
+        v.page = page
+        v.pdfPointSize = pointSize
+        return v
+    }
+
+    func updateNSView(_ v: _PDFPageNSView, context: Context) {
+        v.page = page
+        v.pdfPointSize = pointSize
+        v.needsDisplay = true
+    }
+}
+
+/// Backing NSView that draws a single PDF page into the current graphics
+/// context. Because `draw(_:)` runs inside the window's display cycle,
+/// the page is rasterized at the *current* backing-scale × view-transform,
+/// keeping text and line art sharp regardless of zoom.
+final class _PDFPageNSView: NSView {
+    var page: PDFPage?
+    var pdfPointSize: CGSize = .zero
+
+    override var isFlipped: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let page, let ctx = NSGraphicsContext.current?.cgContext else { return }
+        let bounds = self.bounds
+
+        ctx.saveGState()
+        ctx.setFillColor(CGColor.white)
+        ctx.fill(bounds)
+
+        // PDFPage.draw uses CG's default bottom-left origin. Because this
+        // view is flipped (isFlipped = true), we need to undo the flip
+        // before calling draw, then restore.
+        ctx.translateBy(x: 0, y: bounds.height)
+        ctx.scaleBy(x: 1, y: -1)
+
+        // Scale from PDF points to the view's current bounds
+        let sx = bounds.width / pdfPointSize.width
+        let sy = bounds.height / pdfPointSize.height
+        ctx.scaleBy(x: sx, y: sy)
+
+        page.draw(with: .mediaBox, to: ctx)
+        ctx.restoreGState()
+    }
 }
 
 // MARK: - Growing Text Field

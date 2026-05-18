@@ -160,6 +160,81 @@ class AnnotationRenderer {
         return fullImage
     }
 
+    /// Draws annotations and watermark directly into an existing CGContext (e.g. a
+    /// PDF context) without rasterizing. Used for vector PDF export.
+    ///
+    /// Coordinate system: annotations are stored in image-pixel space (the dimensions
+    /// of the PDF page rendered at `backingScale`). The context is expected to be in
+    /// its native bottom-left orientation with units matching `contextSize` (typically
+    /// PDF points). This method applies the same coordinate flip used by `render()`
+    /// and then scales by `1/backingScale` so pixel-space drawing maps to point-space
+    /// output, keeping `strokeWidth`/`fontSize` correctly sized.
+    ///
+    /// Pixelate annotations are skipped — they fundamentally require a raster source.
+    func drawAnnotationsVector(
+        annotations: [Annotation],
+        into context: CGContext,
+        contextSize: CGSize,
+        backingScale: CGFloat,
+        watermark: WatermarkSettings = WatermarkSettings()
+    ) {
+        let widthPx = Int((contextSize.width * backingScale).rounded())
+        let heightPx = Int((contextSize.height * backingScale).rounded())
+
+        context.saveGState()
+        // Flip to top-left origin to match the annotation coordinate convention.
+        context.translateBy(x: 0, y: contextSize.height)
+        context.scaleBy(x: 1, y: -1)
+        // Map pixel-space coordinates into point-space output.
+        context.scaleBy(x: 1.0 / backingScale, y: 1.0 / backingScale)
+
+        let spotlightAnnotations = annotations.filter { $0.tool == .spotlight }
+        if !spotlightAnnotations.isEmpty {
+            drawSpotlights(
+                spotlightAnnotations,
+                imageWidth: widthPx,
+                imageHeight: heightPx,
+                backingScale: backingScale,
+                in: context
+            )
+        }
+
+        for annotation in annotations {
+            if annotation.tool == .spotlight { continue }
+            if annotation.tool == .pixelate { continue }  // unsupported in vector mode
+            drawAnnotation(annotation, backingScale: backingScale, in: context)
+        }
+
+        if watermark.isEnabled, let path = watermark.imagePath,
+           let nsImage = NSImage(contentsOfFile: path), nsImage.isValid {
+            let marginH = CGFloat(widthPx) * 0.02
+            let marginV = CGFloat(heightPx) * 0.02
+            let targetW = max(1, CGFloat(watermark.widthPx) * backingScale)
+            let rawSize = nsImage.size
+            let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
+            let targetH = max(1, targetW / aspect)
+
+            if let wmCG = rasterize(nsImage, size: CGSize(width: targetW, height: targetH)) {
+                let x: CGFloat
+                let y: CGFloat
+                switch watermark.position {
+                case .topLeft:     x = marginH;                              y = marginV
+                case .topRight:    x = CGFloat(widthPx) - targetW - marginH; y = marginV
+                case .bottomLeft:  x = marginH;                              y = CGFloat(heightPx) - targetH - marginV
+                case .bottomRight: x = CGFloat(widthPx) - targetW - marginH; y = CGFloat(heightPx) - targetH - marginV
+                }
+                context.saveGState()
+                context.setAlpha(CGFloat(watermark.opacity))
+                context.translateBy(x: x, y: y + targetH)
+                context.scaleBy(x: 1, y: -1)
+                context.draw(wmCG, in: CGRect(x: 0, y: 0, width: targetW, height: targetH))
+                context.restoreGState()
+            }
+        }
+
+        context.restoreGState()
+    }
+
     // MARK: - Individual Annotation Drawing
 
     private func drawAnnotation(_ annotation: Annotation, backingScale: CGFloat, in context: CGContext) {
