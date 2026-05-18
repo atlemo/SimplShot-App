@@ -211,7 +211,8 @@ struct Annotation: Identifiable, Equatable {
 // MARK: - Undo Support
 
 /// Snapshot of the editor state for undo/redo.
-/// Captures annotations, the rendered display image, and the non-destructive crop rect.
+/// Captures annotations, the rendered display image, the non-destructive crop rect,
+/// and any photo adjustments so they can be reverted together.
 struct EditorSnapshot {
     let annotations: [Annotation]
     let image: NSImage?
@@ -221,6 +222,8 @@ struct EditorSnapshot {
     let cropRect: CGRect?
     /// The current crop in raw screenshot pixel space (non-destructive crop state).
     let screenshotCropRect: CGRect?
+    /// Photo adjustments at the time of the snapshot (exposure, contrast, etc.).
+    let photoAdjustments: PhotoAdjustments
 
     init(
         annotations: [Annotation],
@@ -229,7 +232,8 @@ struct EditorSnapshot {
         selectedWallpaper: WallpaperSource? = nil,
         imagePixelSize: CGSize = .zero,
         cropRect: CGRect? = nil,
-        screenshotCropRect: CGRect? = nil
+        screenshotCropRect: CGRect? = nil,
+        photoAdjustments: PhotoAdjustments = .default
     ) {
         self.annotations = annotations
         self.image = image
@@ -238,5 +242,6 @@ struct EditorSnapshot {
         self.imagePixelSize = imagePixelSize
         self.cropRect = cropRect
         self.screenshotCropRect = screenshotCropRect
+        self.photoAdjustments = photoAdjustments
     }
 }

@@ -1,11 +1,18 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The pro-mode sidebar panel shown when the user toggles the sidebar button.
-/// Replaces the compact floating toolbar with grouped, labeled sections.
+/// The sidebar panel that adapts its content to the current `EditorMode`.
+/// • Annotate — full annotation tools, template, background, shadows, watermark.
+/// • Edit      — photo adjustment sliders + crop shortcut via `PhotoEditSidebarSection`.
+/// • View      — hidden at the parent level; this view is never instantiated.
 struct EditorSidebarView: View {
 
     // MARK: - Bindings from EditorView
+
+    /// The active editor mode. Controls which sidebar content is shown.
+    @Binding var editorMode: EditorMode
+    /// Photo adjustments used in Edit mode.
+    @Binding var photoAdjustments: PhotoAdjustments
 
     @Binding var showProSidebar: Bool
     @Binding var currentTool: AnnotationTool
@@ -38,6 +45,8 @@ struct EditorSidebarView: View {
     var canUndo: Bool
     var onApplyCrop: () -> Void
     var onCancelCrop: () -> Void
+    /// Called in Edit mode when the user taps the Crop button — enters crop mode.
+    var onEnterCrop: () -> Void = {}
     var onUndo: () -> Void
     var onDone: () -> Void
 
@@ -131,6 +140,35 @@ struct EditorSidebarView: View {
     // MARK: - Body
 
     var body: some View {
+        // ZStack with directional transitions produces a cross-slide between modes:
+        // the outgoing panel slides out one side while the incoming panel slides in
+        // from the other, so there's no empty gap in the layout during the swap.
+        // .clipped() prevents the in-flight views from drawing outside the sidebar bounds.
+        ZStack {
+            if editorMode == .edit {
+                // Photo adjustment sliders + crop shortcut
+                PhotoEditSidebarSection(
+                    adjustments: $photoAdjustments,
+                    isCropping: isCropping,
+                    onEnterCrop: onEnterCrop,
+                    onApplyCrop: onApplyCrop,
+                    onCancelCrop: onCancelCrop
+                )
+                // Edit slides in from / out to the right edge.
+                .transition(.move(edge: .trailing))
+            } else {
+                // Annotate mode (View mode is hidden at the EditorView level — this is a
+                // safe fallback). Annotate slides in from / out to the left edge.
+                annotateContent
+                    .transition(.move(edge: .leading))
+            }
+        }
+        .clipped()
+        .animation(.easeInOut(duration: 0.25), value: editorMode)
+    }
+
+    /// The annotation-mode sidebar content (full tool palette + template controls).
+    private var annotateContent: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
                 Color.clear
@@ -1800,15 +1838,4 @@ struct BackgroundGridView: View, Equatable {
     }
 }
 
-
-// MARK: - BuiltInGradient SwiftUI helpers (sidebar)
-
-private extension BuiltInGradient {
-    var swiftUIGradient: LinearGradient {
-        let def = gradientDefinition
-        let colors = def.colors.map {
-            Color(red: $0.red, green: $0.green, blue: $0.blue, opacity: $0.alpha)
-        }
-        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-}
+// Note: BuiltInGradient.swiftUIGradient is defined in ToolbarView.swift (shared extension).

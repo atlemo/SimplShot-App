@@ -1,38 +1,24 @@
 import SwiftUI
 
-/// Bottom toolbar for the editor with image adjustment sliders and file action buttons.
+/// Bottom toolbar for the editor with file action buttons (Trash, Cancel, Save As).
+/// Template sliders (aspect ratio, padding, corner radius) live in the sidebar now.
 struct EditorBottomToolbarView: View {
     private let pillHeight: CGFloat = 36
 
-    let aspectRatios: [AspectRatio]
-    @Binding var selectedAspectRatioID: UUID?
-    @Binding var padding: Int
-    @Binding var cornerRadius: Int
-    var useTemplateBackground: Bool
-    var hideSliders: Bool = false
-
     var onTrash: () -> Void
+    /// Discards all unsaved edits and closes the editor without writing to disk.
+    var onCancel: () -> Void
     var onSaveAs: () -> Void
 
-    /// When true (DEBUG only), forces the pre-macOS 26 material fallback so you can
-    /// preview the Sonoma-era appearance without leaving your Mac.
-    @AppStorage("debugSimulateSonomaAppearance") private var simulateSonoma = false
-
-    /// True when the actual glass rendering path should be used.
+    /// True when the macOS 26+ glass rendering path is available.
     private var useGlass: Bool {
-        guard #available(macOS 26, *) else { return false }
-        return !simulateSonoma
+        if #available(macOS 26, *) { return true }
+        return false
     }
 
     var body: some View {
         glassContainer {
             HStack(spacing: 8) {
-                // Sliders pill (left) — only when template background is active and not in pro sidebar mode
-                if useTemplateBackground && !hideSliders {
-                    sliders
-                        .pillBackground(useGlass: useGlass)
-                }
-
                 Spacer()
 
                 // Action buttons pill (right)
@@ -45,70 +31,14 @@ struct EditorBottomToolbarView: View {
         .background(.clear)
     }
 
-    /// Wraps content in GlassEffectContainer on macOS 26+; plain passthrough on older OS.
+    /// Wraps content in GlassEffectContainer when glass is active; plain passthrough otherwise.
     @ViewBuilder
     private func glassContainer<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        if #available(macOS 26, *), !simulateSonoma {
+        if #available(macOS 26, *), useGlass {
             GlassEffectContainer(spacing: 8) { content() }
         } else {
             content()
         }
-    }
-
-    // MARK: - Sliders
-
-    private var sliders: some View {
-        HStack(spacing: 12) {
-            // Aspect ratio selector
-            HStack(spacing: 6) {
-                Image(systemName: "aspectratio")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .help("Aspect Ratio")
-                Picker("", selection: $selectedAspectRatioID) {
-                    Text("Original")
-                        .tag(Optional<UUID>.none)
-                    ForEach(aspectRatios) { ratio in
-                        Text(ratio.label)
-                            .tag(Optional(ratio.id))
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 96)
-            }
-
-            Divider().frame(height: 16)
-
-            // Padding slider
-            HStack(spacing: 6) {
-                Image(systemName: "inset.filled.center.rectangle")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .help("Padding")
-                Slider(value: paddingBinding, in: 20...200)
-                    .frame(width: 100)
-                Text("\(padding)px")
-                    .font(.system(size: 11, design: .monospaced))
-                    .frame(width: 42, alignment: .trailing)
-            }
-
-            Divider().frame(height: 16)
-
-            // Corner radius slider
-            HStack(spacing: 6) {
-                Image(systemName: "rectangle.roundedtop")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .help("Corner Radius")
-                Slider(value: cornerRadiusBinding, in: 0...50)
-                    .frame(width: 100)
-                Text("\(cornerRadius)px")
-                    .font(.system(size: 11, design: .monospaced))
-                    .frame(width: 42, alignment: .trailing)
-            }
-        }
-        .frame(height: pillHeight)
-        .padding(.horizontal, 12)
     }
 
     // MARK: - Action Buttons
@@ -126,6 +56,18 @@ struct EditorBottomToolbarView: View {
                 .frame(height: 16)
                 .padding(.horizontal, 2)
 
+            Button(action: onCancel) {
+                Text("Cancel")
+                    .padding(.horizontal, 6)
+                    .frame(height: pillHeight)
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .help("Discard all edits and close")
+
+            Divider()
+                .frame(height: 16)
+                .padding(.horizontal, 2)
+
             Button(action: onSaveAs) {
                 Text("Save As\u{2026}")
                     .padding(.horizontal, 6)
@@ -137,22 +79,6 @@ struct EditorBottomToolbarView: View {
         .buttonStyle(.plain)
         .frame(height: pillHeight)
         .padding(.horizontal, 8)
-    }
-
-    // MARK: - Bindings
-
-    private var paddingBinding: Binding<Double> {
-        Binding(
-            get: { Double(padding) },
-            set: { padding = Int($0) }
-        )
-    }
-
-    private var cornerRadiusBinding: Binding<Double> {
-        Binding(
-            get: { Double(cornerRadius) },
-            set: { cornerRadius = Int($0) }
-        )
     }
 }
 

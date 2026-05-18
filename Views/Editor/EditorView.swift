@@ -83,10 +83,17 @@ struct EditorView: View {
 
     @Environment(\.requestReview) private var requestReview
 
-    // Sidebar / pro mode
+    // 3-in-1 mode state
+    /// The active editor mode. Controls which sidebar content and canvas interactions are shown.
+    /// Initialized in `init` from the explicit `initialMode` or `.annotate` as the fallback.
+    @State private var editorMode: EditorMode
+    /// Non-destructive photo adjustments applied via Core Image in the display pipeline.
+    @State private var photoAdjustments: PhotoAdjustments = .default
+    /// Shared Core Image context for photo adjustments. Created once, reused every frame.
+    @State private var ciContext: CIContext = CIContext()
+
+    // Sidebar — always Pro mode (simple floating toolbar has been removed).
     // NavigationSplitView drives sidebar visibility; showProSidebar is a derived bool.
-    // Initialized from appSettings so the layout is correct from the first frame
-    // (avoids a geometry race when NavigationSplitView animates the sidebar in).
     @State private var columnVisibility: NavigationSplitViewVisibility
     @State private var shadowIntensity: Double = 1.0
     @State private var screenshotAlignment: CanvasAlignment = .middleCenter
@@ -97,6 +104,7 @@ struct EditorView: View {
         template: ScreenshotTemplate? = nil,
         appSettings: AppSettings? = nil,
         preferOriginalAspectRatio: Bool = false,
+        initialMode: EditorMode? = nil,
         onDismiss: @escaping () -> Void = {}
     ) {
         self.init(
@@ -104,6 +112,7 @@ struct EditorView: View {
             template: template,
             appSettings: appSettings,
             preferOriginalAspectRatio: preferOriginalAspectRatio,
+            initialMode: initialMode,
             onDismiss: onDismiss
         )
     }
@@ -113,6 +122,7 @@ struct EditorView: View {
         template: ScreenshotTemplate? = nil,
         appSettings: AppSettings? = nil,
         preferOriginalAspectRatio: Bool = false,
+        initialMode: EditorMode? = nil,
         onDismiss: @escaping () -> Void = {}
     ) {
         precondition(!imageURLs.isEmpty, "EditorView requires at least one image URL")
@@ -127,9 +137,13 @@ struct EditorView: View {
         _sessions = State(initialValue: newSessions)
         _activeSessionID = State(initialValue: newSessions.first?.id)
 
-        _columnVisibility = State(initialValue:
-            appSettings?.editorShowProSidebar == true ? .all : .detailOnly
-        )
+        // Resolve the starting editor mode: explicit caller override > Annotate default.
+        // Callers that go through the user's preference (e.g. AppDelegate when opening
+        // from Finder) resolve the setting themselves and pass the concrete mode in.
+        _editorMode = State(initialValue: initialMode ?? .annotate)
+
+        // Always start with the sidebar shown — simple mode has been removed.
+        _columnVisibility = State(initialValue: .all)
         _watermarkSettings = State(initialValue: resolvedTemplate.watermarkSettings)
 #if !APPSTORE
         _editorAspectRatioID = State(initialValue:
@@ -296,6 +310,12 @@ struct EditorView: View {
                 applyDisplayImage(from: rawImage)
             }
         }
+        .onChange(of: photoAdjustments) { _, _ in
+            guard !isRestoringSession else { return }
+            if let rawImage {
+                applyDisplayImage(from: rawImage)
+            }
+        }
     }
 
     private var bodyWithObservers: some View {
@@ -313,6 +333,10 @@ struct EditorView: View {
         .onChange(of: columnVisibility) { _, newValue in
             appSettings?.editorShowProSidebar = (newValue != .detailOnly)
         }
+        .onChange(of: editorMode) { _, newMode in
+            // Persist the last-used mode so the "Last Used" default-on-open option works.
+            appSettings?.lastUsedEditorMode = newMode
+        }
         .onChange(of: imagePixelSize) { _, _ in
             updateFitScale(viewSize: lastViewSize)
         }
@@ -329,6 +353,7 @@ struct EditorView: View {
             }
         }
         .onChange(of: selectedAnnotationID) { _, newID in
+            guard !isRestoringSession else { return }
             if let id = newID,
                let ann = annotations.first(where: { $0.id == id }) {
                 currentStyle = ann.style
@@ -343,7 +368,7 @@ struct EditorView: View {
                   let id = newValue,
                   let template = appSettings.editorTemplates.first(where: { $0.id == id })
             else { return }
-            applyEditorTemplate(template)
+            applyTemplateToAllSessions(template)
         }
         .alert("Delete Screenshot?", isPresented: $showTrashAlert) {
             Button("Delete", role: .destructive) {
@@ -359,52 +384,29 @@ struct EditorView: View {
 
     private var navigationContent: some View {
         HStack(spacing: 0) {
-            if showProSidebar {
+            // Sidebar is hidden in View mode; can be collapsed via toggle in Annotate/Edit.
+            if editorMode != .view && showProSidebar {
                 sidebarContent
                     .transition(.move(edge: .leading))
             }
             detailContent
         }
         // Scoped animation: only animates the sidebar's insertion/removal transition.
-        // Using .animation on the whole HStack could add overhead to every child view
-        // change within the animation environment (including the canvas during drag).
         .animation(.easeInOut(duration: 0.2), value: showProSidebar)
+        .animation(.easeInOut(duration: 0.2), value: editorMode)
         .toolbar {
-            // [Panel Toggle Button]
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    columnVisibility = showProSidebar ? .detailOnly : .all
-                } label: {
-                    Image(systemName: "sidebar.leading")
-                }
-                .help(showProSidebar ? "Hide Sidebar" : "Show Sidebar")
-            }
-
-            // [flexible spacer] — always present, keeps tools centered
+            // [flexible spacer] — keeps mode toggle centred
             ToolbarItem(placement: .automatic) {
                 Spacer()
             }
 
-            // [Main toolbar with all tools] — centered by surrounding spacers
+            // [Mode Toggle] — Annotate | Edit | View. Sidebar visibility is driven
+            // by the mode (View hides it), so no separate panel-toggle button is needed.
             ToolbarItem(placement: .automatic) {
-                EditorToolbarView(
-                    showProSidebar: showProSidebar,
-                    currentTool: $currentTool,
-                    currentStyle: $currentStyle,
-                    isCropping: $isCropping,
-                    selectedAnnotationID: $selectedAnnotationID,
-                    annotations: $annotations,
-                    hasTemplate: true,
-                    selectedWallpaper: $selectedWallpaper,
-                    customBackgroundImages: appSettings?.customBackgroundImages ?? [],
-                    onAddCustomImage: addCustomBackgroundImage,
-                    onRemoveCustomImage: removeCustomBackgroundImage,
-                    onApplyCrop: applyCrop,
-                    onCancelCrop: cancelCrop
-                )
+                EditorModeToggle(editorMode: $editorMode)
             }
 
-            // [flexible spacer] — always present, pins Undo & Done to far right
+            // [flexible spacer] — pins Undo & Done to far right
             ToolbarItem(placement: .automatic) {
                 Spacer()
             }
@@ -420,10 +422,16 @@ struct EditorView: View {
                 .disabled(undoStack.isEmpty)
             }
             ToolbarItem(placement: .automatic) {
-                Button("Save & Copy", action: saveOverwrite)
+                // With multiple images the clipboard can only hold one, so we drop the
+                // "& Copy" suffix and skip the clipboard write (see saveOverwrite).
+                let isMulti = sessions.count > 1
+                Button(isMulti ? "Save All" : "Save & Copy", action: saveOverwrite)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut("s", modifiers: .command)
-                    .help("Save, close and copy the image to your clipboard")
+                    .help(isMulti
+                          ? "Save all open images and close"
+                          : "Save, close and copy the image to your clipboard")
+                    .padding(.horizontal, 6)
             }
         }
     }
@@ -432,6 +440,8 @@ struct EditorView: View {
 
     private var sidebarContent: some View {
         EditorSidebarView(
+            editorMode: $editorMode,
+            photoAdjustments: $photoAdjustments,
             showProSidebar: showProSidebarBinding,
             currentTool: $currentTool,
             currentStyle: $currentStyle,
@@ -463,6 +473,7 @@ struct EditorView: View {
             canUndo: !undoStack.isEmpty,
             onApplyCrop: applyCrop,
             onCancelCrop: cancelCrop,
+            onEnterCrop: { isCropping = true; currentTool = .crop },
             onUndo: undo,
             onDone: saveOverwrite,
             watermarkSettings: $watermarkSettings,
@@ -488,6 +499,7 @@ struct EditorView: View {
                                     imagePixelSize: imagePixelSize,
                                     scale: effectiveScale,
                                     displayBackingScale: displayBackingScale,
+                                    editorMode: editorMode,
                                     shadowIntensity: 0,
                                     showBorderOutline: selectedWallpaper == nil,
                                     annotations: $annotations,
@@ -530,13 +542,8 @@ struct EditorView: View {
             }
 
             EditorBottomToolbarView(
-                aspectRatios: editorAspectRatios,
-                selectedAspectRatioID: $editorAspectRatioID,
-                padding: $editorPadding,
-                cornerRadius: $editorCornerRadius,
-                useTemplateBackground: selectedWallpaper != nil,
-                hideSliders: showProSidebar,
                 onTrash: { showTrashAlert = true },
+                onCancel: cancelEdits,
                 onSaveAs: saveAs
             )
             .background(.clear)
@@ -676,6 +683,135 @@ struct EditorView: View {
         }
     }
 
+    /// Apply a template preset to every open image so all of them switch to the
+    /// new look at once. The active session goes through the @State path so the
+    /// existing onChange machinery (appSettings persistence, annotation shift)
+    /// fires normally; the rest are updated in place and re-rendered.
+    private func applyTemplateToAllSessions(_ template: EditorTemplatePreset) {
+        applyEditorTemplate(template)
+
+        // After the synchronous @State writes above, SwiftUI schedules onChange
+        // handlers which re-render the canvas. Once that's done, sync the
+        // freshly-rendered @State back into the active session so its thumbnail
+        // refreshes too.
+        DispatchQueue.main.async {
+            saveActiveSessionState()
+        }
+
+        for session in sessions where session.id != activeSessionID {
+            applyTemplate(template, toSession: session)
+        }
+    }
+
+    /// Apply a template's settings to a non-active session, shift its annotations
+    /// to compensate for the new template-canvas offset, and re-render its display
+    /// image if its raw image has been loaded.
+    private func applyTemplate(_ template: EditorTemplatePreset, toSession session: ImageSession) {
+        let newAspectRatioID = normalizedAspectRatioID(template.aspectRatioID)
+
+        let cropSize = session.screenshotCropRect.isEmpty
+            ? (session.rawImage?.size ?? session.imagePixelSize)
+            : session.screenshotCropRect.size
+
+        let oldRatio = editorAspectRatios.first(where: { $0.id == session.editorAspectRatioID })?.ratio
+        let newRatio = editorAspectRatios.first(where: { $0.id == newAspectRatioID })?.ratio
+
+        let oldOrigin: CGPoint = (session.selectedWallpaper != nil)
+            ? screenshotOriginInTemplatedCanvas(
+                screenshotPixelSize: cropSize,
+                padding: session.editorPadding,
+                aspectRatio: oldRatio,
+                alignment: session.screenshotAlignment)
+            : .zero
+        let newOrigin: CGPoint = (template.wallpaperSource != nil)
+            ? screenshotOriginInTemplatedCanvas(
+                screenshotPixelSize: cropSize,
+                padding: template.padding,
+                aspectRatio: newRatio,
+                alignment: template.alignment)
+            : .zero
+        let delta = CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y)
+
+        if (delta.x != 0 || delta.y != 0), !session.annotations.isEmpty {
+            session.annotations = session.annotations.map { ann in
+                var a = ann
+                a.startPoint = CGPoint(x: ann.startPoint.x + delta.x, y: ann.startPoint.y + delta.y)
+                a.endPoint = CGPoint(x: ann.endPoint.x + delta.x, y: ann.endPoint.y + delta.y)
+                if !ann.points.isEmpty {
+                    a.points = ann.points.map { CGPoint(x: $0.x + delta.x, y: $0.y + delta.y) }
+                }
+                return a
+            }
+        }
+
+        session.selectedWallpaper = template.wallpaperSource
+        session.editorPadding = template.padding
+        session.editorCornerRadius = template.cornerRadius
+        session.shadowIntensity = template.shadowIntensity
+        session.screenshotAlignment = template.alignment
+        session.editorAspectRatioID = newAspectRatioID
+        session.watermarkSettings = template.watermarkSettings
+
+        // Sessions that have never been activated have no rawImage; their new
+        // template settings will be picked up on first activation by loadImage.
+        if session.rawImage != nil {
+            renderSessionDisplay(session)
+        }
+    }
+
+    /// Mirror of `applyDisplayImage` that operates on a session instead of @State.
+    /// Updates the session's display image, derived metadata, and thumbnail.
+    private func renderSessionDisplay(_ session: ImageSession) {
+        guard let rawImg = session.rawImage,
+              let cgSource = rawImg.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return }
+
+        var croppedCG = cgSource
+        if !session.screenshotCropRect.isEmpty {
+            let fullBounds = CGRect(x: 0, y: 0,
+                                    width: CGFloat(cgSource.width), height: CGFloat(cgSource.height))
+            let clampedCrop = session.screenshotCropRect.intersection(fullBounds)
+            if !clampedCrop.isEmpty, clampedCrop != fullBounds,
+               let cropped = cgSource.cropping(to: clampedCrop) {
+                croppedCG = cropped
+            }
+        }
+
+        // Apply photo adjustments for this session (if any).
+        if !session.photoAdjustments.isDefault {
+            croppedCG = session.photoAdjustments.apply(to: croppedCG, ciContext: ciContext)
+        }
+
+        var displayCG = croppedCG
+        if let wallpaper = session.selectedWallpaper {
+            var editorTemplate = self.template
+            editorTemplate.padding = session.editorPadding
+            editorTemplate.cornerRadius = session.editorCornerRadius
+            editorTemplate.wallpaperSource = wallpaper
+            editorTemplate.watermarkSettings = WatermarkSettings()
+            let aspectRatio = editorAspectRatios.first(where: { $0.id == session.editorAspectRatioID })?.ratio
+            if let templated = try? session.templateRenderer.applyTemplate(
+                editorTemplate,
+                to: croppedCG,
+                backingScale: displayBackingScale,
+                targetAspectRatio: aspectRatio,
+                shadowIntensity: session.shadowIntensity,
+                alignment: session.screenshotAlignment
+            ) {
+                displayCG = templated
+            }
+        }
+
+        let size = CGSize(width: displayCG.width, height: displayCG.height)
+        let nsImage = NSImage(size: size)
+        nsImage.addRepresentation(NSBitmapImageRep(cgImage: displayCG))
+        session.image = nsImage
+        session.currentDisplayCGImage = displayCG
+        session.imagePixelSize = size
+        session.cropRect = CGRect(origin: .zero, size: size)
+        session.generateThumbnail(from: nsImage)
+    }
+
     private func loadImage() {
         guard let nsImage = NSImage(contentsOf: imageURL) else { return }
         rawImage = nsImage
@@ -705,6 +841,13 @@ struct EditorView: View {
                let cropped = cgSource.cropping(to: clampedCrop) {
                 croppedCG = cropped
             }
+        }
+
+        // Apply photo adjustments (non-destructive CI filter chain).
+        // Runs in Edit mode when any slider is non-default, but the result is
+        // always available for export regardless of current mode.
+        if !photoAdjustments.isDefault {
+            croppedCG = photoAdjustments.apply(to: croppedCG, ciContext: ciContext)
         }
 
         var displayCG = croppedCG
@@ -850,7 +993,8 @@ struct EditorView: View {
             selectedWallpaper: selectedWallpaper,
             imagePixelSize: imagePixelSize,
             cropRect: cropRect,
-            screenshotCropRect: screenshotCropRect
+            screenshotCropRect: screenshotCropRect,
+            photoAdjustments: photoAdjustments
         )
 
         // Remember the current crop so cancel can restore it.
@@ -1278,7 +1422,8 @@ struct EditorView: View {
             selectedWallpaper: selectedWallpaper,
             imagePixelSize: imagePixelSize,
             cropRect: cropRect,
-            screenshotCropRect: screenshotCropRect
+            screenshotCropRect: screenshotCropRect,
+            photoAdjustments: photoAdjustments
         ))
     }
 
@@ -1301,6 +1446,8 @@ struct EditorView: View {
         selectedWallpaper = snapshot.selectedWallpaper
         cropRect = snapshot.cropRect ?? CGRect(origin: .zero, size: imagePixelSize)
         selectedAnnotationID = nil
+        // Restore photo adjustments — triggers onChange which re-renders the display image.
+        photoAdjustments = snapshot.photoAdjustments
     }
 
     // MARK: - Custom Background Images
@@ -1348,8 +1495,6 @@ struct EditorView: View {
         session.screenshotCropRect = screenshotCropRect
         session.annotations = annotations
         session.selectedAnnotationID = selectedAnnotationID
-        session.currentTool = currentTool
-        session.currentStyle = currentStyle
         session.isCropping = isCropping
         session.cropRect = cropRect
         session.preCropScreenshotCropRect = preCropScreenshotCropRect
@@ -1363,6 +1508,7 @@ struct EditorView: View {
         session.shadowIntensity = shadowIntensity
         session.screenshotAlignment = screenshotAlignment
         session.watermarkSettings = watermarkSettings
+        session.photoAdjustments = photoAdjustments
         session.undoStack = undoStack
         session.templateRenderer = templateRenderer
         session.generateThumbnail()
@@ -1381,8 +1527,6 @@ struct EditorView: View {
         screenshotCropRect = session.screenshotCropRect
         annotations = session.annotations
         selectedAnnotationID = session.selectedAnnotationID
-        currentTool = session.currentTool
-        currentStyle = session.currentStyle
         isCropping = session.isCropping
         cropRect = session.cropRect
         preCropScreenshotCropRect = session.preCropScreenshotCropRect
@@ -1396,6 +1540,9 @@ struct EditorView: View {
         shadowIntensity = session.shadowIntensity
         screenshotAlignment = session.screenshotAlignment
         watermarkSettings = session.watermarkSettings
+        photoAdjustments = session.photoAdjustments
+        // Note: editorMode is intentionally NOT restored per-session — the active mode
+        // is global to the editor window, not tied to the image being viewed.
         undoStack = session.undoStack
         templateRenderer = session.templateRenderer
 
@@ -1496,6 +1643,30 @@ struct EditorView: View {
         }
     }
 
+    /// Discard all in-memory edits across every session and close the editor without
+    /// writing to disk. The on-disk files remain untouched.
+    private func cancelEdits() {
+        // If there are any pending edits (annotations, adjustments, crop, etc.),
+        // confirm before throwing them away.
+        let hasEdits = sessions.contains { session in
+            !session.annotations.isEmpty ||
+            !session.photoAdjustments.isDefault ||
+            !session.undoStack.isEmpty ||
+            (session.id == activeSessionID &&
+             (!annotations.isEmpty || !photoAdjustments.isDefault || !undoStack.isEmpty))
+        }
+        if hasEdits {
+            let alert = NSAlert()
+            alert.messageText = "Discard Edits?"
+            alert.informativeText = "All unsaved annotations and adjustments will be lost."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Discard")
+            alert.addButton(withTitle: "Keep Editing")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        onDismiss()
+    }
+
     private func saveOverwrite() {
         do {
             // Sync live @State into the active session, then write every session
@@ -1504,7 +1675,12 @@ struct EditorView: View {
             for session in sessions {
                 try writeSession(session, to: session.imageURL)
             }
-            copyToClipboardSilent()
+            // Only copy to clipboard for single-image sessions — the clipboard can
+            // only hold one image at a time, so picking one arbitrarily would be
+            // confusing in a multi-image save.
+            if sessions.count == 1 {
+                copyToClipboardSilent()
+            }
             requestReviewIfEligible()
             onDismiss()
         } catch {

@@ -18,8 +18,6 @@ class ImageSession: Identifiable, ObservableObject {
     // Annotations
     var annotations: [Annotation] = []
     var selectedAnnotationID: UUID?
-    var currentTool: AnnotationTool = .arrow
-    var currentStyle: AnnotationStyle = AnnotationStyle()
 
     // Crop
     var isCropping: Bool = false
@@ -39,6 +37,9 @@ class ImageSession: Identifiable, ObservableObject {
     var shadowIntensity: Double = 1.0
     var screenshotAlignment: CanvasAlignment = .middleCenter
     var watermarkSettings: WatermarkSettings = WatermarkSettings()
+
+    // Photo adjustments (Edit mode — non-destructive CI filter chain)
+    var photoAdjustments: PhotoAdjustments = .default
 
     // Undo
     var undoStack: [EditorSnapshot] = []

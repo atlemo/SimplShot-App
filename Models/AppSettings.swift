@@ -120,6 +120,17 @@ class AppSettings {
         didSet { UserDefaults.standard.set(editorShowProSidebar, forKey: Constants.UserDefaultsKeys.editorShowProSidebar) }
     }
 
+    /// Which mode should the editor start in when images are opened (e.g. from Finder).
+    var defaultEditorModeOnOpen: DefaultEditorModeSetting {
+        didSet { UserDefaults.standard.set(defaultEditorModeOnOpen.rawValue, forKey: Constants.UserDefaultsKeys.defaultEditorModeOnOpen) }
+    }
+
+    /// The most recently active editor mode, recorded when the editor closes.
+    /// Backs the "Last Used" option in `defaultEditorModeOnOpen`.
+    var lastUsedEditorMode: EditorMode {
+        didSet { UserDefaults.standard.set(lastUsedEditorMode.rawValue, forKey: Constants.UserDefaultsKeys.lastUsedEditorMode) }
+    }
+
     /// Paths to user-added custom background images, stored in Application Support.
     var customBackgroundImages: [String] {
         didSet { saveCustomBackgroundImages() }
@@ -188,6 +199,26 @@ class AppSettings {
 
         // Load pro sidebar preference (defaults to false)
         self.editorShowProSidebar = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.editorShowProSidebar)
+
+        // Default mode when opening images (e.g. from Finder). Defaults to "Last Used"
+        // so the editor sticks with the user's prior choice. For a brand-new user,
+        // `lastUsedEditorMode` defaults to `.annotate` below, so the very first open
+        // resolves to Annotate naturally.
+        if let raw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKeys.defaultEditorModeOnOpen),
+           let setting = DefaultEditorModeSetting(rawValue: raw) {
+            self.defaultEditorModeOnOpen = setting
+        } else {
+            self.defaultEditorModeOnOpen = .lastUsed
+        }
+
+        // Last used mode — defaults to Annotate (the historical behavior, and the
+        // mode a brand-new user lands in on first launch via the "Last Used" default).
+        if let raw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKeys.lastUsedEditorMode),
+           let mode = EditorMode(rawValue: raw) {
+            self.lastUsedEditorMode = mode
+        } else {
+            self.lastUsedEditorMode = .annotate
+        }
 
         // Load custom background images
         self.customBackgroundImages = UserDefaults.standard.stringArray(forKey: Constants.UserDefaultsKeys.customBackgroundImages) ?? []

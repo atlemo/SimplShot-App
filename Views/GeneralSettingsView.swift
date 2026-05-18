@@ -7,9 +7,6 @@ struct GeneralSettingsView: View {
     @State private var accessibilityGranted = AccessibilityService.isTrusted
 #endif
     @State private var screenRecordingGranted = false
-#if DEBUG
-    @AppStorage("debugSimulateSonomaAppearance") private var simulateSonoma = false
-#endif
 
     private let labelWidth: CGFloat = 140
 
@@ -61,6 +58,25 @@ struct GeneralSettingsView: View {
 
             Divider().padding(.horizontal)
 
+            // --- Default mode when opening images ---
+            settingsRow("Open images in:") {
+                VStack(alignment: .leading, spacing: 2) {
+                    Picker("", selection: $appSettings.defaultEditorModeOnOpen) {
+                        ForEach(DefaultEditorModeSetting.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()  // size to content so the chevron sits next to the label, not the row edge
+                    Text("Applies when opening files from Finder or other apps")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Divider().padding(.horizontal)
+
             // --- Permissions ---
             settingsRow("Permissions:") {
                 VStack(alignment: .leading, spacing: 10) {
@@ -79,20 +95,6 @@ struct GeneralSettingsView: View {
                 }
             }
 
-#if DEBUG
-            Divider().padding(.horizontal)
-
-            settingsRow("Developer:") {
-                VStack(alignment: .leading, spacing: 2) {
-                    Toggle("Simulate Sonoma appearance", isOn: $simulateSonoma)
-                        .toggleStyle(.checkbox)
-                    Text("Forces the pre-macOS 26 glass fallback so you can preview it on this machine")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 20)
-                }
-            }
-#endif
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 8)

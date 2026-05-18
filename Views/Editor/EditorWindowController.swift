@@ -10,26 +10,31 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
     private static var openEditors: Set<EditorWindowController> = []
 
     /// Open the editor for a single captured screenshot.
+    /// Pass `initialMode` to override the user's default-mode-on-open setting.
     static func openEditor(
         imageURL: URL,
         template: ScreenshotTemplate? = nil,
         appSettings: AppSettings? = nil,
-        preferOriginalAspectRatio: Bool = false
+        preferOriginalAspectRatio: Bool = false,
+        initialMode: EditorMode? = nil
     ) {
         openEditor(
             imageURLs: [imageURL],
             template: template,
             appSettings: appSettings,
-            preferOriginalAspectRatio: preferOriginalAspectRatio
+            preferOriginalAspectRatio: preferOriginalAspectRatio,
+            initialMode: initialMode
         )
     }
 
     /// Open the editor with one or more images.
+    /// Pass `initialMode` to override the user's default-mode-on-open setting.
     static func openEditor(
         imageURLs: [URL],
         template: ScreenshotTemplate? = nil,
         appSettings: AppSettings? = nil,
-        preferOriginalAspectRatio: Bool = false
+        preferOriginalAspectRatio: Bool = false,
+        initialMode: EditorMode? = nil
     ) {
         guard !imageURLs.isEmpty else { return }
         let open = {
@@ -37,7 +42,8 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
                 imageURLs: imageURLs,
                 template: template,
                 appSettings: appSettings,
-                preferOriginalAspectRatio: preferOriginalAspectRatio
+                preferOriginalAspectRatio: preferOriginalAspectRatio,
+                initialMode: initialMode
             )
             openEditors.insert(controller)
             updateDockIconVisibility()
@@ -56,7 +62,8 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
         imageURLs: [URL],
         template: ScreenshotTemplate? = nil,
         appSettings: AppSettings? = nil,
-        preferOriginalAspectRatio: Bool = false
+        preferOriginalAspectRatio: Bool = false,
+        initialMode: EditorMode? = nil
     ) {
         let windowSize = Self.savedWindowSize() ?? Self.windowSize(for: imageURLs[0])
 
@@ -115,7 +122,8 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
             imageURLs: imageURLs,
             template: template,
             appSettings: appSettings,
-            preferOriginalAspectRatio: preferOriginalAspectRatio
+            preferOriginalAspectRatio: preferOriginalAspectRatio,
+            initialMode: initialMode
         ) { [weak self] in
             self?.close()
         }

@@ -28,6 +28,8 @@ struct EditorCanvasView: View {
     let imagePixelSize: CGSize  // actual CGImage pixel dimensions
     let scale: CGFloat          // view-points per image-pixel (from parent)
     let displayBackingScale: CGFloat  // monitor backing scale for true 1x measurements
+    /// The active editor mode. Annotation interaction is gated to `.annotate` only.
+    var editorMode: EditorMode = .annotate
     var shadowIntensity: Double = 0 // drop shadow opacity (0 = none, 1 = full)
     var showBorderOutline: Bool = false
 
@@ -87,11 +89,15 @@ struct EditorCanvasView: View {
                         : nil
                 )
                 .contentShape(Rectangle())
-                .gesture(canvasGesture)
+                // Annotation gestures are active only in Annotate mode.
+                // In Edit and View modes the canvas is non-interactive for drawing.
+                .gesture(editorMode == .annotate ? canvasGesture : nil)
                 .onTapGesture(count: 2) { location in
+                    guard editorMode == .annotate else { return }
                     handleDoubleTap(at: location)
                 }
                 .onTapGesture { location in
+                    guard editorMode == .annotate else { return }
                     handleTap(at: location)
                 }
 

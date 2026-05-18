@@ -32,7 +32,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let imageTypes: Set<String> = ["png", "jpg", "jpeg", "heic", "tiff", "tif", "gif", "bmp", "webp"]
         let imageURLs = urls.filter { imageTypes.contains($0.pathExtension.lowercased()) }
         guard !imageURLs.isEmpty else { return }
-        EditorWindowController.openEditor(imageURLs: imageURLs, appSettings: appSettings)
+        // Files opened from Finder use the user's "default mode on open" preference,
+        // resolving "Last Used" to the most recently active editor mode.
+        let initialMode = appSettings.defaultEditorModeOnOpen.resolve(
+            lastUsed: appSettings.lastUsedEditorMode
+        )
+        EditorWindowController.openEditor(
+            imageURLs: imageURLs,
+            appSettings: appSettings,
+            initialMode: initialMode
+        )
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

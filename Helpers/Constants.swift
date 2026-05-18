@@ -49,6 +49,10 @@ enum Constants {
         static let editorWindowSize = "editorWindowSize"
         static let editorUseTemplateBackground = "editorUseTemplateBackground"
         static let editorShowProSidebar = "editorShowProSidebar"
+        /// Stored default mode when opening images: "annotate" | "edit" | "view" | "lastUsed".
+        static let defaultEditorModeOnOpen = "defaultEditorModeOnOpen"
+        /// Records the user's most recently active mode for the "Last Used" setting.
+        static let lastUsedEditorMode = "lastUsedEditorMode"
         static let hasShownPermissionOnboarding = "hasShownPermissionOnboarding"
         static let screenshotSaveBookmark = "screenshotSaveBookmark"
         static let customBackgroundImages = "customBackgroundImages"
