@@ -34,7 +34,6 @@ struct ThumbnailStripView: View {
         .frame(width: 90)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
     }
 }
 
@@ -45,6 +44,8 @@ private struct ThumbnailItem: View {
     let isSelected: Bool
     var onSelect: () -> Void
     var onRemove: () -> Void
+
+    @State private var isHovered = false
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -94,7 +95,10 @@ private struct ThumbnailItem: View {
             }
             .buttonStyle(.plain)
             .offset(x: 6, y: -6)
+            .opacity(isHovered || isSelected ? 1 : 0)
+            .animation(.easeInOut(duration: 0.15), value: isHovered)
             .accessibilityLabel("Remove \(session.imageURL.lastPathComponent)")
         }
+        .onHover { isHovered = $0 }
     }
 }

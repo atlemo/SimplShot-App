@@ -567,72 +567,24 @@ struct EditorView: View {
             }
 
             EditorBottomToolbarView(
+                imagePixelSize: imagePixelSize,
+                aspectRatios: editorAspectRatios,
+                selectedAspectRatioID: $editorAspectRatioID,
+                padding: $editorPadding,
+                cornerRadius: $editorCornerRadius,
+                useTemplateBackground: selectedWallpaper != nil,
+                hideSliders: showProSidebar,
                 onTrash: { showTrashAlert = true },
                 onCancel: cancelEdits,
-                onSaveAs: saveAs
+                onSaveAs: saveAs,
+                annotationsCount: annotations.count,
+                displayZoomPercent: Int(displayZoomPercent),
+                onZoomOut: zoomOut,
+                onZoomIn: zoomIn,
+                onZoomReset: { zoomLevel = 1.0 }
             )
-            .background(.clear)
-
-            statusBar
         }
         .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
-    }
-
-    // MARK: - Status Bar
-
-    private var statusBar: some View {
-        HStack(spacing: 12) {
-            if imagePixelSize != .zero {
-                Text("\(Int(imagePixelSize.width)) x \(Int(imagePixelSize.height)) px")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Text("\(annotations.count) annotation\(annotations.count == 1 ? "" : "s")")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Divider().frame(height: 14)
-
-            // Zoom controls
-            HStack(spacing: 4) {
-                Button {
-                    zoomOut()
-                } label: {
-                    Image(systemName: "minus.magnifyingglass")
-                        .font(.system(size: 11))
-                }
-                .buttonStyle(.plain)
-                .help("Zoom Out")
-
-                Text("\(Int(displayZoomPercent))%")
-                    .font(.system(size: 11, design: .monospaced))
-                    .frame(width: 40, alignment: .center)
-
-                Button {
-                    zoomIn()
-                } label: {
-                    Image(systemName: "plus.magnifyingglass")
-                        .font(.system(size: 11))
-                }
-                .buttonStyle(.plain)
-                .help("Zoom In")
-
-                Button {
-                    zoomLevel = 1.0
-                } label: {
-                    Text("Fit")
-                        .font(.system(size: 10))
-                }
-                .buttonStyle(.plain)
-                .help("Reset Zoom")
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.clear)
     }
 
     // MARK: - Zoom
