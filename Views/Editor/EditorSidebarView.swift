@@ -693,7 +693,7 @@ struct EditorSidebarView: View {
                 .font(.system(size: 14))
         } else {
             Canvas { ctx, size in
-                let c = GraphicsContext.Shading.color(.primary)
+                let c = GraphicsContext.Shading.color(.secondary)
                 let lw: CGFloat = 1.5
                 // Rounded rect (upper-left area)
                 ctx.stroke(
@@ -1179,6 +1179,7 @@ struct EditorSidebarView: View {
             .contentShape(RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .onHover { isHovering in
             hoveredSection = isHovering ? section : (hoveredSection == section ? nil : hoveredSection)
         }

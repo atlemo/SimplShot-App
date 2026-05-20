@@ -12,7 +12,7 @@ struct ArrowStylePreview: View {
         Canvas { ctx, size in
             let s = CGPoint(x: 6, y: size.height * 0.62)
             let e = CGPoint(x: size.width - 6, y: size.height * 0.38)
-            let color = isSelected ? Color.accentColor : Color.primary
+            let color = isSelected ? Color.accentColor : Color.secondary
             let lw: CGFloat = 1.5
 
             switch style {

@@ -48,6 +48,26 @@ struct EditorView: View {
         activeSession?.isPDF ?? false
     }
 
+    /// True if the active PDF document (all sessions sharing pdfGroupID) has any
+    /// edits. Active-session edits live in @State; other-session edits live on
+    /// the ImageSession itself. Used to switch the toolbar's "Save All" → "Done"
+    /// when nothing has been changed.
+    private var pdfDocumentHasEdits: Bool {
+        guard let groupID = activeSession?.pdfGroupID else { return false }
+        // Active session — @State is the live source of truth for these fields.
+        if !annotations.isEmpty { return true }
+        if photoAdjustments != .default { return true }
+        if watermarkSettings.isEnabled { return true }
+        if !undoStack.isEmpty { return true }
+        // Other pages in the same PDF group — read directly from ImageSession.
+        for session in sessions where session.pdfGroupID == groupID && session.id != activeSessionID {
+            if !session.annotations.isEmpty { return true }
+            if session.photoAdjustments != .default { return true }
+            if session.watermarkSettings.isEnabled { return true }
+        }
+        return false
+    }
+
     @State private var image: NSImage?
     @State private var rawImage: NSImage?
     @State private var currentDisplayCGImage: CGImage?
@@ -69,7 +89,7 @@ struct EditorView: View {
     // Annotation state
     @State private var annotations: [Annotation] = []
     @State private var selectedAnnotationID: UUID?
-    @State private var currentTool: AnnotationTool = .arrow
+    @State private var currentTool: AnnotationTool = .freeDraw
     @State private var currentStyle: AnnotationStyle = AnnotationStyle()
 
     // Crop state
@@ -487,16 +507,24 @@ struct EditorView: View {
             ToolbarItem(placement: .automatic) {
                 // With multiple images the clipboard can only hold one, so we drop the
                 // "& Copy" suffix and skip the clipboard write (see saveOverwrite).
+                // For an unedited PDF, label becomes "Done" since there's nothing to save.
                 let isMulti = sessions.count > 1
+                let isPDFDone = isPDFSession && !pdfDocumentHasEdits
+                let label: String = isPDFDone
+                    ? "Done"
+                    : (isMulti ? "Save All" : "Save & Copy")
+                let help: String = isPDFDone
+                    ? "Close the document"
+                    : (isMulti
+                        ? "Save all open images and close"
+                        : "Save, close and copy the image to your clipboard")
                 Button(action: saveOverwrite) {
-                    Text(isMulti ? "Save All" : "Save & Copy")
+                    Text(label)
                         .padding(.horizontal, 6)
                 }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut("s", modifiers: .command)
-                    .help(isMulti
-                          ? "Save all open images and close"
-                          : "Save, close and copy the image to your clipboard")
+                    .help(help)
             }
         }
     }
@@ -542,7 +570,7 @@ struct EditorView: View {
             onEnterCrop: { isCropping = true; currentTool = .crop },
             onUndo: undo,
             onDone: saveOverwrite,
-            watermarkSettings: $watermarkSettings,
+            watermarkSettings: watermarkSettingsBinding,
             onPickWatermarkImage: pickWatermarkImage,
             imagePixelSize: imagePixelSize,
             onResizeImage: resizeImage
@@ -630,7 +658,7 @@ struct EditorView: View {
                 displayZoomPercent: Int(displayZoomPercent),
                 onZoomOut: zoomOut,
                 onZoomIn: zoomIn,
-                onZoomReset: { zoomLevel = 1.0 }
+                onZoomReset: { zoomLevel = 1.0; syncZoomToPDFGroup() }
             )
             .offset(y: -3)
         }
@@ -668,13 +696,42 @@ struct EditorView: View {
     private func zoomIn() {
         if let next = zoomSteps.first(where: { $0 > zoomLevel }) {
             zoomLevel = min(next, maxZoomLevel)
+            syncZoomToPDFGroup()
         }
     }
 
     private func zoomOut() {
         if let prev = zoomSteps.last(where: { $0 < zoomLevel }) {
             zoomLevel = max(prev, minZoomLevel)
+            syncZoomToPDFGroup()
         }
+    }
+
+    /// When the active session belongs to a PDF group, mirror the current zoom level
+    /// to all sibling pages so every page in the document zooms together.
+    private func syncZoomToPDFGroup() {
+        guard let groupID = activeSession?.pdfGroupID else { return }
+        for session in sessions where session.pdfGroupID == groupID && session.id != activeSessionID {
+            session.zoomLevel = zoomLevel
+        }
+    }
+
+    /// Binding passed to the sidebar for watermark settings.
+    /// When `isEnabled` is toggled, the new value is mirrored to all sibling
+    /// PDF sessions so enabling/disabling affects the whole document at once.
+    private var watermarkSettingsBinding: Binding<WatermarkSettings> {
+        Binding(
+            get: { watermarkSettings },
+            set: { [self] newValue in
+                let enabledChanged = newValue.isEnabled != watermarkSettings.isEnabled
+                watermarkSettings = newValue
+                if enabledChanged, let groupID = activeSession?.pdfGroupID {
+                    for session in sessions where session.pdfGroupID == groupID && session.id != activeSessionID {
+                        session.watermarkSettings.isEnabled = newValue.isEnabled
+                    }
+                }
+            }
+        )
     }
 
     // MARK: - Image Loading
@@ -1541,6 +1598,7 @@ struct EditorView: View {
 
         guard let scrollView = nsScrollView, oldScale > 0 else {
             zoomLevel = newZoom
+            syncZoomToPDFGroup()
             return
         }
 
@@ -1570,6 +1628,7 @@ struct EditorView: View {
         )
 
         zoomLevel = newZoom
+        syncZoomToPDFGroup()
 
         DispatchQueue.main.async {
             scrollView.contentView.scroll(to: newOrigin)

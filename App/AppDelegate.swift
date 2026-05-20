@@ -105,14 +105,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Set up status item
+        // Set up status item.
+        // We use statusItem.view (deprecated API) intentionally: adding a drag-destination
+        // subview to NSStatusBarButton causes "Reentrant message: kDragIPCCompleted,
+        // current message: kDragIPCLeaveApplication" errors because the drag system treats
+        // the status-bar window as outside the app boundary. statusItem.view bypasses that
+        // IPC mechanism entirely and is the only reliable way to accept file drops here.
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        if let button = statusItem.button {
-            let image = NSImage(named: "StatusBarIcon")
-            image?.isTemplate = true
-            button.image = image
-            button.toolTip = "SimplShot"
+        let thickness = NSStatusBar.system.thickness
+        let dragView = StatusItemDragView(
+            frame: NSRect(x: 0, y: 0, width: thickness, height: thickness)
+        )
+        dragView.toolTip = "SimplShot"
+        dragView.onFilesDropped = { [weak self] urls in
+            self?.application(NSApp, open: urls)
         }
+        // Suppress "deprecated" warning: intentional, see comment above.
+        statusItem.perform(NSSelectorFromString("setView:"), with: dragView)
+        dragView.statusItem = statusItem      // needed for menu open on click
         statusItem.menu = menuBuilder.menu
         menuBuilder.statusItem = statusItem
 
@@ -523,5 +533,155 @@ private struct PermissionOnboardingView: View {
         Task {
             await permissionManager.checkPermission()
         }
+    }
+}
+
+// MARK: - Status Item Drag View
+
+/// Full replacement view for the status-bar item.
+///
+/// WHY statusItem.view (deprecated) instead of a button subview:
+/// Registering a drag destination on a subview of NSStatusBarButton causes
+/// "Reentrant message: kDragIPCCompleted, current message: kDragIPCLeaveApplication"
+/// console errors and a broken drop. The macOS drag system treats the status-bar
+/// window as outside the app boundary; when a drag enters it, kDragIPCLeaveApplication
+/// fires for our app while the subview simultaneously tries to receive the drag —
+/// producing the reentrancy. statusItem.view owns the entire view and bypasses
+/// that IPC mechanism, so drags work correctly.
+///
+/// Note: statusItem.button is nil when statusItem.view is set.
+/// MenuBuilder.reopenMenu() guards on button != nil and returns early,
+/// so the menu closes after selection rather than staying open. Acceptable trade-off.
+private final class StatusItemDragView: NSView {
+    var onFilesDropped: (([URL]) -> Void)?
+    weak var statusItem: NSStatusItem?
+
+    private let validExtensions: Set<String> = [
+        "png", "jpg", "jpeg", "heic", "tiff", "tif", "gif", "bmp", "webp", "pdf"
+    ]
+    private var isHighlighted = false
+
+    // Spring-loading: because performDragOperation is never called (kDragIPC reentrancy),
+    // we read URLs in draggingEntered and open them after a short hover delay instead.
+    private var springLoadTimer: Timer?
+    private var pendingURLs: [URL] = []
+
+    private let imageView: NSImageView = {
+        let iv = NSImageView()
+        let img = NSImage(named: "StatusBarIcon")
+        img?.isTemplate = true
+        iv.image = img
+        iv.imageScaling = .scaleProportionallyUpOrDown
+        iv.unregisterDraggedTypes()          // prevent the image view absorbing drags
+        return iv
+    }()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        registerForDraggedTypes([.fileURL])
+
+        let iconSize: CGFloat = 16
+        imageView.frame = NSRect(
+            x: (frame.width  - iconSize) / 2,
+            y: (frame.height - iconSize) / 2,
+            width: iconSize, height: iconSize
+        )
+        imageView.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin, .maxYMargin]
+        addSubview(imageView)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    // MARK: - Drawing
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard isHighlighted else { return }
+        NSColor.selectedContentBackgroundColor.withAlphaComponent(0.22).setFill()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 4, yRadius: 4).fill()
+    }
+
+    // MARK: - Click → open menu
+
+    override func mouseDown(with event: NSEvent) {
+        guard let menu = statusItem?.menu else { return }
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    // MARK: - NSDraggingDestination
+
+    private func canAccept(_ info: NSDraggingInfo) -> Bool {
+        let opts: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        guard let urls = info.draggingPasteboard
+            .readObjects(forClasses: [NSURL.self], options: opts) as? [URL] else { return false }
+        return urls.contains { validExtensions.contains($0.pathExtension.lowercased()) }
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard canAccept(sender) else { return [] }
+
+        // Read URLs now — draggingEntered IS called, but performDragOperation never fires
+        // due to the kDragIPC reentrancy bug in the macOS status-bar drag system.
+        // Spring-loading: open the files after the user hovers for ~0.7 s.
+        let opts: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        let all = sender.draggingPasteboard
+            .readObjects(forClasses: [NSURL.self], options: opts) as? [URL] ?? []
+        pendingURLs = all.filter { validExtensions.contains($0.pathExtension.lowercased()) }
+
+        if !pendingURLs.isEmpty {
+            springLoadTimer?.invalidate()
+            springLoadTimer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: false) { [weak self] _ in
+                guard let self else { return }
+                self.onFilesDropped?(self.pendingURLs)
+                self.cancelSpringLoad()
+            }
+        }
+
+        isHighlighted = true
+        needsDisplay = true
+        return .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        // kDragIPC reentrancy means a real drop arrives here as a "exited" event
+        // instead of performDragOperation/draggingEnded. Distinguish drop from
+        // leave by checking whether the mouse button is still pressed:
+        //   - button released → user dropped over our icon → open immediately
+        //   - button still pressed → user moved away → cancel
+        let mouseReleased = NSEvent.pressedMouseButtons == 0
+        if mouseReleased && !pendingURLs.isEmpty {
+            onFilesDropped?(pendingURLs)
+        }
+        cancelSpringLoad()
+        isHighlighted = false
+        needsDisplay = true
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        // Forward-compatible: if a future macOS routes drops here, open immediately.
+        if !pendingURLs.isEmpty {
+            onFilesDropped?(pendingURLs)
+        }
+        cancelSpringLoad()
+        isHighlighted = false
+        needsDisplay = true
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        // Fast path: called only if kDragIPC reentrancy is ever resolved in a future OS.
+        let opts: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        guard let urls = sender.draggingPasteboard
+            .readObjects(forClasses: [NSURL.self], options: opts) as? [URL] else { return false }
+        let valid = urls.filter { validExtensions.contains($0.pathExtension.lowercased()) }
+        guard !valid.isEmpty else { return false }
+        onFilesDropped?(valid)
+        cancelSpringLoad()
+        return true
+    }
+
+    private func cancelSpringLoad() {
+        springLoadTimer?.invalidate()
+        springLoadTimer = nil
+        pendingURLs = []
     }
 }

@@ -1,4 +1,5 @@
 import AppKit
+import ScreenCaptureKit
 import SwiftUI
 
 // MARK: - Color Format
@@ -216,8 +217,10 @@ final class ColorPickerService {
     private var previousApp: NSRunningApplication?
     private var isCursorHidden = false
 
-    /// Window ID of the overlay — used to exclude our panels from captures via CGWindowListCreateImage.
-    private var overlayWindowID: CGWindowID = kCGNullWindowID
+    /// In-flight async capture task — cancelled when the cursor moves to avoid stale updates.
+    private var captureTask: Task<Void, Never>?
+    /// Shareable content cached once per session; refreshed lazily on first miss.
+    private var cachedShareableContent: SCShareableContent?
 
     // Capture 25pt × 25pt of real content; drawn into the 100pt magnifier → 4× zoom.
     private let captureSize: CGFloat = 25
@@ -235,8 +238,11 @@ final class ColorPickerService {
         NSApp.activate(ignoringOtherApps: true)
         overlayWindow?.makeKeyAndOrderFront(nil)
 
-        // Store window ID after the window is on screen so it's valid.
-        overlayWindowID = CGWindowID(overlayWindow?.windowNumber ?? 0)
+        // Pre-fetch shareable content now that our panels are on screen so the
+        // window list includes them and we can exclude them from captures.
+        Task { @MainActor [weak self] in
+            self?.cachedShareableContent = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        }
 
         hideCursor()
     }
@@ -354,10 +360,16 @@ final class ColorPickerService {
             let half = magnifierSize / 2
             magnifierPanel?.setFrameOrigin(NSPoint(x: point.x - half, y: point.y - half))
 
-            let result = captureArea(around: point)
-            magnifierView?.magnifiedContent = result.image
-            if let color = result.color {
-                hudState.currentColor = color
+            // Cancel any in-flight capture so we don't apply a stale result after moving.
+            captureTask?.cancel()
+            captureTask = Task { @MainActor [weak self] in
+                guard let self, !Task.isCancelled else { return }
+                let result = await self.captureArea(around: point)
+                guard !Task.isCancelled else { return }
+                self.magnifierView?.magnifiedContent = result.image
+                if let color = result.color {
+                    self.hudState.currentColor = color
+                }
             }
         }
     }
@@ -393,7 +405,9 @@ final class ColorPickerService {
 
     private func cleanup() {
         isActive = false
-        overlayWindowID = kCGNullWindowID
+        captureTask?.cancel()
+        captureTask = nil
+        cachedShareableContent = nil
         unhideCursor()
         overlayWindow?.orderOut(nil)
         overlayWindow = nil
@@ -416,25 +430,23 @@ final class ColorPickerService {
         let color: NSColor?
     }
 
-    private func captureArea(around point: NSPoint) -> CaptureResult {
+    private func captureArea(around point: NSPoint) async -> CaptureResult {
         let captureRect = CGRect(
             x: floor(point.x - captureSize / 2),
             y: floor(point.y - captureSize / 2),
             width: captureSize,
             height: captureSize
         )
-        guard let img = captureScreen(in: captureRect) else {
+        guard let img = await captureScreen(in: captureRect) else {
             return CaptureResult(image: nil, color: nil)
         }
         return CaptureResult(image: img, color: extractCenterColor(from: img))
     }
 
     /// Captures a rect given in NSScreen coordinates (origin bottom-left, y up).
-    /// Uses CGWindowListCreateImage with the overlay as the reference window so that
-    /// our overlay, magnifier, and HUD panels are excluded from the result.
-    private func captureScreen(in nsRect: CGRect) -> CGImage? {
-        // CGWindowListCreateImage uses CG screen coordinates: origin top-left, y down.
-        // NSEvent / NSScreen coordinates: origin bottom-left, y up.
+    /// Uses SCScreenshotManager to get a single frame, excluding our own panels.
+    private func captureScreen(in nsRect: CGRect) async -> CGImage? {
+        // SCKit uses CG screen coordinates: origin top-left, y down.
         let screenHeight = CGDisplayBounds(CGMainDisplayID()).height
         let cgRect = CGRect(
             x: nsRect.minX,
@@ -443,11 +455,35 @@ final class ColorPickerService {
             height: nsRect.height
         )
 
-        if overlayWindowID != kCGNullWindowID {
-            // Capture only windows below our overlay in z-order (excludes overlay, magnifier, HUD).
-            return CGWindowListCreateImage(cgRect, .optionOnScreenBelowWindow, overlayWindowID, .bestResolution)
+        // Use cached shareable content; refresh lazily if not yet available.
+        let content: SCShareableContent
+        if let cached = cachedShareableContent {
+            content = cached
+        } else {
+            guard let fresh = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) else { return nil }
+            cachedShareableContent = fresh
+            content = fresh
         }
-        return CGWindowListCreateImage(cgRect, .optionOnScreenOnly, kCGNullWindowID, .bestResolution)
+
+        guard let display = content.displays.first(where: { $0.displayID == CGMainDisplayID() }) else { return nil }
+
+        // Match our NSPanel windows to SCWindow by window number so they're excluded.
+        let ourWindowNumbers = Set([overlayWindow, magnifierPanel, hudPanel]
+            .compactMap { $0?.windowNumber }
+            .filter { $0 > 0 })
+        let excludedWindows = content.windows.filter { ourWindowNumbers.contains(Int($0.windowID)) }
+
+        let filter = SCContentFilter(display: display, excludingWindows: excludedWindows)
+
+        let config = SCStreamConfiguration()
+        config.sourceRect = cgRect
+        // Request native-resolution output so the magnifier looks sharp.
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        config.width = max(1, Int(nsRect.width * scale))
+        config.height = max(1, Int(nsRect.height * scale))
+        config.scalesToFit = false
+
+        return try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
     }
 
     private func extractCenterColor(from image: CGImage) -> NSColor? {

@@ -94,6 +94,8 @@ struct EditorCanvasView: View {
                         height: imagePixelSize.height / displayBackingScale
                     ))
                     .frame(width: canvasWidth, height: canvasHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 3)
                 } else {
                     Image(nsImage: image)
                         .resizable()
@@ -104,7 +106,8 @@ struct EditorCanvasView: View {
             .shadow(color: .black.opacity(0.5 * shadowIntensity), radius: 60 * shadowIntensity, x: 0, y: 28 * shadowIntensity)
             .overlay(
                 showBorderOutline
-                    ? RoundedRectangle(cornerRadius: 0).stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                    ? RoundedRectangle(cornerRadius: pdfPageSource != nil ? 6 : 0, style: .continuous)
+                        .stroke(Color.primary.opacity(0.15), lineWidth: 1)
                     : nil
             )
             .contentShape(Rectangle())
