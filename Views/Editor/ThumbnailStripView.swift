@@ -7,19 +7,35 @@ struct ThumbnailStripView: View {
     let activeID: UUID?
     var onSelect: (UUID) -> Void
     var onRemove: (UUID) -> Void
+    var onMove: ((Int, Int) -> Void)? = nil
+
+    @State private var draggedID: UUID?
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 8) {
-                    ForEach(sessions) { session in
+                    ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
                         ThumbnailItem(
                             session: session,
+                            displayIndex: session.isPDF ? index + 1 : nil,
                             isSelected: session.id == activeID,
+                            isDragTarget: false,
                             onSelect: { onSelect(session.id) },
                             onRemove: { onRemove(session.id) }
                         )
                         .id(session.id)
+                        .opacity(draggedID == session.id ? 0.4 : 1)
+                        .onDrag {
+                            draggedID = session.id
+                            return NSItemProvider(object: session.id.uuidString as NSString)
+                        }
+                        .onDrop(of: [.text], delegate: ThumbnailDropDelegate(
+                            targetID: session.id,
+                            sessions: sessions,
+                            draggedID: $draggedID,
+                            onMove: onMove
+                        ))
                     }
                 }
                 .padding(6)
@@ -37,11 +53,42 @@ struct ThumbnailStripView: View {
     }
 }
 
+// MARK: - Drop Delegate
+
+private struct ThumbnailDropDelegate: DropDelegate {
+    let targetID: UUID
+    let sessions: [ImageSession]
+    @Binding var draggedID: UUID?
+    var onMove: ((Int, Int) -> Void)?
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedID,
+              draggedID != targetID,
+              let from = sessions.firstIndex(where: { $0.id == draggedID }),
+              let to = sessions.firstIndex(where: { $0.id == targetID })
+        else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            onMove?(from, to)
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedID = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+}
+
 /// One row in the strip. Owns its own `@ObservedObject` so async thumbnail
 /// generation triggers a re-render without invalidating the whole strip.
 private struct ThumbnailItem: View {
     @ObservedObject var session: ImageSession
+    let displayIndex: Int?
     let isSelected: Bool
+    let isDragTarget: Bool
     var onSelect: () -> Void
     var onRemove: () -> Void
 
@@ -69,8 +116,8 @@ private struct ThumbnailItem: View {
                 )
                 .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
 
-                if let pageIndex = session.pdfPageSource?.pageIndex {
-                    Text("\(pageIndex + 1)")
+                if let displayIndex {
+                    Text("\(displayIndex)")
                         .font(.system(size: 9, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 4)
@@ -82,7 +129,7 @@ private struct ThumbnailItem: View {
             .contentShape(Rectangle())
             .onTapGesture { onSelect() }
             .accessibilityLabel(session.isPDF
-                ? "Page \((session.pdfPageSource?.pageIndex ?? 0) + 1)"
+                ? "Page \(displayIndex ?? 1)"
                 : session.imageURL.lastPathComponent)
             .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : [.isButton])
 

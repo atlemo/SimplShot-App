@@ -4,7 +4,7 @@ import PDFKit
 // MARK: - Drag Mode
 
 /// Describes what part of a selected annotation is being dragged.
-enum DragMode {
+enum DragMode: Equatable {
     case body                      // move entire annotation
     case startHandle               // move startPoint only (arrow/line)
     case endHandle                 // move endPoint only (arrow/line)
@@ -76,6 +76,9 @@ struct EditorCanvasView: View {
     /// Used in the committed annotations filter so it doesn't re-evaluate on every drag tick
     /// (unlike `draggingAnnotation?.id` which changes every frame as the struct updates).
     @State private var draggingAnnotationID: UUID?
+    /// Whether the dragged annotation is snapped to the horizontal/vertical center of the image.
+    @State private var snapH: Bool = false
+    @State private var snapV: Bool = false
 
     private var canvasWidth: CGFloat { imagePixelSize.width * scale }
     private var canvasHeight: CGFloat { imagePixelSize.height * scale }
@@ -115,47 +118,55 @@ struct EditorCanvasView: View {
                 handleTap(at: location)
             }
 
-            // Committed annotations — isolated into a subview so it doesn't
-            // re-evaluate on every drag tick (draggingAnnotation changes every frame,
-            // but draggingAnnotationID is stable throughout a single drag).
-            CommittedAnnotationsView(
-                annotations: annotations,
-                excludeEditingID: editingTextID,
-                excludeDraggingID: draggingAnnotationID,
-                selectedAnnotationID: isDraggingAnnotation ? nil : selectedAnnotationID,
-                scale: scale,
-                displayBackingScale: displayBackingScale,
-                sourceImage: image,
-                imagePixelSize: imagePixelSize
-            )
-
-            // Live drag proxy — only this view updates during drag (local @State).
-            // NO drawingGroup() here: for a single annotation, allocating a full
-            // canvas-sized Metal buffer every frame is more expensive than the 2-3
-            // Core Animation layers the shape naturally creates.
-            if let dragging = draggingAnnotation {
-                AnnotationOverlayView(
-                    annotation: dragging,
+            // Annotations clipped to image bounds
+            ZStack(alignment: .topLeading) {
+                // Committed annotations — isolated into a subview so it doesn't
+                // re-evaluate on every drag tick (draggingAnnotation changes every frame,
+                // but draggingAnnotationID is stable throughout a single drag).
+                CommittedAnnotationsView(
+                    annotations: annotations,
+                    excludeEditingID: editingTextID,
+                    excludeDraggingID: draggingAnnotationID,
+                    selectedAnnotationID: isDraggingAnnotation ? nil : selectedAnnotationID,
                     scale: scale,
                     displayBackingScale: displayBackingScale,
-                    isSelected: false,
-                    sourceImage: dragging.tool == .pixelate ? image : nil,
+                    sourceImage: image,
                     imagePixelSize: imagePixelSize
                 )
-                .allowsHitTesting(false)
+
+                // Live drag proxy — only this view updates during drag (local @State).
+                if let dragging = draggingAnnotation {
+                    AnnotationOverlayView(
+                        annotation: dragging,
+                        scale: scale,
+                        displayBackingScale: displayBackingScale,
+                        isSelected: false,
+                        sourceImage: dragging.tool == .pixelate ? image : nil,
+                        imagePixelSize: imagePixelSize
+                    )
+                    .allowsHitTesting(false)
+                }
+
+                // Pending annotation being drawn
+                if let pending = pendingAnnotation {
+                    AnnotationOverlayView(
+                        annotation: pending,
+                        scale: scale,
+                        displayBackingScale: displayBackingScale,
+                        isSelected: false,
+                        sourceImage: pending.tool == .pixelate ? image : nil,
+                        imagePixelSize: imagePixelSize
+                    )
+                    .allowsHitTesting(false)
+                }
             }
+            .frame(width: canvasWidth, height: canvasHeight)
+            .clipped()
+            .allowsHitTesting(false)
 
-            // Pending annotation being drawn
-            if let pending = pendingAnnotation {
-                AnnotationOverlayView(
-                    annotation: pending,
-                    scale: scale,
-                    displayBackingScale: displayBackingScale,
-                    isSelected: false,
-                    sourceImage: pending.tool == .pixelate ? image : nil,
-                    imagePixelSize: imagePixelSize
-                )
-                .allowsHitTesting(false)
+            // Snap alignment guides shown during drag
+            if isDraggingAnnotation {
+                snapGuideLines
             }
 
             // Inline text editing styled to match the final pill appearance
@@ -254,6 +265,28 @@ struct EditorCanvasView: View {
         }
     }
 
+    // MARK: - Snap Guides
+
+    @ViewBuilder
+    private var snapGuideLines: some View {
+        if snapH {
+            Path { p in
+                p.move(to: CGPoint(x: canvasWidth / 2, y: 0))
+                p.addLine(to: CGPoint(x: canvasWidth / 2, y: canvasHeight))
+            }
+            .stroke(Color.accentColor.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            .allowsHitTesting(false)
+        }
+        if snapV {
+            Path { p in
+                p.move(to: CGPoint(x: 0, y: canvasHeight / 2))
+                p.addLine(to: CGPoint(x: canvasWidth, y: canvasHeight / 2))
+            }
+            .stroke(Color.accentColor.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            .allowsHitTesting(false)
+        }
+    }
+
     // MARK: - Gestures
 
     private var canvasGesture: some Gesture {
@@ -270,13 +303,33 @@ struct EditorCanvasView: View {
                 if pendingAnnotation == nil && !isDraggingAnnotation {
                     let (hitID, mode) = hitTestWithMode(startInImage)
                     if let hitID {
-                        // Drag an existing annotation regardless of current tool
                         if let idx = annotations.firstIndex(where: { $0.id == hitID }) {
-                            selectedAnnotationID = hitID
-                            isDraggingAnnotation = true
-                            draggingAnnotationID = hitID
-                            dragStartAnnotation = annotations[idx]
-                            draggingAnnotation = annotations[idx]
+                            // Option+drag on body → duplicate: leave original in place, drag a new copy
+                            if mode == .body && NSEvent.modifierFlags.contains(.option) {
+                                var duplicate = annotations[idx]
+                                duplicate = Annotation(
+                                    tool: duplicate.tool,
+                                    startPoint: duplicate.startPoint,
+                                    endPoint: duplicate.endPoint,
+                                    points: duplicate.points,
+                                    style: duplicate.style,
+                                    text: duplicate.text,
+                                    stepNumber: duplicate.stepNumber
+                                )
+                                onCommit()
+                                annotations.append(duplicate)
+                                selectedAnnotationID = duplicate.id
+                                isDraggingAnnotation = true
+                                draggingAnnotationID = duplicate.id
+                                dragStartAnnotation = duplicate
+                                draggingAnnotation = duplicate
+                            } else {
+                                selectedAnnotationID = hitID
+                                isDraggingAnnotation = true
+                                draggingAnnotationID = hitID
+                                dragStartAnnotation = annotations[idx]
+                                draggingAnnotation = annotations[idx]
+                            }
                             dragStartImagePoint = startInImage
                             dragMode = mode
                             didCaptureUndoForCurrentDrag = false
@@ -393,6 +446,9 @@ struct EditorCanvasView: View {
 
     // MARK: - Drag Application
 
+    /// Snap threshold in image-pixel units.
+    private var snapThreshold: CGFloat { 6.0 / scale }
+
     /// Apply the current drag delta to the local drag proxy (avoids mutating the binding).
     private func applyDragDelta(_ currentInImage: CGPoint) {
         guard var ann = dragStartAnnotation else { return }
@@ -402,8 +458,12 @@ struct EditorCanvasView: View {
             didCaptureUndoForCurrentDrag = true
         }
 
-        let dx = currentInImage.x - dragStartImagePoint.x
-        let dy = currentInImage.y - dragStartImagePoint.y
+        var dx = currentInImage.x - dragStartImagePoint.x
+        var dy = currentInImage.y - dragStartImagePoint.y
+
+        if isShiftDown && dragMode == .body {
+            if abs(dx) >= abs(dy) { dy = 0 } else { dx = 0 }
+        }
 
         switch dragMode {
         case .body:
@@ -417,6 +477,36 @@ struct EditorCanvasView: View {
                 }
             }
 
+            let centerX = imagePixelSize.width / 2
+            let centerY = imagePixelSize.height / 2
+            let annCenter = CGPoint(
+                x: (ann.boundingRect.midX),
+                y: (ann.boundingRect.midY)
+            )
+
+            var snapDx: CGFloat = 0
+            var snapDy: CGFloat = 0
+            let didSnapH = abs(annCenter.x - centerX) < snapThreshold
+            let didSnapV = abs(annCenter.y - centerY) < snapThreshold
+
+            if didSnapH { snapDx = centerX - annCenter.x }
+            if didSnapV { snapDy = centerY - annCenter.y }
+
+            if snapDx != 0 || snapDy != 0 {
+                ann.startPoint.x += snapDx
+                ann.startPoint.y += snapDy
+                ann.endPoint.x += snapDx
+                ann.endPoint.y += snapDy
+                if ann.tool == .freeDraw {
+                    ann.points = ann.points.map {
+                        CGPoint(x: $0.x + snapDx, y: $0.y + snapDy)
+                    }
+                }
+            }
+
+            snapH = didSnapH
+            snapV = didSnapV
+
         case .startHandle:
             let newStart = CGPoint(x: ann.startPoint.x + dx,
                                    y: ann.startPoint.y + dy)
@@ -425,6 +515,8 @@ struct EditorCanvasView: View {
             } else {
                 ann.startPoint = newStart
             }
+            snapH = false
+            snapV = false
 
         case .endHandle:
             let newEnd = CGPoint(x: ann.endPoint.x + dx,
@@ -434,6 +526,8 @@ struct EditorCanvasView: View {
             } else {
                 ann.endPoint = newEnd
             }
+            snapH = false
+            snapV = false
 
         case .corner(let minXFixed, let minYFixed):
             let origRect = ann.boundingRect
@@ -445,6 +539,8 @@ struct EditorCanvasView: View {
                                      y: min(fixedY, draggedY))
             ann.endPoint   = CGPoint(x: max(fixedX, draggedX),
                                      y: max(fixedY, draggedY))
+            snapH = false
+            snapV = false
         }
 
         draggingAnnotation = ann
@@ -463,6 +559,8 @@ struct EditorCanvasView: View {
         dragStartImagePoint = .zero
         dragMode = .body
         didCaptureUndoForCurrentDrag = false
+        snapH = false
+        snapV = false
     }
 
     // MARK: - Text Tool

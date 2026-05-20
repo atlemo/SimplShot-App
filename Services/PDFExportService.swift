@@ -22,11 +22,7 @@ enum PDFExportService {
         backingScale: CGFloat,
         to url: URL
     ) throws {
-        let sorted = sessions.sorted {
-            ($0.pdfPageSource?.pageIndex ?? 0) < ($1.pdfPageSource?.pageIndex ?? 0)
-        }
-
-        guard let firstSource = sorted.first?.pdfPageSource,
+        guard let firstSource = sessions.first?.pdfPageSource,
               let firstPage = firstSource.document.page(at: firstSource.pageIndex)
         else { throw PDFExportError.noPDFSource }
 
@@ -39,7 +35,7 @@ enum PDFExportService {
 
         let renderer = AnnotationRenderer()
 
-        for session in sorted {
+        for session in sessions {
             guard let source = session.pdfPageSource,
                   let page = source.document.page(at: source.pageIndex)
             else { continue }

@@ -209,6 +209,8 @@ struct EditorView: View {
     @State private var keyMonitor: Any?
     @State private var magnifyMonitor: Any?
     @State private var middleMouseMonitor: Any?
+    @State private var flagsMonitor: Any?
+    @State private var showingCopyCursor: Bool = false
     @State private var middleMouseDragOrigin: NSPoint?
     @State private var middleMouseScrollOrigin: NSPoint?
     @State private var nsScrollView: NSScrollView?
@@ -602,7 +604,11 @@ struct EditorView: View {
                         sessions: sessions,
                         activeID: activeSessionID,
                         onSelect: { switchToSession($0) },
-                        onRemove: { removeSession($0) }
+                        onRemove: { removeSession($0) },
+                        onMove: { from, to in
+                            sessions.move(fromOffsets: IndexSet(integer: from),
+                                          toOffset: to > from ? to + 1 : to)
+                        }
                     )
                     .padding(.trailing, 12)
                     .padding(.vertical, 12)
@@ -682,7 +688,17 @@ struct EditorView: View {
         guard !targets.isEmpty else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             for session in targets {
-                guard let nsImage = NSImage(contentsOf: session.imageURL) else { continue }
+                let nsImage: NSImage?
+                if let pdfSource = session.pdfPageSource,
+                   let cgImage = pdfSource.renderPage(backingScale: 1.0) {
+                    let size = NSSize(width: cgImage.width, height: cgImage.height)
+                    let img = NSImage(size: size)
+                    img.addRepresentation(NSBitmapImageRep(cgImage: cgImage))
+                    nsImage = img
+                } else {
+                    nsImage = NSImage(contentsOf: session.imageURL)
+                }
+                guard let nsImage else { continue }
                 session.generateThumbnail(from: nsImage)
             }
         }
@@ -1354,6 +1370,23 @@ struct EditorView: View {
         selectedAnnotationID = nil
     }
 
+    private func nudgeSelectedAnnotation(by delta: CGSize) {
+        guard let id = selectedAnnotationID,
+              let idx = annotations.firstIndex(where: { $0.id == id })
+        else { return }
+
+        pushUndo()
+        annotations[idx].startPoint.x += delta.width
+        annotations[idx].startPoint.y += delta.height
+        annotations[idx].endPoint.x += delta.width
+        annotations[idx].endPoint.y += delta.height
+        if annotations[idx].tool == .freeDraw {
+            annotations[idx].points = annotations[idx].points.map {
+                CGPoint(x: $0.x + delta.width, y: $0.y + delta.height)
+            }
+        }
+    }
+
     private func installKeyMonitorIfNeeded() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -1400,23 +1433,40 @@ struct EditorView: View {
                 return nil
             }
 
-            // Arrow keys → previous/next session. Scoped to this editor's own
-            // window so multi-window setups don't navigate in lockstep.
+            // Arrow keys → nudge selected annotation, or navigate sessions.
             let isArrow = event.keyCode == 123 || event.keyCode == 124
                 || event.keyCode == 125 || event.keyCode == 126
             if isArrow,
-               !hasBlockedModifier,
-               sessions.count > 1,
                let win = hostingWindow,
                event.window === win {
-                switch event.keyCode {
-                case 123, 126:  // left, up → previous
-                    goToPreviousSession()
-                case 124, 125:  // right, down → next
-                    goToNextSession()
-                default: break
+                // Nudge selected annotation (shift = 10px, otherwise 1px)
+                let shiftOnly = event.modifierFlags.intersection([.command, .option, .control]).isEmpty
+                if shiftOnly,
+                   editorMode == .annotate,
+                   selectedAnnotationID != nil {
+                    let step: CGFloat = event.modifierFlags.contains(.shift) ? 10 : 1
+                    var nudge = CGSize.zero
+                    switch event.keyCode {
+                    case 123: nudge.width = -step  // left
+                    case 124: nudge.width =  step  // right
+                    case 126: nudge.height = -step // up
+                    case 125: nudge.height =  step // down
+                    default: break
+                    }
+                    nudgeSelectedAnnotation(by: nudge)
+                    return nil
                 }
-                return nil
+                // Fall through to session navigation
+                if !hasBlockedModifier, sessions.count > 1 {
+                    switch event.keyCode {
+                    case 123, 126:  // left, up → previous
+                        goToPreviousSession()
+                    case 124, 125:  // right, down → next
+                        goToNextSession()
+                    default: break
+                    }
+                    return nil
+                }
             }
 
             return event
@@ -1467,6 +1517,20 @@ struct EditorView: View {
             default:
                 return event
             }
+        }
+
+        guard flagsMonitor == nil else { return }
+        flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            guard let win = hostingWindow, event.window === win else { return event }
+            let optionDown = event.modifierFlags.contains(.option)
+            if optionDown && editorMode == .annotate && !showingCopyCursor {
+                NSCursor.dragCopy.push()
+                showingCopyCursor = true
+            } else if !optionDown && showingCopyCursor {
+                NSCursor.pop()
+                showingCopyCursor = false
+            }
+            return event
         }
     }
 
@@ -1525,6 +1589,14 @@ struct EditorView: View {
         if let monitor = middleMouseMonitor {
             NSEvent.removeMonitor(monitor)
             middleMouseMonitor = nil
+        }
+        if let monitor = flagsMonitor {
+            if showingCopyCursor {
+                NSCursor.pop()
+                showingCopyCursor = false
+            }
+            NSEvent.removeMonitor(monitor)
+            flagsMonitor = nil
         }
     }
 
