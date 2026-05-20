@@ -1140,12 +1140,14 @@ struct EditorView: View {
     private func resizeImage(toWidth targetWidth: Int, height targetHeight: Int) {
         guard let rawImg = rawImage,
               let srcCG = rawImg.cgImage(forProposedRect: nil, context: nil, hints: nil),
-              imagePixelSize.width > 0, targetWidth > 0, targetHeight > 0
+              imagePixelSize.width > 0, imagePixelSize.height > 0,
+              targetWidth > 0, targetHeight > 0
         else { return }
 
-        let scale = CGFloat(targetWidth) / imagePixelSize.width
-        let newW = max(1, Int((CGFloat(srcCG.width) * scale).rounded()))
-        let newH = max(1, Int((CGFloat(srcCG.height) * scale).rounded()))
+        let scaleX = CGFloat(targetWidth) / imagePixelSize.width
+        let scaleY = CGFloat(targetHeight) / imagePixelSize.height
+        let newW = max(1, Int((CGFloat(srcCG.width) * scaleX).rounded()))
+        let newH = max(1, Int((CGFloat(srcCG.height) * scaleY).rounded()))
 
         let colorSpace = srcCG.colorSpace ?? CGColorSpaceCreateDeviceRGB()
         guard let ctx = CGContext(
@@ -1166,19 +1168,19 @@ struct EditorView: View {
 
         annotations = annotations.map { ann in
             var a = ann
-            a.startPoint = CGPoint(x: ann.startPoint.x * scale, y: ann.startPoint.y * scale)
-            a.endPoint   = CGPoint(x: ann.endPoint.x * scale,   y: ann.endPoint.y * scale)
+            a.startPoint = CGPoint(x: ann.startPoint.x * scaleX, y: ann.startPoint.y * scaleY)
+            a.endPoint   = CGPoint(x: ann.endPoint.x * scaleX,   y: ann.endPoint.y * scaleY)
             if !ann.points.isEmpty {
-                a.points = ann.points.map { CGPoint(x: $0.x * scale, y: $0.y * scale) }
+                a.points = ann.points.map { CGPoint(x: $0.x * scaleX, y: $0.y * scaleY) }
             }
             return a
         }
 
         screenshotCropRect = CGRect(
-            x: screenshotCropRect.minX * scale,
-            y: screenshotCropRect.minY * scale,
-            width: screenshotCropRect.width * scale,
-            height: screenshotCropRect.height * scale
+            x: screenshotCropRect.minX * scaleX,
+            y: screenshotCropRect.minY * scaleY,
+            width: screenshotCropRect.width * scaleX,
+            height: screenshotCropRect.height * scaleY
         )
 
         let scaledNSImage = NSImage(size: NSSize(width: newW, height: newH))
