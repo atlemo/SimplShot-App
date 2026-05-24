@@ -3,6 +3,7 @@ import CoreSpotlight
 import KeyboardShortcuts
 #if !APPSTORE
 import Sparkle
+import TelemetryDeck
 #endif
 import SwiftUI
 @preconcurrency import UserNotifications
@@ -68,6 +69,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             windowManager: windowManager,
             screenshotService: screenshotService
         )
+
+        // Analytics
+        let telemetryConfig = TelemetryDeck.Config(appID: "2ED195C4-F469-4588-B647-97B5A5A36CB2")
+        TelemetryDeck.initialize(config: telemetryConfig)
 #endif
 
         // Set up menu builder
