@@ -194,7 +194,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         donateSpotlightItem()
         cleanupStrandedTempFiles()
+
+#if !APPSTORE
+        showWhatsNewIfNeeded()
+#endif
     }
+
+#if !APPSTORE
+    private func showWhatsNewIfNeeded() {
+        guard WhatsNewService.shouldShow else { return }
+        let entries = WhatsNewService.relevantEntries()
+        guard !entries.isEmpty else {
+            WhatsNewService.markAsSeen()
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 380, height: 460),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "What's New"
+            window.center()
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: WhatsNewView(entries: entries) {
+                WhatsNewService.markAsSeen()
+                window.close()
+            })
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+#endif
 
     /// Removes stranded safe-save temp files (`.sb-XXXXXXXX-XXXXXX` suffix) that
     /// `CGImageDestinationFinalize` leaves behind when the app crashes mid-write.
