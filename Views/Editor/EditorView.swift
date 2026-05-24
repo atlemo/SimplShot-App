@@ -2,6 +2,8 @@ import SwiftUI
 import StoreKit
 import UniformTypeIdentifiers
 import AppKit
+import CoreImage
+import ImageIO
 #if !APPSTORE
 import WebP
 #endif
@@ -117,6 +119,10 @@ struct EditorView: View {
     @State private var editorMode: EditorMode
     /// Non-destructive photo adjustments applied via Core Image in the display pipeline.
     @State private var photoAdjustments: PhotoAdjustments = .default
+    /// Number of 90° clockwise rotations applied to the raw image (0–3).
+    /// Applied at the top of the display pipeline; screenshotCropRect and
+    /// annotations live in the rotated-raw coordinate space.
+    @State private var rotationSteps: Int = 0
     /// Shared Core Image context for photo adjustments. Created once, reused every frame.
     @State private var ciContext: CIContext = CIContext()
 
@@ -568,6 +574,8 @@ struct EditorView: View {
             onApplyCrop: applyCrop,
             onCancelCrop: cancelCrop,
             onEnterCrop: { isCropping = true; currentTool = .crop },
+            onRotateLeft: rotateLeft,
+            onRotateRight: rotateRight,
             onUndo: undo,
             onDone: saveOverwrite,
             watermarkSettings: watermarkSettingsBinding,
@@ -654,6 +662,7 @@ struct EditorView: View {
                 onTrash: { showTrashAlert = true },
                 onCancel: cancelEdits,
                 onSaveAs: saveAs,
+                onPrint: printImage,
                 annotationsCount: annotations.count,
                 displayZoomPercent: Int(displayZoomPercent),
                 onZoomOut: zoomOut,
@@ -740,23 +749,42 @@ struct EditorView: View {
     /// Intentionally does NOT populate `session.image` / `session.rawImage` — that way
     /// the first activation of a session falls into the `loadImage()` path and
     /// gets the editor's current template (wallpaper, padding) applied properly.
+    /// Decode every not-yet-loaded session in the background so the user can
+    /// click any thumbnail in the strip with no perceptible delay. Each session
+    /// ends up with a cached `rawImage`, `metadata`, `screenshotCropRect`,
+    /// `image`, and `thumbnail` — exactly what an active load would produce.
     private func preloadThumbnails() {
-        let targets = sessions.filter { $0.id != activeSessionID && $0.thumbnail == nil }
+        let targets = sessions.filter { $0.id != activeSessionID && $0.rawImage == nil }
         guard !targets.isEmpty else { return }
-        DispatchQueue.global(qos: .userInitiated).async {
+        Self.imageLoadQueue.async {
             for session in targets {
-                let nsImage: NSImage?
+                let decoded: (nsImage: NSImage, cgImage: CGImage)?
                 if let pdfSource = session.pdfPageSource,
-                   let cgImage = pdfSource.renderPage(backingScale: 1.0) {
-                    let size = NSSize(width: cgImage.width, height: cgImage.height)
+                   let cg = pdfSource.renderPage(backingScale: 1.0) {
+                    let size = NSSize(width: cg.width, height: cg.height)
                     let img = NSImage(size: size)
-                    img.addRepresentation(NSBitmapImageRep(cgImage: cgImage))
-                    nsImage = img
+                    img.addRepresentation(NSBitmapImageRep(cgImage: cg))
+                    decoded = (img, cg)
+                } else if let img = NSImage(contentsOf: session.imageURL),
+                          let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                    decoded = (img, cg)
                 } else {
-                    nsImage = NSImage(contentsOf: session.imageURL)
+                    continue
                 }
-                guard let nsImage else { continue }
-                session.generateThumbnail(from: nsImage)
+                guard let decoded else { continue }
+                let metadata = ImageMetadata.load(from: session.imageURL)
+                DispatchQueue.main.async { [weak session] in
+                    guard let session, session.rawImage == nil else { return }
+                    // Cache decoded data on the session so a later switch is instant.
+                    session.rawImage = decoded.nsImage
+                    session.metadata = metadata
+                    let (sw, sh) = Self.rotatedDims(width: CGFloat(decoded.cgImage.width),
+                                                    height: CGFloat(decoded.cgImage.height),
+                                                    steps: session.rotationSteps)
+                    session.screenshotCropRect = CGRect(x: 0, y: 0, width: sw, height: sh)
+                    // Produce session.image + thumbnail via the non-active-session renderer.
+                    renderSessionDisplay(session)
+                }
             }
         }
     }
@@ -857,8 +885,12 @@ struct EditorView: View {
     /// Updates the session's display image, derived metadata, and thumbnail.
     private func renderSessionDisplay(_ session: ImageSession) {
         guard let rawImg = session.rawImage,
-              let cgSource = rawImg.cgImage(forProposedRect: nil, context: nil, hints: nil)
+              let cgSourceOriginal = rawImg.cgImage(forProposedRect: nil, context: nil, hints: nil)
         else { return }
+
+        // Apply this session's rotation up front (same model as applyDisplayImage).
+        let cgSource = Self.rotateCGImage90(cgSourceOriginal, steps: session.rotationSteps, ciContext: ciContext)
+            ?? cgSourceOriginal
 
         var croppedCG = cgSource
         if !session.screenshotCropRect.isEmpty {
@@ -906,33 +938,81 @@ struct EditorView: View {
         session.generateThumbnail(from: nsImage)
     }
 
+    /// Decode the active session's image off the main thread. The UI stays
+    /// responsive while the (potentially ~100ms) PNG decode runs in the
+    /// background; results are dispatched back to main when ready.
     private func loadImage() {
-        if let pdfSource = activeSession?.pdfPageSource {
-            guard let cgImage = pdfSource.renderPage(backingScale: displayBackingScale) else { return }
-            let size = NSSize(width: cgImage.width, height: cgImage.height)
-            let nsImage = NSImage(size: size)
-            nsImage.addRepresentation(NSBitmapImageRep(cgImage: cgImage))
-            rawImage = nsImage
-            imageMetadata = ImageMetadata.load(from: pdfSource.sourceURL)
-            screenshotCropRect = CGRect(x: 0, y: 0,
-                                        width: CGFloat(cgImage.width), height: CGFloat(cgImage.height))
-            applyDisplayImage(from: nsImage)
-            saveActiveSessionState()
+        guard let session = activeSession else { return }
+        let currentID = session.id
+        let backingScale = displayBackingScale
+
+        // PDF path
+        if let pdfSource = session.pdfPageSource {
+            let sourceURL = pdfSource.sourceURL
+            Self.imageLoadQueue.async {
+                guard let cgImage = pdfSource.renderPage(backingScale: backingScale) else { return }
+                let metadata = ImageMetadata.load(from: sourceURL)
+                let size = NSSize(width: cgImage.width, height: cgImage.height)
+                let nsImage = NSImage(size: size)
+                nsImage.addRepresentation(NSBitmapImageRep(cgImage: cgImage))
+                DispatchQueue.main.async {
+                    applyLoaded(image: nsImage, cgImage: cgImage, metadata: metadata, sessionID: currentID)
+                }
+            }
             return
         }
 
-        guard let nsImage = NSImage(contentsOf: imageURL) else { return }
-        rawImage = nsImage
-        imageMetadata = ImageMetadata.load(from: imageURL)
-        if let cg = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-            screenshotCropRect = CGRect(x: 0, y: 0,
-                                        width: CGFloat(cg.width), height: CGFloat(cg.height))
+        // Non-PDF (image file on disk)
+        let url = session.imageURL
+        Self.imageLoadQueue.async {
+            guard let nsImage = NSImage(contentsOf: url),
+                  // Force decode here off the main thread.
+                  let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            else { return }
+            let metadata = ImageMetadata.load(from: url)
+            DispatchQueue.main.async {
+                applyLoaded(image: nsImage, cgImage: cgImage, metadata: metadata, sessionID: currentID)
+            }
         }
-        applyDisplayImage(from: nsImage)
-        saveActiveSessionState()
+    }
+
+    /// Background queue for image decoding. Concurrent so multiple sessions can
+    /// be pre-decoded in parallel if we ever add prefetch.
+    private static let imageLoadQueue = DispatchQueue(
+        label: "com.simplshot.imageLoad",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
+
+    /// Main-thread continuation for `loadImage`. Writes the decoded image back
+    /// to the originating session (so a later return-visit is instant), and if
+    /// that session is still active, reflects into @State to trigger display.
+    private func applyLoaded(image nsImage: NSImage, cgImage: CGImage, metadata: ImageMetadata, sessionID: UUID) {
+        guard let originalSession = sessions.first(where: { $0.id == sessionID }) else { return }
+
+        // Always populate the originating session so a later switch back is fast.
+        originalSession.rawImage = nsImage
+        originalSession.metadata = metadata
+        let (sw, sh) = Self.rotatedDims(width: CGFloat(cgImage.width),
+                                        height: CGFloat(cgImage.height),
+                                        steps: originalSession.rotationSteps)
+        originalSession.screenshotCropRect = CGRect(x: 0, y: 0, width: sw, height: sh)
+
+        if activeSessionID == sessionID {
+            // Reflect into @State and trigger the active display pipeline.
+            rawImage = nsImage
+            imageMetadata = metadata
+            screenshotCropRect = originalSession.screenshotCropRect
+            applyDisplayImage(from: nsImage)
+            saveActiveSessionState()
+        } else {
+            // User has navigated away. Pre-render the display image into the
+            // session so that when they come back, no work is needed.
+            renderSessionDisplay(originalSession)
+        }
     }
     private func applyDisplayImage(from source: NSImage) {
-        guard let cgSource = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        guard let cgSourceOriginal = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             image = source
             currentDisplayCGImage = nil
             imagePixelSize = source.size
@@ -940,7 +1020,13 @@ struct EditorView: View {
             return
         }
 
-        // Apply non-destructive crop to the raw screenshot before compositing.
+        // Apply rotation FIRST so all subsequent geometry (crop, adjustments,
+        // template) operates in the rotated coordinate space. screenshotCropRect
+        // and annotations are also stored in this rotated-raw coord space.
+        let cgSource = Self.rotateCGImage90(cgSourceOriginal, steps: rotationSteps, ciContext: ciContext)
+            ?? cgSourceOriginal
+
+        // Apply non-destructive crop to the (rotated) raw screenshot before compositing.
         var croppedCG = cgSource
         if !screenshotCropRect.isEmpty {
             let fullBounds = CGRect(x: 0, y: 0,
@@ -1103,14 +1189,18 @@ struct EditorView: View {
             imagePixelSize: imagePixelSize,
             cropRect: cropRect,
             screenshotCropRect: screenshotCropRect,
-            photoAdjustments: photoAdjustments
+            photoAdjustments: photoAdjustments,
+            rotationSteps: rotationSteps
         )
 
         // Remember the current crop so cancel can restore it.
         preCropScreenshotCropRect = screenshotCropRect
 
-        let fullBounds = CGRect(x: 0, y: 0,
-                                width: CGFloat(cg.width), height: CGFloat(cg.height))
+        // screenshotCropRect is in rotated-raw dims, so swap if rotation is odd.
+        let (rotW, rotH) = Self.rotatedDims(width: CGFloat(cg.width),
+                                            height: CGFloat(cg.height),
+                                            steps: rotationSteps)
+        let fullBounds = CGRect(x: 0, y: 0, width: rotW, height: rotH)
 
         // Compute the old gradient offset (before expanding).
         let oldGradientOffset: CGPoint
@@ -1704,6 +1794,152 @@ struct EditorView: View {
         }
     }
 
+    // MARK: - Rotation
+
+    /// Rotate by `delta` × 90° clockwise (use +1 for right, +3 for left).
+    /// Updates rotationSteps, remaps annotations and screenshotCropRect so they
+    /// stay anchored to the same visual content, then re-renders.
+    private func rotate(deltaSteps delta: Int) {
+        guard rawImage != nil else { return }
+        let d = ((delta % 4) + 4) % 4
+        guard d != 0 else { return }
+
+        pushUndo()
+        selectedAnnotationID = nil
+
+        // Compute pre-rotation screenshot size (rotated-raw dims minus any crop).
+        let oldScreenshotSize: CGSize = {
+            if !screenshotCropRect.isEmpty { return screenshotCropRect.size }
+            if let cg = rawImage?.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                let (w, h) = Self.rotatedDims(width: CGFloat(cg.width),
+                                              height: CGFloat(cg.height),
+                                              steps: rotationSteps)
+                return CGSize(width: w, height: h)
+            }
+            return imagePixelSize
+        }()
+
+        // Gradient offsets (template padding); .zero for PDFs/no-template sessions.
+        let oldGradientOffset: CGPoint = {
+            guard selectedWallpaper != nil, !isPDFSession else { return .zero }
+            return screenshotOriginInTemplatedCanvas(
+                screenshotPixelSize: oldScreenshotSize,
+                padding: editorPadding,
+                aspectRatio: selectedEditorAspectRatio?.ratio,
+                alignment: screenshotAlignment
+            )
+        }()
+
+        let newScreenshotSize: CGSize = (d % 2 == 0)
+            ? oldScreenshotSize
+            : CGSize(width: oldScreenshotSize.height, height: oldScreenshotSize.width)
+
+        let newGradientOffset: CGPoint = {
+            guard selectedWallpaper != nil, !isPDFSession else { return .zero }
+            return screenshotOriginInTemplatedCanvas(
+                screenshotPixelSize: newScreenshotSize,
+                padding: editorPadding,
+                aspectRatio: selectedEditorAspectRatio?.ratio,
+                alignment: screenshotAlignment
+            )
+        }()
+
+        // Remap each annotation point: display → screenshot-relative → rotate → new display.
+        let remap: (CGPoint) -> CGPoint = { p in
+            let sr = CGPoint(x: p.x - oldGradientOffset.x, y: p.y - oldGradientOffset.y)
+            let rotated = Self.rotatePoint90(sr, steps: d, in: oldScreenshotSize)
+            return CGPoint(x: rotated.x + newGradientOffset.x, y: rotated.y + newGradientOffset.y)
+        }
+        annotations = annotations.map { ann in
+            var a = ann
+            a.startPoint = remap(ann.startPoint)
+            a.endPoint = remap(ann.endPoint)
+            if !ann.points.isEmpty {
+                a.points = ann.points.map(remap)
+            }
+            return a
+        }
+
+        // Remap screenshotCropRect: it's in rotated-raw dims, so rotate it within
+        // the OLD rotated-raw dims to get the new rotated-raw position.
+        if !screenshotCropRect.isEmpty,
+           let cg = rawImage?.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            let (oldRotW, oldRotH) = Self.rotatedDims(width: CGFloat(cg.width),
+                                                      height: CGFloat(cg.height),
+                                                      steps: rotationSteps)
+            screenshotCropRect = Self.rotateRect90(
+                screenshotCropRect, steps: d,
+                in: CGSize(width: oldRotW, height: oldRotH)
+            )
+        }
+
+        rotationSteps = ((rotationSteps + d) % 4 + 4) % 4
+
+        if let rawImg = rawImage {
+            applyDisplayImage(from: rawImg)
+        }
+        saveActiveSessionState()
+    }
+
+    private func rotateLeft()  { rotate(deltaSteps: 3) }  // 90° CCW = +3 mod 4
+    private func rotateRight() { rotate(deltaSteps: 1) }  // 90° CW
+
+    // MARK: - Rotation helpers (pure, static)
+
+    /// Returns (width, height) after applying `steps` × 90° rotation.
+    /// Dimensions swap when steps is odd.
+    static func rotatedDims(width: CGFloat, height: CGFloat, steps: Int) -> (CGFloat, CGFloat) {
+        let s = ((steps % 4) + 4) % 4
+        return (s % 2 == 0) ? (width, height) : (height, width)
+    }
+
+    /// Rotate a CGImage by `steps` × 90° clockwise (visual). Returns the input
+    /// unchanged if steps is a multiple of 4.
+    static func rotateCGImage90(_ image: CGImage, steps: Int, ciContext: CIContext) -> CGImage? {
+        let s = ((steps % 4) + 4) % 4
+        guard s != 0 else { return image }
+        let orientation: CGImagePropertyOrientation
+        switch s {
+        case 1: orientation = .right   // 90° CW visual
+        case 2: orientation = .down    // 180°
+        case 3: orientation = .left    // 90° CCW visual
+        default: orientation = .up
+        }
+        let ci = CIImage(cgImage: image).oriented(orientation)
+        return ciContext.createCGImage(ci, from: ci.extent)
+    }
+
+    /// Rotate a point by `steps` × 90° clockwise within source dimensions
+    /// `originalSize` (top-left origin, continuous coordinates). The result is
+    /// in the rotated dimensions which are swapped if `steps` is odd.
+    static func rotatePoint90(_ p: CGPoint, steps: Int, in originalSize: CGSize) -> CGPoint {
+        let s = ((steps % 4) + 4) % 4
+        let W = originalSize.width
+        let H = originalSize.height
+        switch s {
+        case 1: return CGPoint(x: H - p.y, y: p.x)        // 90° CW
+        case 2: return CGPoint(x: W - p.x, y: H - p.y)    // 180°
+        case 3: return CGPoint(x: p.y, y: W - p.x)        // 90° CCW
+        default: return p
+        }
+    }
+
+    /// Rotate a rect by `steps` × 90° clockwise within source dimensions `originalSize`.
+    static func rotateRect90(_ r: CGRect, steps: Int, in originalSize: CGSize) -> CGRect {
+        let s = ((steps % 4) + 4) % 4
+        let W = originalSize.width
+        let H = originalSize.height
+        switch s {
+        case 1: return CGRect(x: H - r.minY - r.height, y: r.minX,
+                              width: r.height, height: r.width)
+        case 2: return CGRect(x: W - r.minX - r.width, y: H - r.minY - r.height,
+                              width: r.width, height: r.height)
+        case 3: return CGRect(x: r.minY, y: W - r.minX - r.width,
+                              width: r.height, height: r.width)
+        default: return r
+        }
+    }
+
     // MARK: - Undo
 
     private func pushUndo() {
@@ -1715,7 +1951,8 @@ struct EditorView: View {
             imagePixelSize: imagePixelSize,
             cropRect: cropRect,
             screenshotCropRect: screenshotCropRect,
-            photoAdjustments: photoAdjustments
+            photoAdjustments: photoAdjustments,
+            rotationSteps: rotationSteps
         ))
     }
 
@@ -1738,6 +1975,8 @@ struct EditorView: View {
         selectedWallpaper = snapshot.selectedWallpaper
         cropRect = snapshot.cropRect ?? CGRect(origin: .zero, size: imagePixelSize)
         selectedAnnotationID = nil
+        // Restore rotation BEFORE photoAdjustments so the re-render uses the right orientation.
+        rotationSteps = snapshot.rotationSteps
         // Restore photo adjustments — triggers onChange which re-renders the display image.
         photoAdjustments = snapshot.photoAdjustments
     }
@@ -1802,6 +2041,7 @@ struct EditorView: View {
         session.screenshotAlignment = screenshotAlignment
         session.watermarkSettings = watermarkSettings
         session.photoAdjustments = photoAdjustments
+        session.rotationSteps = rotationSteps
         session.undoStack = undoStack
         session.templateRenderer = templateRenderer
         session.generateThumbnail()
@@ -1835,6 +2075,7 @@ struct EditorView: View {
         screenshotAlignment = session.screenshotAlignment
         watermarkSettings = session.watermarkSettings
         photoAdjustments = session.photoAdjustments
+        rotationSteps = session.rotationSteps
         // Note: editorMode is intentionally NOT restored per-session — the active mode
         // is global to the editor window, not tied to the image being viewed.
         undoStack = session.undoStack
@@ -2135,12 +2376,122 @@ struct EditorView: View {
         #endif
     }
 
+    // MARK: - Print
+
+    private func printImage() {
+        saveActiveSessionState()
+
+        var images: [NSImage] = []
+        let renderer = AnnotationRenderer()
+
+        for session in sessions {
+            let cg = session.currentDisplayCGImage
+                ?? session.image?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            guard let cgImage = cg else { continue }
+            guard let outputCG = try? renderer.render(
+                image: cgImage,
+                annotations: session.annotations,
+                backingScale: displayBackingScale,
+                cropRect: nil,
+                watermark: session.watermarkSettings
+            ) else { continue }
+            let size = NSSize(width: outputCG.width, height: outputCG.height)
+            let nsImage = NSImage(size: size)
+            nsImage.addRepresentation(NSBitmapImageRep(cgImage: outputCG))
+            images.append(nsImage)
+        }
+
+        guard !images.isEmpty else { return }
+
+        let printView = MultiPagePrintView(images: images)
+        let printOperation = NSPrintOperation(view: printView)
+        printOperation.printInfo.horizontalPagination = .fit
+        printOperation.printInfo.verticalPagination = .clip
+        printOperation.printInfo.isHorizontallyCentered = true
+        printOperation.printInfo.isVerticallyCentered = true
+        printOperation.runModal(for: hostingWindow ?? NSApp.keyWindow ?? NSWindow(),
+                                delegate: nil, didRun: nil, contextInfo: nil)
+    }
+
     private func showSaveError(_ error: Error) {
         let alert = NSAlert()
         alert.messageText = "Save Failed"
         alert.informativeText = error.localizedDescription
         alert.alertStyle = .warning
         alert.runModal()
+    }
+}
+
+/// An NSView that paginates a list of images, one per printed page.
+/// Each image is scaled to fit within the page's printable area while
+/// preserving its aspect ratio.
+private class MultiPagePrintView: NSView {
+    private let images: [NSImage]
+
+    init(images: [NSImage]) {
+        self.images = images
+        super.init(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func knowsPageRange(_ range: NSRangePointer) -> Bool {
+        range.pointee = NSRange(location: 1, length: images.count)
+        return true
+    }
+
+    override func rectForPage(_ page: Int) -> NSRect {
+        let printInfo = NSPrintOperation.current?.printInfo ?? NSPrintInfo.shared
+        let paperSize = printInfo.paperSize
+        let margins = NSEdgeInsets(
+            top: printInfo.topMargin,
+            left: printInfo.leftMargin,
+            bottom: printInfo.bottomMargin,
+            right: printInfo.rightMargin
+        )
+        let printableWidth = paperSize.width - margins.left - margins.right
+        let printableHeight = paperSize.height - margins.top - margins.bottom
+
+        frame = NSRect(x: 0, y: 0, width: printableWidth,
+                       height: printableHeight * CGFloat(images.count))
+        return NSRect(x: 0, y: printableHeight * CGFloat(page - 1),
+                      width: printableWidth, height: printableHeight)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let context = NSGraphicsContext.current else { return }
+        let printInfo = NSPrintOperation.current?.printInfo ?? NSPrintInfo.shared
+        let paperSize = printInfo.paperSize
+        let margins = NSEdgeInsets(
+            top: printInfo.topMargin,
+            left: printInfo.leftMargin,
+            bottom: printInfo.bottomMargin,
+            right: printInfo.rightMargin
+        )
+        let printableWidth = paperSize.width - margins.left - margins.right
+        let printableHeight = paperSize.height - margins.top - margins.bottom
+
+        context.saveGraphicsState()
+        for (index, image) in images.enumerated() {
+            let pageOriginY = printableHeight * CGFloat(index)
+            let pageRect = NSRect(x: 0, y: pageOriginY,
+                                  width: printableWidth, height: printableHeight)
+            guard dirtyRect.intersects(pageRect) else { continue }
+
+            let imageSize = image.size
+            guard imageSize.width > 0, imageSize.height > 0 else { continue }
+            let scale = min(printableWidth / imageSize.width,
+                            printableHeight / imageSize.height,
+                            1.0)
+            let drawW = imageSize.width * scale
+            let drawH = imageSize.height * scale
+            let drawX = (printableWidth - drawW) / 2
+            let drawY = pageOriginY + (printableHeight - drawH) / 2
+            image.draw(in: NSRect(x: drawX, y: drawY, width: drawW, height: drawH),
+                       from: .zero, operation: .sourceOver, fraction: 1.0)
+        }
+        context.restoreGraphicsState()
     }
 }
 

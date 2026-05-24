@@ -224,6 +224,8 @@ struct EditorSnapshot {
     let screenshotCropRect: CGRect?
     /// Photo adjustments at the time of the snapshot (exposure, contrast, etc.).
     let photoAdjustments: PhotoAdjustments
+    /// Rotation (in 90° CW steps, modulo 4) at the time of the snapshot.
+    let rotationSteps: Int
 
     init(
         annotations: [Annotation],
@@ -233,7 +235,8 @@ struct EditorSnapshot {
         imagePixelSize: CGSize = .zero,
         cropRect: CGRect? = nil,
         screenshotCropRect: CGRect? = nil,
-        photoAdjustments: PhotoAdjustments = .default
+        photoAdjustments: PhotoAdjustments = .default,
+        rotationSteps: Int = 0
     ) {
         self.annotations = annotations
         self.image = image
@@ -243,5 +246,6 @@ struct EditorSnapshot {
         self.cropRect = cropRect
         self.screenshotCropRect = screenshotCropRect
         self.photoAdjustments = photoAdjustments
+        self.rotationSteps = rotationSteps
     }
 }

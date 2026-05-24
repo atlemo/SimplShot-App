@@ -18,6 +18,7 @@ struct EditorBottomToolbarView: View {
     var onTrash: () -> Void
     var onCancel: () -> Void
     var onSaveAs: () -> Void
+    var onPrint: () -> Void
 
     // Right — annotations + zoom
     let annotationsCount: Int
@@ -161,6 +162,18 @@ struct EditorBottomToolbarView: View {
             .buttonStyle(ToolbarHoverButtonStyle())
             .help("Save a copy")
             .keyboardShortcut("s", modifiers: [.command, .shift])
+
+            Divider().frame(height: 16).padding(.horizontal, 2)
+
+            Button(action: onPrint) {
+                Label("Print", systemImage: "printer")
+                    .labelStyle(.iconOnly)
+                    .frame(width: 36, height: pillHeight)
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(ToolbarHoverButtonStyle())
+            .help("Print")
+            .keyboardShortcut("p", modifiers: .command)
         }
         .padding(.horizontal, 4)
     }

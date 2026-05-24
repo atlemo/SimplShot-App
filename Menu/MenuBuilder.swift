@@ -235,7 +235,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(clipboardItem)
 
-        let openFileItem = NSMenuItem(title: "Open File…", action: #selector(openFileAction), keyEquivalent: "")
+        let openFileItem = NSMenuItem(title: "Open File(s)…", action: #selector(openFileAction), keyEquivalent: "")
         openFileItem.target = self
         openFileItem.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
@@ -669,7 +669,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     @objc func openFileAction() {
         let panel = NSOpenPanel()
-        panel.title = "Open File"
+        panel.title = "Open File(s)"
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff, .gif, .bmp, .pdf]

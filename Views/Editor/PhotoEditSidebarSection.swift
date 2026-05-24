@@ -12,6 +12,8 @@ struct PhotoEditSidebarSection: View {
     var onApplyCrop: () -> Void
     var onCancelCrop: () -> Void
     var onResizeImage: (Int, Int) -> Void
+    var onRotateLeft: () -> Void = {}
+    var onRotateRight: () -> Void = {}
 
     // Resize state
     @State private var resizeWidthStr: String = ""
@@ -35,6 +37,7 @@ struct PhotoEditSidebarSection: View {
                         activeCropSection
                     } else {
                         adjustmentsSection
+                        transformSection
                         cropSection
                         resizeSection
                         metadataSection
@@ -159,6 +162,35 @@ struct PhotoEditSidebarSection: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(adjustments.isDefault)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    // MARK: - Transform section
+
+    private var transformSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("Transform")
+            HStack(spacing: 8) {
+                Button(action: onRotateLeft) {
+                    Label("Left", systemImage: "rotate.left")
+                        .font(.system(size: 12))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Rotate 90° counter-clockwise")
+
+                Button(action: onRotateRight) {
+                    Label("Right", systemImage: "rotate.right")
+                        .font(.system(size: 12))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Rotate 90° clockwise")
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)

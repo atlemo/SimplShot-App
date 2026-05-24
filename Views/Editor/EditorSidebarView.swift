@@ -48,6 +48,10 @@ struct EditorSidebarView: View {
     var onCancelCrop: () -> Void
     /// Called in Edit mode when the user taps the Crop button — enters crop mode.
     var onEnterCrop: () -> Void = {}
+    /// Called in Edit mode when the user taps rotate-left (90° CCW).
+    var onRotateLeft: () -> Void = {}
+    /// Called in Edit mode when the user taps rotate-right (90° CW).
+    var onRotateRight: () -> Void = {}
     var onUndo: () -> Void
     var onDone: () -> Void
 
@@ -150,7 +154,9 @@ struct EditorSidebarView: View {
                     onEnterCrop: onEnterCrop,
                     onApplyCrop: onApplyCrop,
                     onCancelCrop: onCancelCrop,
-                    onResizeImage: onResizeImage
+                    onResizeImage: onResizeImage,
+                    onRotateLeft: onRotateLeft,
+                    onRotateRight: onRotateRight
                 )
                 // Edit slides in from / out to the right edge.
                 .transition(.move(edge: .trailing))

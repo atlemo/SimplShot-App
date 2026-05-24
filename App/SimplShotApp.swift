@@ -12,7 +12,7 @@ struct SimplShotApp: App {
         }
         .commands {
             CommandGroup(after: .newItem) {
-                Button("Open File…") {
+                Button("Open File(s)…") {
                     appDelegate.openFile()
                 }
                 .keyboardShortcut("o", modifiers: .command)

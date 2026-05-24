@@ -164,6 +164,12 @@ class ImageSession: Identifiable, ObservableObject {
     // Photo adjustments (Edit mode — non-destructive CI filter chain)
     var photoAdjustments: PhotoAdjustments = .default
 
+    /// Number of 90° clockwise rotation steps applied to the raw image at the
+    /// top of the display pipeline. Stored modulo 4 (0=upright, 1=90° CW,
+    /// 2=180°, 3=270° CW = 90° CCW). screenshotCropRect and annotations live in
+    /// the rotated-raw coordinate space, so they remain consistent across rotations.
+    var rotationSteps: Int = 0
+
     // Undo
     var undoStack: [EditorSnapshot] = []
 
@@ -173,6 +179,18 @@ class ImageSession: Identifiable, ObservableObject {
     /// Published so the thumbnail strip refreshes when a thumbnail is generated
     /// off the main thread.
     @Published var thumbnail: NSImage?
+
+    /// Identity of the NSImage that the current `thumbnail` was rendered from.
+    /// Used to short-circuit redundant thumbnail generation on session switch
+    /// (where the displayed image hasn't actually changed).
+    private var lastThumbnailSourceID: ObjectIdentifier?
+
+    /// Shared background queue for thumbnail rendering so the main thread is
+    /// never blocked by large CGContext draws.
+    private static let thumbnailQueue = DispatchQueue(
+        label: "com.simplshot.thumbnail",
+        qos: .userInitiated
+    )
 
     init(imageURL: URL) {
         self.imageURL = imageURL
@@ -184,42 +202,50 @@ class ImageSession: Identifiable, ObservableObject {
         self.pdfGroupID = pdfGroupID
     }
 
-    /// Generate a downscaled thumbnail. Safe to call off the main thread —
-    /// uses CGContext rather than NSImage.lockFocus (which requires AppKit/main).
+    /// Generate a downscaled thumbnail. Always dispatches the heavy CGContext
+    /// draw to a background queue so the main thread is never blocked when this
+    /// is called as part of session-state writes.
     /// Pass `from:` to avoid re-loading the NSImage; otherwise falls back to `image`.
     func generateThumbnail(from source: NSImage? = nil) {
         let src = source ?? image
-        guard let cgSource = src?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
-        let pixelW = CGFloat(cgSource.width)
-        let pixelH = CGFloat(cgSource.height)
-        guard pixelW > 0, pixelH > 0 else { return }
+        guard let src else { return }
 
-        let maxDim: CGFloat = 148
-        let scale = min(maxDim / pixelW, maxDim / pixelH, 1.0)
-        // Render at 2× target points for crisp display on Retina.
-        let renderW = max(Int((pixelW * scale * 2).rounded()), 1)
-        let renderH = max(Int((pixelH * scale * 2).rounded()), 1)
+        // Short-circuit: if the source NSImage instance hasn't changed since the
+        // last thumbnail render, skip. This makes session-switches (which write
+        // back unchanged @State) effectively free.
+        let srcID = ObjectIdentifier(src)
+        if srcID == lastThumbnailSourceID, thumbnail != nil { return }
+        lastThumbnailSourceID = srcID
 
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: nil,
-            width: renderW,
-            height: renderH,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return }
-        ctx.interpolationQuality = .high
-        ctx.draw(cgSource, in: CGRect(x: 0, y: 0, width: renderW, height: renderH))
-        guard let cgThumb = ctx.makeImage() else { return }
+        Self.thumbnailQueue.async { [weak self] in
+            guard let cgSource = src.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+            let pixelW = CGFloat(cgSource.width)
+            let pixelH = CGFloat(cgSource.height)
+            guard pixelW > 0, pixelH > 0 else { return }
 
-        let pointSize = NSSize(width: pixelW * scale, height: pixelH * scale)
-        let thumb = NSImage(cgImage: cgThumb, size: pointSize)
-        if Thread.isMainThread {
-            thumbnail = thumb
-        } else {
-            DispatchQueue.main.async { [weak self] in
+            let maxDim: CGFloat = 148
+            let scale = min(maxDim / pixelW, maxDim / pixelH, 1.0)
+            // Render at 2× target points for crisp display on Retina.
+            let renderW = max(Int((pixelW * scale * 2).rounded()), 1)
+            let renderH = max(Int((pixelH * scale * 2).rounded()), 1)
+
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            guard let ctx = CGContext(
+                data: nil,
+                width: renderW,
+                height: renderH,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return }
+            ctx.interpolationQuality = .high
+            ctx.draw(cgSource, in: CGRect(x: 0, y: 0, width: renderW, height: renderH))
+            guard let cgThumb = ctx.makeImage() else { return }
+
+            let pointSize = NSSize(width: pixelW * scale, height: pixelH * scale)
+            let thumb = NSImage(cgImage: cgThumb, size: pointSize)
+            DispatchQueue.main.async {
                 self?.thumbnail = thumb
             }
         }
