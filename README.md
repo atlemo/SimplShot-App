@@ -5,17 +5,30 @@ SimplShot is a macOS screenshot app focused on fast captures, clean editing, and
 Live site: [www.simplshot.com](https://www.simplshot.com)
 
 ## Features
-- Capture app windows, batches, or free areas
-- Built-in editor with annotations, blur/pixelate, crop, and padding
-- Gradients and templates for polished screenshots
-- Keyboard shortcut support
+- Capture individual windows, batch multiple windows, or select a free area
+- Annotations: arrows, shapes, lines, free draw, text, numbered steps, and measurements
+- Blur/pixelate and spotlight tools for redacting or highlighting regions
+- Crop and padding controls
+- Templates with gradient backgrounds, drop shadows, rounded corners, and positioning
+- Watermark support with configurable placement
+- Screen color picker (eyedropper)
+- PDF support with multi-page thumbnails, page reordering, and PDF export
+- Drag and drop files onto the status bar icon to open
+- Print support
+- Snap-to-center guides, axis-lock dragging, Option+drag to duplicate, and arrow key nudging for annotations
+- Global keyboard shortcuts
 - Sparkle auto-updates for direct distribution builds
-- Separate App Store target configuration
 
 ## Project Structure
 - `SimplShot/` app source code
 - `SimplShot.xcodeproj/` Xcode project
 - `ARCHITECTURE.md` architecture notes
+
+## Install with Homebrew
+```bash
+brew tap atlemo/simplshot
+brew install --cask simplshot
+```
 
 ## Requirements
 - macOS 26.0 or later
