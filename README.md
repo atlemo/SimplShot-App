@@ -31,7 +31,7 @@ brew install --cask simplshot
 ```
 
 ## Requirements
-- macOS 26.0 or later
+- macOS 14.0 or later
 - Xcode 15+
 
 ## Build
