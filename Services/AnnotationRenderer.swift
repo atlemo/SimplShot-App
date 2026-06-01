@@ -79,6 +79,11 @@ class AnnotationRenderer {
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: 1, y: -1)
 
+        // 3. Pixelate renders before spotlight so it appears as image content being dimmed.
+        for annotation in annotations where annotation.tool == .pixelate {
+            drawAnnotation(annotation, backingScale: backingScale, in: context)
+        }
+
         let spotlightAnnotations = annotations.filter { $0.tool == .spotlight }
         if !spotlightAnnotations.isEmpty {
             drawSpotlights(
@@ -90,9 +95,9 @@ class AnnotationRenderer {
             )
         }
 
-        // 3. Draw each annotation
+        // 4. Draw remaining annotations on top of the spotlight dim.
         for annotation in annotations {
-            if annotation.tool == .spotlight { continue }
+            if annotation.tool == .spotlight || annotation.tool == .pixelate { continue }
             drawAnnotation(annotation, backingScale: backingScale, in: context)
         }
 
@@ -680,8 +685,41 @@ class AnnotationRenderer {
         let fullRect = CGRect(x: 0, y: 0, width: imageWidth, height: imageHeight)
         let overlayColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: strongestOpacity)
         let cornerRadius = 6 * backingScale
+        let feather = annotations.map(\.style.spotlightFeather).max() ?? 0
+        let featherPx = feather * backingScale
 
-        context.saveGState()
+        if featherPx < 1 {
+            context.saveGState()
+            let path = CGMutablePath()
+            path.addRect(fullRect)
+            for annotation in annotations {
+                path.addRoundedRect(
+                    in: annotation.boundingRect,
+                    cornerWidth: cornerRadius,
+                    cornerHeight: cornerRadius
+                )
+            }
+            context.addPath(path)
+            context.setFillColor(overlayColor)
+            context.fillPath(using: .evenOdd)
+            context.restoreGState()
+            return
+        }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let overlayCtx = CGContext(
+            data: nil,
+            width: imageWidth,
+            height: imageHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return }
+
+        overlayCtx.translateBy(x: 0, y: CGFloat(imageHeight))
+        overlayCtx.scaleBy(x: 1, y: -1)
+
         let path = CGMutablePath()
         path.addRect(fullRect)
         for annotation in annotations {
@@ -691,9 +729,24 @@ class AnnotationRenderer {
                 cornerHeight: cornerRadius
             )
         }
-        context.addPath(path)
-        context.setFillColor(overlayColor)
-        context.fillPath(using: .evenOdd)
+        overlayCtx.addPath(path)
+        overlayCtx.setFillColor(overlayColor)
+        overlayCtx.fillPath(using: .evenOdd)
+
+        guard let overlayImage = overlayCtx.makeImage() else { return }
+
+        let ciImage = CIImage(cgImage: overlayImage)
+        let blurred = ciImage.clampedToExtent()
+            .applyingGaussianBlur(sigma: Double(featherPx))
+            .cropped(to: ciImage.extent)
+
+        let ciCtx = CIContext(options: [.useSoftwareRenderer: false])
+        guard let blurredCG = ciCtx.createCGImage(blurred, from: blurred.extent) else { return }
+
+        context.saveGState()
+        context.scaleBy(x: 1, y: -1)
+        context.translateBy(x: 0, y: -CGFloat(imageHeight))
+        context.draw(blurredCG, in: fullRect)
         context.restoreGState()
     }
 
@@ -707,58 +760,116 @@ class AnnotationRenderer {
         let bgColor = style.cgTextBubbleBackground
         let fgColor = style.cgTextBubbleForeground
 
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: fgColor,
-        ]
-
-        // Split on newlines to support multiline text bubbles.
-        let lineStrings = text.components(separatedBy: "\n")
-        let ctLines = lineStrings.map { CTLineCreateWithAttributedString(NSAttributedString(string: $0, attributes: attributes)) }
-
         let hPad = fontSize * 0.55
         let vPad = fontSize * 0.25
         let ascent = CTFontGetAscent(font)
         let descent = CTFontGetDescent(font)
         let lineHeight = ascent + descent
-        let lineSpacing = fontSize * 0.22  // matches EditorCanvasView hit-test estimate
+        let lineSpacing = fontSize * 0.22
+        let cornerRadius = fontSize * 0.45
 
-        let maxLineWidth = ctLines.map { CTLineGetBoundsWithOptions($0, []).width }.max() ?? 0
-        let lineCount = CGFloat(lineStrings.count)
+        if let fixedBubbleWidth = style.textWidth {
+            // Fixed-width mode: use CTFramesetter to wrap text into the available inner width.
+            let innerWidth = fixedBubbleWidth - hPad * 2
 
-        let bgWidth = maxLineWidth + hPad * 2
-        let bgHeight = lineCount * lineHeight + max(0, lineCount - 1) * lineSpacing + vPad * 2
-        let cornerRadius = fontSize * 0.45  // matches SwiftUI RoundedRectangle
+            let paraStyle = NSMutableParagraphStyle()
+            paraStyle.alignment = .center
+            paraStyle.lineSpacing = lineSpacing - (lineHeight - fontSize)  // approximate to match SwiftUI
 
-        // point is the center of the bubble (matching the SwiftUI .position behavior)
-        let bgRect = CGRect(
-            x: point.x - bgWidth / 2,
-            y: point.y - bgHeight / 2,
-            width: bgWidth,
-            height: bgHeight
-        )
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: fgColor,
+                .paragraphStyle: paraStyle,
+            ]
+            let attrStr = NSAttributedString(string: text, attributes: attributes)
+            let framesetter = CTFramesetterCreateWithAttributedString(attrStr)
 
-        // Draw background rounded rect
-        context.saveGState()
-        context.setFillColor(bgColor)
-        let pillPath = CGPath(roundedRect: bgRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-        context.addPath(pillPath)
-        context.fillPath()
-        context.restoreGState()
+            // Measure how tall the wrapped text will be.
+            let fitSize = CTFramesetterSuggestFrameSizeWithConstraints(
+                framesetter,
+                CFRange(location: 0, length: 0),
+                nil,
+                CGSize(width: innerWidth, height: CGFloat.greatestFiniteMagnitude),
+                nil
+            )
 
-        // Draw each line of text centered horizontally.
-        // The context is flipped (top-left origin); un-flip locally for text rendering.
-        for (i, ctLine) in ctLines.enumerated() {
-            let lineWidth = CTLineGetBoundsWithOptions(ctLine, []).width
-            // Center each line within the bubble
-            let textX = bgRect.minX + hPad + (maxLineWidth - lineWidth) / 2
-            let textY = bgRect.minY + vPad + ascent + CGFloat(i) * (lineHeight + lineSpacing)
+            let bgWidth = fixedBubbleWidth
+            let bgHeight = fitSize.height + vPad * 2
+            let bgRect = CGRect(
+                x: point.x - bgWidth / 2,
+                y: point.y - bgHeight / 2,
+                width: bgWidth,
+                height: bgHeight
+            )
+
             context.saveGState()
-            context.translateBy(x: textX, y: textY)
-            context.scaleBy(x: 1, y: -1)
-            context.textPosition = .zero
-            CTLineDraw(ctLine, context)
+            context.setFillColor(bgColor)
+            let pillPath = CGPath(roundedRect: bgRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+            context.addPath(pillPath)
+            context.fillPath()
             context.restoreGState()
+
+            // Draw the framed text. CT uses bottom-left origin so un-flip for the frame rect.
+            let textRect = CGRect(
+                x: bgRect.minX + hPad,
+                y: bgRect.minY + vPad,
+                width: innerWidth,
+                height: fitSize.height
+            )
+            // Un-flip to CG bottom-left space for CTFrame drawing.
+            let cgTextRect = CGRect(
+                x: textRect.minX,
+                y: CGFloat(context.height) - textRect.maxY,  // context is flipped: top-left origin
+                width: textRect.width,
+                height: textRect.height
+            )
+            let framePath = CGPath(rect: cgTextRect, transform: nil)
+            let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), framePath, nil)
+            context.saveGState()
+            context.scaleBy(x: 1, y: -1)
+            context.translateBy(x: 0, y: -CGFloat(context.height))
+            CTFrameDraw(frame, context)
+            context.restoreGState()
+        } else {
+            // Natural-width mode: split on newlines, no wrapping.
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: fgColor,
+            ]
+            let lineStrings = text.components(separatedBy: "\n")
+            let ctLines = lineStrings.map { CTLineCreateWithAttributedString(NSAttributedString(string: $0, attributes: attributes)) }
+
+            let maxLineWidth = ctLines.map { CTLineGetBoundsWithOptions($0, []).width }.max() ?? 0
+            let lineCount = CGFloat(lineStrings.count)
+
+            let bgWidth = maxLineWidth + hPad * 2
+            let bgHeight = lineCount * lineHeight + max(0, lineCount - 1) * lineSpacing + vPad * 2
+
+            let bgRect = CGRect(
+                x: point.x - bgWidth / 2,
+                y: point.y - bgHeight / 2,
+                width: bgWidth,
+                height: bgHeight
+            )
+
+            context.saveGState()
+            context.setFillColor(bgColor)
+            let pillPath = CGPath(roundedRect: bgRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+            context.addPath(pillPath)
+            context.fillPath()
+            context.restoreGState()
+
+            for (i, ctLine) in ctLines.enumerated() {
+                let lineWidth = CTLineGetBoundsWithOptions(ctLine, []).width
+                let textX = bgRect.minX + hPad + (maxLineWidth - lineWidth) / 2
+                let textY = bgRect.minY + vPad + ascent + CGFloat(i) * (lineHeight + lineSpacing)
+                context.saveGState()
+                context.translateBy(x: textX, y: textY)
+                context.scaleBy(x: 1, y: -1)
+                context.textPosition = .zero
+                CTLineDraw(ctLine, context)
+                context.restoreGState()
+            }
         }
     }
 

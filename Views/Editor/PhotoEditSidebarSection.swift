@@ -7,6 +7,7 @@ struct PhotoEditSidebarSection: View {
     @Binding var adjustments: PhotoAdjustments
     var metadata: ImageMetadata?
     var isCropping: Bool
+    @Binding var cropAspectPreset: CropAspectPreset
     var imagePixelSize: CGSize
     var onEnterCrop: () -> Void
     var onApplyCrop: () -> Void
@@ -55,10 +56,25 @@ struct PhotoEditSidebarSection: View {
     private var activeCropSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader("Crop")
-            Text("Drag the handles on the image to set the crop area.")
+            Text("Drag the handles to resize, or drag inside to reposition.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Aspect ratio")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Picker("", selection: $cropAspectPreset) {
+                    ForEach(CropAspectPreset.allCases) { preset in
+                        Text(preset.rawValue).tag(preset)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             HStack(spacing: 8) {
                 Button(action: onApplyCrop) {
                     Label("Apply", systemImage: "checkmark")

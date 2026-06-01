@@ -135,17 +135,28 @@ struct AnnotationOverlayView: View {
             let scaledFontSize = annotation.style.fontSize * scale
             let cornerRadius = scaledFontSize * 0.45
             let borderWidth = max(2, 2 * scale)
-            let textLines = annotation.text.components(separatedBy: "\n")
-            VStack(alignment: .center, spacing: scaledFontSize * 0.22) {
-                ForEach(textLines.indices, id: \.self) { i in
-                    Text(textLines[i].isEmpty ? " " : textLines[i])
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
+            let hPad = scaledFontSize * 0.55
+            let hasFixedWidth = annotation.style.textWidth != nil
+            let innerWidth: CGFloat? = annotation.style.textWidth.map { $0 * scale - hPad * 2 }
+            Group {
+                if let iw = innerWidth {
+                    Text(annotation.text)
+                        .multilineTextAlignment(.center)
+                        .frame(width: max(iw, scaledFontSize))
+                } else {
+                    let textLines = annotation.text.components(separatedBy: "\n")
+                    VStack(alignment: .center, spacing: scaledFontSize * 0.22) {
+                        ForEach(textLines.indices, id: \.self) { i in
+                            Text(textLines[i].isEmpty ? " " : textLines[i])
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                    }
                 }
             }
             .font(.system(size: scaledFontSize, weight: .medium))
             .foregroundColor(annotation.style.textBubbleForeground)
-            .padding(.horizontal, scaledFontSize * 0.55)
+            .padding(.horizontal, hPad)
             .padding(.vertical, scaledFontSize * 0.25)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -160,7 +171,7 @@ struct AnnotationOverlayView: View {
                 RoundedRectangle(cornerRadius: isSelected ? cornerRadius + borderWidth : cornerRadius, style: .continuous)
                     .stroke(isSelected ? annotation.style.textBubbleBackground : Color.clear, lineWidth: borderWidth)
             )
-            .fixedSize()
+            .fixedSize(horizontal: !hasFixedWidth, vertical: false)
             .position(x: start.x, y: start.y)
 
         case .pixelate:
@@ -180,12 +191,15 @@ struct AnnotationOverlayView: View {
             } else {
                 let fullW = imagePixelSize.width * scale
                 let fullH = imagePixelSize.height * scale
+                let blurRadius = annotation.style.spotlightFeather * scale
                 SpotlightOverlayShape(
                     cutouts: [rect],
                     canvasSize: CGSize(width: fullW, height: fullH),
-                    cornerRadius: max(6 * scale, 6)
+                    cornerRadius: max(6 * scale, 6),
+                    outsetForBlur: blurRadius * 3
                 )
                 .fill(Color.black.opacity(annotation.style.spotlightOpacity), style: FillStyle(eoFill: true))
+                .blur(radius: blurRadius)
                 .frame(width: fullW, height: fullH)
                 .clipped()
                 .position(x: fullW / 2, y: fullH / 2)
@@ -240,7 +254,23 @@ struct AnnotationOverlayView: View {
             HandleDot(center: CGPoint(x: rect.minX, y: rect.maxY))
             HandleDot(center: CGPoint(x: rect.maxX, y: rect.maxY))
 
-        case .freeDraw, .text, .numberedStep:
+        case .text:
+            let fs = annotation.style.fontSize * scale
+            let hPad = fs * 0.55
+            let bubbleW: CGFloat = {
+                if let fixedW = annotation.style.textWidth { return fixedW * scale }
+                let lines = annotation.text.components(separatedBy: .newlines)
+                let font = NSFont.systemFont(ofSize: fs, weight: .medium)
+                let attrs: [NSAttributedString.Key: Any] = [.font: font]
+                let maxLineW = lines.map { ($0.isEmpty ? " " : $0 as NSString).size(withAttributes: attrs).width }.max() ?? 0
+                return maxLineW + hPad * 2
+            }()
+            let cx = annotation.startPoint.x * scale
+            let cy = annotation.startPoint.y * scale
+            HandleDot(center: CGPoint(x: cx - bubbleW / 2, y: cy))
+            HandleDot(center: CGPoint(x: cx + bubbleW / 2, y: cy))
+
+        case .freeDraw, .numberedStep:
             EmptyView()
 
         case .select, .crop:
@@ -710,6 +740,21 @@ struct CommittedAnnotationsView: Equatable, View {
         let visibleAnnotations = annotations.filter { $0.id != excludeEditingID && $0.id != excludeDraggingID }
         let spotlightAnnotations = visibleAnnotations.filter { $0.tool == .spotlight }
 
+        // Pixelate annotations render below the spotlight dim so they appear
+        // as part of the image content being highlighted/dimmed.
+        ForEach(visibleAnnotations.filter { $0.tool == .pixelate }) { annotation in
+            AnnotationOverlayView(
+                annotation: annotation,
+                scale: scale,
+                displayBackingScale: displayBackingScale,
+                isSelected: annotation.id == selectedAnnotationID,
+                suppressSpotlightShape: false,
+                sourceImage: sourceImage,
+                imagePixelSize: imagePixelSize
+            )
+            .allowsHitTesting(false)
+        }
+
         if !spotlightAnnotations.isEmpty {
             SharedSpotlightOverlay(
                 annotations: spotlightAnnotations,
@@ -719,14 +764,14 @@ struct CommittedAnnotationsView: Equatable, View {
             .allowsHitTesting(false)
         }
 
-        ForEach(visibleAnnotations) { annotation in
+        ForEach(visibleAnnotations.filter { $0.tool != .pixelate }) { annotation in
             AnnotationOverlayView(
                 annotation: annotation,
                 scale: scale,
                 displayBackingScale: displayBackingScale,
                 isSelected: annotation.id == selectedAnnotationID,
                 suppressSpotlightShape: annotation.tool == .spotlight,
-                sourceImage: annotation.tool == .pixelate ? sourceImage : nil,
+                sourceImage: nil,
                 imagePixelSize: imagePixelSize
             )
             .allowsHitTesting(false)
@@ -751,16 +796,20 @@ private struct SharedSpotlightOverlay: View {
                 height: rect.height * scale
             )
         }
+        let feather = annotations.map(\.style.spotlightFeather).max() ?? 0
+        let blurRadius = feather * scale
 
         SpotlightOverlayShape(
             cutouts: cutouts,
             canvasSize: CGSize(width: fullW, height: fullH),
-            cornerRadius: max(6 * scale, 6)
+            cornerRadius: max(6 * scale, 6),
+            outsetForBlur: blurRadius * 3
         )
         .fill(
             Color.black.opacity(Double(annotations.map(\.style.spotlightOpacity).max() ?? 0.5)),
             style: FillStyle(eoFill: true)
         )
+        .blur(radius: blurRadius)
         .frame(width: fullW, height: fullH)
         .clipped()
         .position(x: fullW / 2, y: fullH / 2)
@@ -786,10 +835,12 @@ private struct SpotlightOverlayShape: Shape {
     let cutouts: [CGRect]
     let canvasSize: CGSize
     let cornerRadius: CGFloat
+    var outsetForBlur: CGFloat = 0
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        path.addRect(CGRect(origin: .zero, size: canvasSize))
+        let outerRect = CGRect(origin: .zero, size: canvasSize).insetBy(dx: -outsetForBlur, dy: -outsetForBlur)
+        path.addRect(outerRect)
         for cutout in cutouts {
             path.addRoundedRect(
                 in: cutout,

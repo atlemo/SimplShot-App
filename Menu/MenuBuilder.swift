@@ -285,11 +285,25 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     // MARK: - Actions
 
     @objc private func openColorPicker() {
-        onColorPicker?()
+        startColorPicker()
     }
 
     @objc func openColorPickerAction() {
-        onColorPicker?()
+        startColorPicker()
+    }
+
+    /// Gates the screen-sampling color picker behind the same screen-recording
+    /// permission check the capture flow uses. Without this, a stale TCC grant
+    /// (e.g. after the app binary is rebuilt/updated) lets ScreenCaptureKit
+    /// return a placeholder/transparent frame, which the magnifier renders as a
+    /// black-and-white "grid". `ensureScreenRecordingPermission` instead surfaces
+    /// the correct "restart required" / "grant permission" alert.
+    private func startColorPicker() {
+        Task { @MainActor in
+            guard await ensureScreenRecordingPermission(for: "pick colors from the screen")
+            else { return }
+            onColorPicker?()
+        }
     }
 
     @objc private func openPermissionSettings() {

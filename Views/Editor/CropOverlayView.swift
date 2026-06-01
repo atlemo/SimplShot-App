@@ -1,19 +1,50 @@
 import SwiftUI
 
+/// Preset aspect ratios offered for the crop tool. `.free` allows any rectangle;
+/// the others lock the crop region (and its handle drags) to a fixed ratio.
+enum CropAspectPreset: String, CaseIterable, Identifiable {
+    case free = "Free"
+    case square = "1:1"
+    case fourThree = "4:3"
+    case threeTwo = "3:2"
+    case sixteenNine = "16:9"
+    case threeFour = "3:4"
+    case nineSixteen = "9:16"
+
+    var id: String { rawValue }
+
+    /// width / height, or nil for a freeform crop.
+    var ratio: CGFloat? {
+        switch self {
+        case .free:        return nil
+        case .square:      return 1
+        case .fourThree:   return 4.0 / 3.0
+        case .threeTwo:    return 3.0 / 2.0
+        case .sixteenNine: return 16.0 / 9.0
+        case .threeFour:   return 3.0 / 4.0
+        case .nineSixteen: return 9.0 / 16.0
+        }
+    }
+}
+
 /// Displays a crop rectangle with draggable edges/corners over the canvas.
 /// `cropRect` is in **image-pixel coordinates**; `scale` maps to view coords.
 /// `cropBoundsRect` constrains the draggable area (screenshot content only when
 /// a background gradient is active, full image otherwise).
+/// `aspectRatio` (width/height) locks the crop shape when non-nil; the interior
+/// can always be dragged to reposition the selection.
 struct CropOverlayView: View {
     @Binding var cropRect: CGRect
     let scale: CGFloat          // view points per image pixel
     let cropBoundsRect: CGRect  // allowed crop area in image pixels
+    var aspectRatio: CGFloat? = nil
 
-    /// Snapshot of cropRect when a handle drag begins.
+    /// Snapshot of cropRect when a handle/move drag begins.
     @State private var dragStartRect: CGRect? = nil
 
     private let handleSize: CGFloat = 10
     private let dimColor = Color.black.opacity(0.45)
+    private let minSize: CGFloat = 20  // minimum crop size in image pixels
 
     var body: some View {
         let viewRect = scaledRect(cropRect)
@@ -24,6 +55,13 @@ struct CropOverlayView: View {
                 .fill(dimColor, style: FillStyle(eoFill: true))
                 .allowsHitTesting(false)
 
+            // Interior move area — drag to reposition the whole crop region.
+            Rectangle()
+                .fill(Color.white.opacity(0.001))
+                .frame(width: viewRect.width, height: viewRect.height)
+                .position(x: viewRect.midX, y: viewRect.midY)
+                .gesture(moveGesture)
+
             // Crop border
             Rectangle()
                 .stroke(Color.black.opacity(0.35), lineWidth: 3)
@@ -33,6 +71,7 @@ struct CropOverlayView: View {
                 )
                 .frame(width: viewRect.width, height: viewRect.height)
                 .position(x: viewRect.midX, y: viewRect.midY)
+                .allowsHitTesting(false)
 
             // Corner handles
             cropHandle(.topLeft, viewRect: viewRect)
@@ -45,6 +84,11 @@ struct CropOverlayView: View {
             cropHandle(.bottom, viewRect: viewRect)
             cropHandle(.left, viewRect: viewRect)
             cropHandle(.right, viewRect: viewRect)
+        }
+        .onChange(of: aspectRatio) { _, newRatio in
+            if let ratio = newRatio {
+                cropRect = fitRect(cropRect, to: ratio)
+            }
         }
     }
 
@@ -79,68 +123,176 @@ struct CropOverlayView: View {
             )
     }
 
+    private var moveGesture: some Gesture {
+        DragGesture(minimumDistance: 1)
+            .onChanged { value in
+                if dragStartRect == nil {
+                    dragStartRect = cropRect
+                }
+                if let startRect = dragStartRect {
+                    applyMove(translation: value.translation, startRect: startRect)
+                }
+            }
+            .onEnded { _ in
+                dragStartRect = nil
+            }
+    }
+
     // MARK: - Drag Handling
+
+    /// Repositions the whole crop region, clamped so it stays within bounds.
+    private func applyMove(translation: CGSize, startRect: CGRect) {
+        let dx = translation.width / scale
+        let dy = translation.height / scale
+        var rect = startRect
+        rect.origin.x = min(max(startRect.origin.x + dx, cropBoundsRect.minX),
+                            cropBoundsRect.maxX - rect.width)
+        rect.origin.y = min(max(startRect.origin.y + dy, cropBoundsRect.minY),
+                            cropBoundsRect.maxY - rect.height)
+        cropRect = rect
+    }
 
     private func applyDrag(edge: CropEdge, translation: CGSize, startRect: CGRect) {
         // translation is cumulative from drag start, applied to the startRect snapshot
         let dx = translation.width / scale
         let dy = translation.height / scale
+
+        let rect: CGRect
+        if let ratio = aspectRatio {
+            rect = resizeLocked(edge: edge, dx: dx, dy: dy, startRect: startRect, ratio: ratio)
+        } else {
+            rect = resizeFree(edge: edge, dx: dx, dy: dy, startRect: startRect)
+        }
+
+        let clamped = clampToBounds(rect)
+        if clamped.width >= minSize, clamped.height >= minSize {
+            cropRect = clamped
+        }
+    }
+
+    /// Freeform resize — each dragged edge/corner moves independently.
+    private func resizeFree(edge: CropEdge, dx: CGFloat, dy: CGFloat, startRect: CGRect) -> CGRect {
         var rect = startRect
-
-        let minSize: CGFloat = 20  // minimum crop size in image pixels
-
         switch edge {
         case .topLeft:
-            let newX = rect.origin.x + dx
-            let newY = rect.origin.y + dy
-            let newW = rect.size.width - dx
-            let newH = rect.size.height - dy
-            rect.origin.x = min(newX, startRect.maxX - minSize)
-            rect.origin.y = min(newY, startRect.maxY - minSize)
-            rect.size.width = max(newW, minSize)
-            rect.size.height = max(newH, minSize)
+            rect.origin.x = min(startRect.origin.x + dx, startRect.maxX - minSize)
+            rect.origin.y = min(startRect.origin.y + dy, startRect.maxY - minSize)
+            rect.size.width = max(startRect.size.width - dx, minSize)
+            rect.size.height = max(startRect.size.height - dy, minSize)
         case .topRight:
-            let newY = rect.origin.y + dy
-            let newW = rect.size.width + dx
-            let newH = rect.size.height - dy
-            rect.origin.y = min(newY, startRect.maxY - minSize)
-            rect.size.width = max(newW, minSize)
-            rect.size.height = max(newH, minSize)
+            rect.origin.y = min(startRect.origin.y + dy, startRect.maxY - minSize)
+            rect.size.width = max(startRect.size.width + dx, minSize)
+            rect.size.height = max(startRect.size.height - dy, minSize)
         case .bottomLeft:
-            let newX = rect.origin.x + dx
-            let newW = rect.size.width - dx
-            let newH = rect.size.height + dy
-            rect.origin.x = min(newX, startRect.maxX - minSize)
-            rect.size.width = max(newW, minSize)
-            rect.size.height = max(newH, minSize)
+            rect.origin.x = min(startRect.origin.x + dx, startRect.maxX - minSize)
+            rect.size.width = max(startRect.size.width - dx, minSize)
+            rect.size.height = max(startRect.size.height + dy, minSize)
         case .bottomRight:
-            rect.size.width = max(rect.size.width + dx, minSize)
-            rect.size.height = max(rect.size.height + dy, minSize)
+            rect.size.width = max(startRect.size.width + dx, minSize)
+            rect.size.height = max(startRect.size.height + dy, minSize)
         case .top:
-            let newY = rect.origin.y + dy
-            let newH = rect.size.height - dy
-            rect.origin.y = min(newY, startRect.maxY - minSize)
-            rect.size.height = max(newH, minSize)
+            rect.origin.y = min(startRect.origin.y + dy, startRect.maxY - minSize)
+            rect.size.height = max(startRect.size.height - dy, minSize)
         case .bottom:
-            rect.size.height = max(rect.size.height + dy, minSize)
+            rect.size.height = max(startRect.size.height + dy, minSize)
         case .left:
-            let newX = rect.origin.x + dx
-            let newW = rect.size.width - dx
-            rect.origin.x = min(newX, startRect.maxX - minSize)
-            rect.size.width = max(newW, minSize)
+            rect.origin.x = min(startRect.origin.x + dx, startRect.maxX - minSize)
+            rect.size.width = max(startRect.size.width - dx, minSize)
         case .right:
-            rect.size.width = max(rect.size.width + dx, minSize)
+            rect.size.width = max(startRect.size.width + dx, minSize)
         }
+        return rect
+    }
 
-        // Clamp to allowed crop bounds (screenshot area only when gradient is active)
-        rect.origin.x = max(rect.origin.x, cropBoundsRect.minX)
-        rect.origin.y = max(rect.origin.y, cropBoundsRect.minY)
-        rect.size.width = min(rect.size.width, cropBoundsRect.maxX - rect.origin.x)
-        rect.size.height = min(rect.size.height, cropBoundsRect.maxY - rect.origin.y)
+    /// Aspect-locked resize — derives the second dimension from `ratio`, anchored
+    /// at the opposite corner (corners) or the opposite edge + perpendicular
+    /// center (edges).
+    private func resizeLocked(edge: CropEdge, dx: CGFloat, dy: CGFloat,
+                              startRect: CGRect, ratio: CGFloat) -> CGRect {
+        let minW = max(minSize, minSize * ratio)
+        let minH = minW / ratio
 
-        if rect.width >= minSize, rect.height >= minSize {
-            cropRect = rect
+        switch edge {
+        case .topLeft, .topRight, .bottomLeft, .bottomRight:
+            // Drive the size from whichever axis the pointer moved more, then
+            // anchor at the diagonally opposite corner.
+            let desiredW = edge.movesLeft ? startRect.width - dx : startRect.width + dx
+            let desiredH = edge.movesUp   ? startRect.height - dy : startRect.height + dy
+            var w = max(desiredW, desiredH * ratio)
+            w = max(w, minW)
+            let h = w / ratio
+            let anchorX = edge.movesLeft ? startRect.maxX : startRect.minX
+            let anchorY = edge.movesUp   ? startRect.maxY : startRect.minY
+            let x = edge.movesLeft ? anchorX - w : anchorX
+            let y = edge.movesUp   ? anchorY - h : anchorY
+            return CGRect(x: x, y: y, width: w, height: h)
+
+        case .left, .right:
+            // Width driven by the drag; height follows ratio, centered vertically.
+            let desiredW = edge == .left ? startRect.width - dx : startRect.width + dx
+            let w = max(desiredW, minW)
+            let h = w / ratio
+            let x = edge == .left ? startRect.maxX - w : startRect.minX
+            let y = startRect.midY - h / 2
+            return CGRect(x: x, y: y, width: w, height: h)
+
+        case .top, .bottom:
+            // Height driven by the drag; width follows ratio, centered horizontally.
+            let desiredH = edge == .top ? startRect.height - dy : startRect.height + dy
+            let h = max(desiredH, minH)
+            let w = h * ratio
+            let x = startRect.midX - w / 2
+            let y = edge == .top ? startRect.maxY - h : startRect.minY
+            return CGRect(x: x, y: y, width: w, height: h)
         }
+    }
+
+    // MARK: - Bounds Clamping
+
+    /// Clamps `rect` into `cropBoundsRect`. When an aspect ratio is active the
+    /// rect is scaled down (preserving the ratio) before being nudged inside.
+    private func clampToBounds(_ rect: CGRect) -> CGRect {
+        var rect = rect
+        if let ratio = aspectRatio {
+            if rect.width > cropBoundsRect.width {
+                rect.size.width = cropBoundsRect.width
+                rect.size.height = rect.width / ratio
+            }
+            if rect.height > cropBoundsRect.height {
+                rect.size.height = cropBoundsRect.height
+                rect.size.width = rect.height * ratio
+            }
+            rect.origin.x = min(max(rect.minX, cropBoundsRect.minX), cropBoundsRect.maxX - rect.width)
+            rect.origin.y = min(max(rect.minY, cropBoundsRect.minY), cropBoundsRect.maxY - rect.height)
+        } else {
+            rect.origin.x = max(rect.minX, cropBoundsRect.minX)
+            rect.origin.y = max(rect.minY, cropBoundsRect.minY)
+            rect.size.width = min(rect.width, cropBoundsRect.maxX - rect.origin.x)
+            rect.size.height = min(rect.height, cropBoundsRect.maxY - rect.origin.y)
+        }
+        return rect
+    }
+
+    /// Reshapes `rect` to `ratio`, keeping its center and fitting within bounds.
+    private func fitRect(_ rect: CGRect, to ratio: CGFloat) -> CGRect {
+        var w = rect.width
+        var h = w / ratio
+        if h > rect.height {
+            h = rect.height
+            w = h * ratio
+        }
+        if w > cropBoundsRect.width {
+            w = cropBoundsRect.width
+            h = w / ratio
+        }
+        if h > cropBoundsRect.height {
+            h = cropBoundsRect.height
+            w = h * ratio
+        }
+        var fitted = CGRect(x: rect.midX - w / 2, y: rect.midY - h / 2, width: w, height: h)
+        fitted.origin.x = min(max(fitted.minX, cropBoundsRect.minX), cropBoundsRect.maxX - w)
+        fitted.origin.y = min(max(fitted.minY, cropBoundsRect.minY), cropBoundsRect.maxY - h)
+        return fitted
     }
 
     // MARK: - Coordinate Helpers
@@ -171,6 +323,22 @@ private enum CropEdge {
     var isHorizontal: Bool {
         switch self {
         case .top, .bottom: return true
+        default: return false
+        }
+    }
+
+    /// True when the handle's horizontal motion shrinks/grows from the left side.
+    var movesLeft: Bool {
+        switch self {
+        case .topLeft, .bottomLeft, .left: return true
+        default: return false
+        }
+    }
+
+    /// True when the handle's vertical motion shrinks/grows from the top side.
+    var movesUp: Bool {
+        switch self {
+        case .topLeft, .topRight, .top: return true
         default: return false
         }
     }

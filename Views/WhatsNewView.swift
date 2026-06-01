@@ -7,6 +7,12 @@ struct WhatsNewEntry {
 
 /// Hardcoded changelog — add new entries at the top before each release.
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.6.4", items: [
+        "Crop tool: choose a preset aspect ratio (1:1, 4:3, 16:9 and more), and drag inside the selection to reposition it",
+        "Save As now lets you choose the file format — PNG, JPEG, HEIC or WebP",
+        "Color picker: fixed the black-and-white grid glitch and made the live magnifier much smoother",
+        "Background panel: added a Padding label, renamed “Effects” to “Background Effects”, and the Alignment & Ratio controls now stay disabled until a background is applied",
+    ]),
     WhatsNewEntry(version: "1.1", items: [
         "Print support — print open images and documents (Cmd+P)",
         "TelemetryDeck analytics for usage insights",

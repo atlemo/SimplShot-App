@@ -21,6 +21,7 @@ struct EditorSidebarView: View {
     @Binding var selectedAnnotationID: UUID?
     @Binding var annotations: [Annotation]
     @Binding var isCropping: Bool
+    @Binding var cropAspectPreset: CropAspectPreset
 
     @Binding var selectedWallpaper: WallpaperSource?
     @Binding var padding: Int
@@ -150,6 +151,7 @@ struct EditorSidebarView: View {
                     adjustments: $photoAdjustments,
                     metadata: imageMetadata,
                     isCropping: isCropping,
+                    cropAspectPreset: $cropAspectPreset,
                     imagePixelSize: imagePixelSize,
                     onEnterCrop: onEnterCrop,
                     onApplyCrop: onApplyCrop,
@@ -271,6 +273,16 @@ struct EditorSidebarView: View {
         VStack(alignment: .leading, spacing: 8) {
             groupHeader("Crop", section: .crop)
             if !isCollapsed(.crop) {
+                sectionLabel("Aspect ratio")
+                Picker("", selection: $cropAspectPreset) {
+                    ForEach(CropAspectPreset.allCases) { preset in
+                        Text(preset.rawValue).tag(preset)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 2)
                 HStack(spacing: 8) {
                     Button("Apply", action: onApplyCrop)
                         .buttonStyle(.borderedProminent)
@@ -317,15 +329,18 @@ struct EditorSidebarView: View {
 
     private var paddingShadowCornersSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            groupHeader("Effects", section: .shadowCorners)
+            groupHeader("Background Effects", section: .shadowCorners)
             if !isCollapsed(.shadowCorners) {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 8) {
-                        Slider(value: paddingBinding, in: 20...200)
-                        Text("\(padding)px")
-                            .font(.system(size: 11, design: .monospaced))
-                            .frame(width: 40, alignment: .trailing)
-                            .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        sectionLabel("Padding")
+                        HStack(spacing: 8) {
+                            Slider(value: paddingBinding, in: 20...200)
+                            Text("\(padding)px")
+                                .font(.system(size: 11, design: .monospaced))
+                                .frame(width: 40, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .padding(.bottom, 4)
                     HStack(alignment: .top, spacing: 0) {
@@ -395,6 +410,7 @@ struct EditorSidebarView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
+                .disabled(selectedWallpaper == nil)
             }
         }
         .padding(.horizontal, 14)
@@ -974,6 +990,7 @@ struct EditorSidebarView: View {
                 .font(.system(size: 12, weight: .medium))
             HStack(spacing: 8) {
                 Slider(value: strokeWidthBinding, in: 1...15)
+                    .tint(.accentColor)
                     .frame(width: 180)
                     .focusable(false)
                     .focusEffectDisabled()
@@ -992,6 +1009,7 @@ struct EditorSidebarView: View {
                 .font(.system(size: 12, weight: .medium))
             HStack(spacing: 8) {
                 Slider(value: fontSizeBinding, in: 12...120)
+                    .tint(.accentColor)
                     .frame(width: 180)
                     .focusable(false)
                     .focusEffectDisabled()
@@ -1051,6 +1069,7 @@ struct EditorSidebarView: View {
                 .font(.system(size: 12, weight: .medium))
             HStack(spacing: 8) {
                 Slider(value: pixelationScaleBinding, in: 2...60)
+                    .tint(.accentColor)
                     .frame(width: 180)
                     .focusable(false)
                     .focusEffectDisabled()
@@ -1081,14 +1100,15 @@ struct EditorSidebarView: View {
         annotations[idx].style.pixelationScale = currentStyle.pixelationScale
     }
 
-    // MARK: - Spotlight Opacity Popover
+    // MARK: - Spotlight Popover
 
     private var spotlightPopoverContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Dim Opacity")
                 .font(.system(size: 12, weight: .medium))
             HStack(spacing: 8) {
                 Slider(value: spotlightOpacityBinding, in: 0.1...0.9)
+                    .tint(.accentColor)
                     .frame(width: 180)
                     .focusable(false)
                     .focusEffectDisabled()
@@ -1096,7 +1116,21 @@ struct EditorSidebarView: View {
                     .font(.system(size: 11, design: .monospaced))
                     .frame(width: 36, alignment: .trailing)
             }
-            .padding(.vertical, 2)
+
+            Divider()
+
+            Text("Feather")
+                .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 8) {
+                Slider(value: spotlightFeatherBinding, in: 0...200)
+                    .tint(.accentColor)
+                    .frame(width: 180)
+                    .focusable(false)
+                    .focusEffectDisabled()
+                Text("\(Int(currentStyle.spotlightFeather))px")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 36, alignment: .trailing)
+            }
         }
         .padding(12)
     }
@@ -1106,14 +1140,25 @@ struct EditorSidebarView: View {
             get: { Double(currentStyle.spotlightOpacity) },
             set: { newValue in
                 currentStyle.spotlightOpacity = CGFloat(newValue)
-                applySpotlightOpacityToAll()
+                applySpotlightStyleToAll()
             }
         )
     }
 
-    private func applySpotlightOpacityToAll() {
+    private var spotlightFeatherBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentStyle.spotlightFeather) },
+            set: { newValue in
+                currentStyle.spotlightFeather = CGFloat(newValue.rounded())
+                applySpotlightStyleToAll()
+            }
+        )
+    }
+
+    private func applySpotlightStyleToAll() {
         for idx in annotations.indices where annotations[idx].tool == .spotlight {
             annotations[idx].style.spotlightOpacity = currentStyle.spotlightOpacity
+            annotations[idx].style.spotlightFeather = currentStyle.spotlightFeather
         }
     }
 

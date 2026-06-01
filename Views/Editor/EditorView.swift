@@ -54,6 +54,23 @@ struct EditorView: View {
     /// edits. Active-session edits live in @State; other-session edits live on
     /// the ImageSession itself. Used to switch the toolbar's "Save All" → "Done"
     /// when nothing has been changed.
+    private var activeSessionHasEdits: Bool {
+        if !annotations.isEmpty { return true }
+        if !photoAdjustments.isDefault { return true }
+        if watermarkSettings.isEnabled { return true }
+        if selectedWallpaper != nil { return true }
+        if !undoStack.isEmpty { return true }
+        return false
+    }
+
+    private var anySessionHasEdits: Bool {
+        if activeSessionHasEdits { return true }
+        for session in sessions where session.id != activeSessionID {
+            if sessionHasEdits(session) { return true }
+        }
+        return false
+    }
+
     private var pdfDocumentHasEdits: Bool {
         guard let groupID = activeSession?.pdfGroupID else { return false }
         // Active session — @State is the live source of truth for these fields.
@@ -97,6 +114,8 @@ struct EditorView: View {
     // Crop state
     @State private var isCropping: Bool = false
     @State private var cropRect: CGRect = .zero
+    /// Selected crop aspect-ratio preset (`.free` = unconstrained).
+    @State private var cropAspectPreset: CropAspectPreset = .free
     /// Non-destructive crop in raw screenshot pixel space.
     /// Applied before the gradient so rawImage is never mutated by crop.
     @State private var screenshotCropRect: CGRect = .zero
@@ -516,14 +535,17 @@ struct EditorView: View {
                 // For an unedited PDF, label becomes "Done" since there's nothing to save.
                 let isMulti = sessions.count > 1
                 let isPDFDone = isPDFSession && !pdfDocumentHasEdits
+                let hasEdits = anySessionHasEdits
                 let label: String = isPDFDone
                     ? "Done"
-                    : (isMulti ? "Save All" : "Save & Copy")
+                    : isMulti
+                        ? (hasEdits ? "Save All" : "Done")
+                        : (hasEdits ? "Save & Copy" : "Copy")
                 let help: String = isPDFDone
                     ? "Close the document"
-                    : (isMulti
-                        ? "Save all open images and close"
-                        : "Save, close and copy the image to your clipboard")
+                    : isMulti
+                        ? (hasEdits ? "Save all open images and close" : "Close all images")
+                        : (hasEdits ? "Save, close and copy the image to your clipboard" : "Copy the image to your clipboard")
                 Button(action: saveOverwrite) {
                     Text(label)
                         .padding(.horizontal, 6)
@@ -548,6 +570,7 @@ struct EditorView: View {
             selectedAnnotationID: $selectedAnnotationID,
             annotations: $annotations,
             isCropping: $isCropping,
+            cropAspectPreset: $cropAspectPreset,
             selectedWallpaper: $selectedWallpaper,
             padding: $editorPadding,
             cornerRadius: $editorCornerRadius,
@@ -612,6 +635,7 @@ struct EditorView: View {
                                     cropRect: $cropRect,
                                     isCropping: $isCropping,
                                     cropBoundsRect: screenshotBoundsInDisplay,
+                                    cropAspectRatio: cropAspectPreset.ratio,
                                     watermarkSettings: watermarkSettings,
                                     onCommit: pushUndo
                                 )
@@ -1173,6 +1197,8 @@ struct EditorView: View {
     /// Expands the display to the full uncropped image and positions the crop rect
     /// over the previously-cropped region so the user can readjust from the original.
     private func enterCropMode() {
+        // Each crop session starts unconstrained.
+        cropAspectPreset = .free
         guard let rawImg = rawImage,
               let cg = rawImg.cgImage(forProposedRect: nil, context: nil, hints: nil)
         else {
@@ -2209,6 +2235,14 @@ struct EditorView: View {
         onDismiss()
     }
 
+    private func sessionHasEdits(_ session: ImageSession) -> Bool {
+        !session.annotations.isEmpty ||
+        !session.photoAdjustments.isDefault ||
+        session.watermarkSettings.isEnabled ||
+        session.selectedWallpaper != nil ||
+        !session.undoStack.isEmpty
+    }
+
     private func saveOverwrite() {
         do {
             saveActiveSessionState()
@@ -2221,12 +2255,15 @@ struct EditorView: View {
                     guard !handledPDFGroups.contains(groupID) else { continue }
                     handledPDFGroups.insert(groupID)
                     let groupSessions = sessions.filter { $0.pdfGroupID == groupID }
-                    try PDFExportService.exportPDF(
-                        sessions: groupSessions,
-                        backingScale: displayBackingScale,
-                        to: session.imageURL
-                    )
-                } else {
+                    let groupHasEdits = groupSessions.contains { sessionHasEdits($0) }
+                    if groupHasEdits {
+                        try PDFExportService.exportPDF(
+                            sessions: groupSessions,
+                            backingScale: displayBackingScale,
+                            to: session.imageURL
+                        )
+                    }
+                } else if sessionHasEdits(session) {
                     try writeSession(session, to: session.imageURL)
                 }
             }
@@ -2298,27 +2335,50 @@ struct EditorView: View {
     private func saveAs() {
         let panel = NSSavePanel()
 
+        // Held for the lifetime of the (modal) panel so its popup target stays alive.
+        var formatPicker: SaveFormatPicker?
+
         if isPDFSession {
             let pdfName = imageURL.deletingPathExtension().lastPathComponent + ".pdf"
             panel.nameFieldStringValue = pdfName
             panel.allowedContentTypes = [.pdf]
         } else {
-            panel.nameFieldStringValue = imageURL.lastPathComponent
             let ext = imageURL.pathExtension.lowercased()
-            let contentType: UTType
+            let sourceType: UTType
             switch ext {
-            case "png":  contentType = .png
-            case "heic": contentType = .heic
+            case "png":  sourceType = .png
+            case "heic": sourceType = .heic
             #if !APPSTORE
-            case "webp": contentType = .webP
+            case "webp": sourceType = .webP
             #endif
-            default:     contentType = .jpeg
+            default:     sourceType = .jpeg
             }
-            panel.allowedContentTypes = [contentType]
+            // Offer every supported raster format via an accessory popup,
+            // defaulting to the source image's format (first entry).
+            var formats: [SaveFormatPicker.Format] = [
+                .init(label: "PNG", type: .png, ext: "png"),
+                .init(label: "JPEG", type: .jpeg, ext: "jpg"),
+                .init(label: "HEIC", type: .heic, ext: "heic"),
+            ]
+            #if !APPSTORE
+            formats.append(.init(label: "WebP", type: .webP, ext: "webp"))
+            #endif
+            if let idx = formats.firstIndex(where: { $0.type == sourceType }) {
+                formats.insert(formats.remove(at: idx), at: 0)
+            }
+
+            let baseName = imageURL.deletingPathExtension().lastPathComponent
+            panel.nameFieldStringValue = baseName
+            panel.allowedContentTypes = [formats[0].type]
+
+            let picker = SaveFormatPicker(formats: formats, panel: panel)
+            panel.accessoryView = picker.makeAccessoryView()
+            formatPicker = picker
         }
         panel.canCreateDirectories = true
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        _ = formatPicker  // keep alive until the panel closes
 
         do {
             if isPDFSession, let groupID = activeSession?.pdfGroupID {
@@ -2527,4 +2587,57 @@ private struct ScrollViewAccessor: NSViewRepresentable {
         return view
     }
     func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+/// Drives an `NSSavePanel` accessory popup that lets the user pick the export
+/// format. Bare (non-document) save panels don't provide a built-in format
+/// selector, so we supply our own.
+private final class SaveFormatPicker: NSObject {
+    struct Format {
+        let label: String
+        let type: UTType
+        let ext: String
+    }
+
+    private let formats: [Format]
+    private weak var panel: NSSavePanel?
+
+    init(formats: [Format], panel: NSSavePanel) {
+        self.formats = formats
+        self.panel = panel
+    }
+
+    func makeAccessoryView() -> NSView {
+        let container = NSView()
+        let label = NSTextField(labelWithString: "Format:")
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+        popup.translatesAutoresizingMaskIntoConstraints = false
+        popup.addItems(withTitles: formats.map(\.label))
+        popup.target = self
+        popup.action = #selector(formatChanged(_:))
+
+        container.addSubview(label)
+        container.addSubview(popup)
+        NSLayoutConstraint.activate([
+            container.heightAnchor.constraint(equalToConstant: 44),
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            popup.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
+            popup.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            popup.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+            popup.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
+        ])
+        return container
+    }
+
+    @objc private func formatChanged(_ sender: NSPopUpButton) {
+        guard let panel, formats.indices.contains(sender.indexOfSelectedItem) else { return }
+        let format = formats[sender.indexOfSelectedItem]
+        // Preserve whatever base name the user has typed, swap the extension.
+        let base = (panel.nameFieldStringValue as NSString).deletingPathExtension
+        panel.allowedContentTypes = [format.type]
+        panel.nameFieldStringValue = base.isEmpty ? base : "\(base).\(format.ext)"
+    }
 }

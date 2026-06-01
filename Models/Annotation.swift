@@ -102,6 +102,10 @@ struct AnnotationStyle: Equatable {
     /// nil = outline-only; a Color value = fill with that color.
     var fillColor: Color? = nil
     var spotlightOpacity: CGFloat = 0.5
+    var spotlightFeather: CGFloat = 0
+    /// Fixed wrap width for text annotations in image-pixel space.
+    /// nil = natural (no wrapping); a value = bubble wraps at that width.
+    var textWidth: CGFloat? = nil
 
     /// CGColor for use in Core Graphics rendering.
     var cgStrokeColor: CGColor {

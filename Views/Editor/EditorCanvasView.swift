@@ -9,6 +9,8 @@ enum DragMode: Equatable {
     case startHandle               // move startPoint only (arrow/line)
     case endHandle                 // move endPoint only (arrow/line)
     case corner(minXFixed: Bool, minYFixed: Bool)  // resize rectangle via one corner
+    case textLeftEdge              // resize text bubble from the left
+    case textRightEdge             // resize text bubble from the right
 }
 
 /// The handle tap radius in image-pixel units used for hit testing.
@@ -47,6 +49,8 @@ struct EditorCanvasView: View {
     /// The allowed crop area in image-pixel space. When a background gradient is
     /// active this is the screenshot content region; otherwise the full image.
     var cropBoundsRect: CGRect? = nil
+    /// Locks the crop region to a fixed width/height ratio when non-nil.
+    var cropAspectRatio: CGFloat? = nil
 
     var watermarkSettings: WatermarkSettings = WatermarkSettings()
 
@@ -101,6 +105,7 @@ struct EditorCanvasView: View {
                         .resizable()
                         .interpolation(.high)
                         .frame(width: canvasWidth, height: canvasHeight)
+                        .shadow(color: showBorderOutline ? .black.opacity(0.18) : .clear, radius: 10, x: 0, y: 3)
                 }
             }
             .shadow(color: .black.opacity(0.5 * shadowIntensity), radius: 60 * shadowIntensity, x: 0, y: 28 * shadowIntensity)
@@ -177,11 +182,13 @@ struct EditorCanvasView: View {
                let idx = annotations.firstIndex(where: { $0.id == editID }) {
                 let ann = annotations[idx]
                 let scaledFontSize = ann.style.fontSize * scale
+                let hPad = scaledFontSize * 0.55
                 let pos = CGPoint(
                     x: ann.startPoint.x * scale,
                     y: ann.startPoint.y * scale
                 )
-                let contentW = max(editingContentSize.width, scaledFontSize * 2)
+                let fixedInnerW: CGFloat? = ann.style.textWidth.map { $0 * scale - hPad * 2 }
+                let contentW = fixedInnerW ?? max(editingContentSize.width, scaledFontSize * 2)
                 let contentH = max(editingContentSize.height, scaledFontSize * 1.2)
                 GrowingTextField(
                     text: $editingText,
@@ -190,7 +197,7 @@ struct EditorCanvasView: View {
                     onSizeChange: { editingContentSize = $0 }
                 )
                 .frame(width: contentW, height: contentH)
-                .padding(.horizontal, scaledFontSize * 0.55)
+                .padding(.horizontal, hPad)
                 .padding(.vertical, scaledFontSize * 0.25)
                 .background(
                     RoundedRectangle(cornerRadius: scaledFontSize * 0.45, style: .continuous)
@@ -216,7 +223,8 @@ struct EditorCanvasView: View {
                 CropOverlayView(
                     cropRect: $cropRect,
                     scale: scale,
-                    cropBoundsRect: cropBoundsRect ?? CGRect(origin: .zero, size: imagePixelSize)
+                    cropBoundsRect: cropBoundsRect ?? CGRect(origin: .zero, size: imagePixelSize),
+                    aspectRatio: cropAspectRatio
                 )
             }
         }
@@ -544,6 +552,22 @@ struct EditorCanvasView: View {
                                      y: max(fixedY, draggedY))
             snapH = false
             snapV = false
+
+        case .textLeftEdge:
+            let currentWidth = textBubbleWidth(for: ann)
+            let minWidth = ann.style.fontSize * 2
+            let newWidth = max(minWidth, currentWidth - dx * 2)
+            ann.style.textWidth = newWidth
+            snapH = false
+            snapV = false
+
+        case .textRightEdge:
+            let currentWidth = textBubbleWidth(for: ann)
+            let minWidth = ann.style.fontSize * 2
+            let newWidth = max(minWidth, currentWidth + dx * 2)
+            ann.style.textWidth = newWidth
+            snapH = false
+            snapV = false
         }
 
         draggingAnnotation = ann
@@ -704,9 +728,38 @@ struct EditorCanvasView: View {
             }
             return nil
 
+        case .text:
+            let bubbleWidth = textBubbleWidth(for: annotation)
+            let halfW = bubbleWidth / 2
+            let cx = annotation.startPoint.x
+            let cy = annotation.startPoint.y
+            let handleY = cy
+            let leftHandle  = CGPoint(x: cx - halfW, y: handleY)
+            let rightHandle = CGPoint(x: cx + halfW, y: handleY)
+            if dist(point, leftHandle)  < r { return .textLeftEdge }
+            if dist(point, rightHandle) < r { return .textRightEdge }
+            return nil
+
         default:
             return nil
         }
+    }
+
+    /// Returns the current bubble width (in image pixels) for a text annotation,
+    /// using the stored textWidth if set, otherwise the natural wrap-free width.
+    private func textBubbleWidth(for annotation: Annotation) -> CGFloat {
+        if let w = annotation.style.textWidth { return w }
+        return naturalTextBubbleWidth(for: annotation)
+    }
+
+    private func naturalTextBubbleWidth(for annotation: Annotation) -> CGFloat {
+        let fs = annotation.style.fontSize
+        let hPad = fs * 0.55
+        let lines = annotation.text.components(separatedBy: .newlines)
+        let font = NSFont.systemFont(ofSize: fs, weight: .medium)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font]
+        let maxLineW = lines.map { ($0.isEmpty ? " " : $0 as NSString).size(withAttributes: attrs).width }.max() ?? 0
+        return maxLineW + hPad * 2
     }
 
     /// Hit-test annotation bodies (ignores handles).
@@ -745,16 +798,15 @@ struct EditorCanvasView: View {
                 let fs = annotation.style.fontSize
                 let hPad = fs * 0.55
                 let vPad = fs * 0.25
+                let bubbleW = textBubbleWidth(for: annotation)
                 let lines = annotation.text.components(separatedBy: .newlines)
                 let lineCount = max(lines.count, 1)
-                let widestLineChars = max(lines.map { $0.count }.max() ?? 0, 1)
                 let lineSpacing = fs * 0.22
-                let estWidth = max(CGFloat(widestLineChars) * fs * 0.6, 40) + hPad * 2
                 let estHeight = CGFloat(lineCount) * fs + CGFloat(max(0, lineCount - 1)) * lineSpacing + vPad * 2
                 let textRect = CGRect(
-                    x: annotation.startPoint.x - estWidth / 2,
+                    x: annotation.startPoint.x - bubbleW / 2,
                     y: annotation.startPoint.y - estHeight / 2,
-                    width: estWidth,
+                    width: bubbleW,
                     height: estHeight
                 )
                 if textRect.contains(point) {

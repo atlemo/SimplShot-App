@@ -217,14 +217,41 @@ final class ColorPickerService {
     private var previousApp: NSRunningApplication?
     private var isCursorHidden = false
 
-    /// In-flight async capture task — cancelled when the cursor moves to avoid stale updates.
+    /// Serial capture loop driving live magnifier/color updates. Only ever one
+    /// capture is in flight, so rapid mouse moves can't flood the subsystem.
     private var captureTask: Task<Void, Never>?
-    /// Shareable content cached once per session; refreshed lazily on first miss.
+    /// Shareable content fetched once per session — but only AFTER our panels
+    /// (esp. the magnifier) are registered with the window server, so they can be
+    /// reliably excluded. Re-fetching this per frame is what made the live update
+    /// sluggish; fetching it too early is what let the loupe capture itself.
     private var cachedShareableContent: SCShareableContent?
+    /// Latest cursor location; the capture loop always samples the newest point.
+    private var lastMousePoint: NSPoint = .zero
+    /// When the cursor is over the HUD the loupe is hidden — skip capturing.
+    private var cursorOverHUD = false
 
-    // Capture 25pt × 25pt of real content; drawn into the 100pt magnifier → 4× zoom.
+    // The loupe shows a 25pt × 25pt window of real content, drawn into the 100pt
+    // magnifier → 4× zoom.
     private let captureSize: CGFloat = 25
     private let magnifierSize: CGFloat = 100
+
+    // Performance: rather than capturing the screen on every mouse move, we
+    // capture a larger region around the cursor occasionally and crop the 25pt
+    // loupe window out of it locally (microseconds) on each move. This keeps the
+    // magnified content perfectly in sync with the cursor (no jitter) while the
+    // actual SCKit captures happen only when the cursor leaves the cached region
+    // or the liveness interval elapses.
+    private let regionSize: CGFloat = 220
+    /// Last captured region image (native pixels, top-left origin).
+    private var regionImage: CGImage?
+    /// The NS-screen rect (bottom-left origin, points) that `regionImage` covers.
+    private var regionRect: CGRect = .zero
+    /// Backing scale of the captured region.
+    private var regionScale: CGFloat = 2
+    /// The cursor point the region was captured around (for the recapture trigger).
+    private var regionCapturePoint: NSPoint = .zero
+    /// Timestamp of the last region capture, for liveness refresh.
+    private var lastCaptureTime: TimeInterval = 0
 
     func startPicking() {
         guard !isActive else { return }
@@ -238,10 +265,14 @@ final class ColorPickerService {
         NSApp.activate(ignoringOtherApps: true)
         overlayWindow?.makeKeyAndOrderFront(nil)
 
-        // Pre-fetch shareable content now that our panels are on screen so the
-        // window list includes them and we can exclude them from captures.
+        lastMousePoint = NSEvent.mouseLocation
+
+        // Build the capture filter/config once (now that our panels are on screen
+        // so they can be excluded), then start the live capture loop.
         Task { @MainActor [weak self] in
-            self?.cachedShareableContent = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            guard let self else { return }
+            await self.prepareCapture()
+            self.startCaptureLoop()
         }
 
         hideCursor()
@@ -348,7 +379,9 @@ final class ColorPickerService {
     // MARK: - Mouse Handling
 
     private func handleMouseMove(at point: NSPoint) {
+        lastMousePoint = point
         let overHUD = hudPanel.map { $0.frame.contains(point) } ?? false
+        cursorOverHUD = overHUD
 
         if overHUD {
             unhideCursor()
@@ -360,17 +393,9 @@ final class ColorPickerService {
             let half = magnifierSize / 2
             magnifierPanel?.setFrameOrigin(NSPoint(x: point.x - half, y: point.y - half))
 
-            // Cancel any in-flight capture so we don't apply a stale result after moving.
-            captureTask?.cancel()
-            captureTask = Task { @MainActor [weak self] in
-                guard let self, !Task.isCancelled else { return }
-                let result = await self.captureArea(around: point)
-                guard !Task.isCancelled else { return }
-                self.magnifierView?.magnifiedContent = result.image
-                if let color = result.color {
-                    self.hudState.currentColor = color
-                }
-            }
+            // Update the loupe content + color synchronously from the cached
+            // region, so the magnified image tracks the cursor with zero lag.
+            updateLoupeContent(at: point)
         }
     }
 
@@ -408,6 +433,8 @@ final class ColorPickerService {
         captureTask?.cancel()
         captureTask = nil
         cachedShareableContent = nil
+        regionImage = nil
+        regionRect = .zero
         unhideCursor()
         overlayWindow?.orderOut(nil)
         overlayWindow = nil
@@ -425,26 +452,137 @@ final class ColorPickerService {
 
     // MARK: - Screen Capture
 
-    private struct CaptureResult {
-        let image: CGImage?
-        let color: NSColor?
+    /// Fetches and caches shareable content for the session, but waits until our
+    /// magnifier panel is actually registered in the window list first. The
+    /// magnifier sits directly over the sampled point, so if it isn't in the
+    /// exclusion list the loupe captures itself → recursive video feedback that
+    /// renders as a black-and-white grid. A freshly-shown panel can be absent
+    /// from `content.windows` for a few frames, so we poll until it appears.
+    private func prepareCapture() async {
+        for _ in 0..<20 {
+            if !isActive || Task.isCancelled { return }
+            guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) else {
+                try? await Task.sleep(for: .milliseconds(50))
+                continue
+            }
+            let windowIDs = Set(content.windows.map { Int($0.windowID) })
+            if let magNum = magnifierPanel?.windowNumber, windowIDs.contains(magNum) {
+                cachedShareableContent = content
+                return
+            }
+            // Magnifier not registered yet — keep the latest content as a
+            // fallback but wait for the panel to appear.
+            cachedShareableContent = content
+            try? await Task.sleep(for: .milliseconds(50))
+        }
     }
 
-    private func captureArea(around point: NSPoint) async -> CaptureResult {
-        let captureRect = CGRect(
-            x: floor(point.x - captureSize / 2),
-            y: floor(point.y - captureSize / 2),
-            width: captureSize,
-            height: captureSize
-        )
-        guard let img = await captureScreen(in: captureRect) else {
-            return CaptureResult(image: nil, color: nil)
+    /// Refreshes the cached screen region only when needed: when the cursor has
+    /// moved far enough that the loupe window would run off the cached region, or
+    /// when the liveness interval elapses (so changing screen content updates).
+    /// The per-move loupe rendering happens in `updateLoupeContent`, decoupled
+    /// from these (comparatively rare) captures.
+    private func startCaptureLoop() {
+        captureTask?.cancel()
+        captureTask = Task { @MainActor [weak self] in
+            while true {
+                guard let self, self.isActive, !Task.isCancelled else { return }
+
+                if self.cursorOverHUD || self.cachedShareableContent == nil {
+                    try? await Task.sleep(for: .milliseconds(40))
+                    continue
+                }
+
+                let point = self.lastMousePoint
+                if self.needsRegionRefresh(for: point) {
+                    if let img = await self.captureRegion(around: point) {
+                        if Task.isCancelled { return }
+                        self.regionImage = img.image
+                        self.regionRect = img.rect
+                        self.regionScale = img.scale
+                        self.regionCapturePoint = point
+                        self.lastCaptureTime = Date().timeIntervalSinceReferenceDate
+                        self.updateLoupeContent(at: self.lastMousePoint)
+                    }
+                }
+
+                try? await Task.sleep(for: .milliseconds(16))
+            }
         }
-        return CaptureResult(image: img, color: extractCenterColor(from: img))
+    }
+
+    /// True when the cached region can no longer serve the loupe window for
+    /// `point`, or it's time for a liveness refresh.
+    private func needsRegionRefresh(for point: NSPoint) -> Bool {
+        guard regionImage != nil else { return true }
+        if Date().timeIntervalSinceReferenceDate - lastCaptureTime > 0.2 { return true }
+        // Allowed travel from the capture point before the loupe window reaches
+        // the region edge.
+        let slack = regionSize / 2 - captureSize
+        return abs(point.x - regionCapturePoint.x) > slack
+            || abs(point.y - regionCapturePoint.y) > slack
+    }
+
+    /// Crops the 25pt loupe window out of the cached region image (and reads the
+    /// exact cursor pixel for the color) — all local, no screen capture.
+    private func updateLoupeContent(at point: NSPoint) {
+        guard let img = regionImage, regionRect.width > 0 else { return }
+        let scale = regionScale
+
+        // Cursor position in the region image's pixel space (top-left origin).
+        let px = (point.x - regionRect.minX) * scale
+        let py = (regionRect.maxY - point.y) * scale   // NS y-up → CG y-down
+
+        let imgW = CGFloat(img.width)
+        let imgH = CGFloat(img.height)
+        let win = (captureSize * scale).rounded()
+
+        // Loupe window, clamped to stay inside the region image.
+        var ox = (px - win / 2).rounded()
+        var oy = (py - win / 2).rounded()
+        ox = min(max(0, ox), max(0, imgW - win))
+        oy = min(max(0, oy), max(0, imgH - win))
+        let cropRect = CGRect(x: ox, y: oy, width: min(win, imgW), height: min(win, imgH))
+
+        if let crop = img.cropping(to: cropRect) {
+            magnifierView?.magnifiedContent = crop
+        }
+
+        // Color at the exact cursor pixel.
+        let cx = min(max(0, Int(px)), img.width - 1)
+        let cy = min(max(0, Int(py)), img.height - 1)
+        if let color = color(atX: cx, y: cy, in: img) {
+            hudState.currentColor = color
+        }
+    }
+
+    private struct RegionCapture {
+        let image: CGImage
+        let rect: CGRect   // NS-screen rect (bottom-left origin)
+        let scale: CGFloat
+    }
+
+    /// Captures `regionSize` × `regionSize` points around `point`, clamped to the
+    /// main screen, excluding our own windows.
+    private func captureRegion(around point: NSPoint) async -> RegionCapture? {
+        guard let screen = NSScreen.main else { return nil }
+        let full = screen.frame
+        let half = regionSize / 2
+        var rect = CGRect(x: point.x - half, y: point.y - half, width: regionSize, height: regionSize)
+        // Clamp to the screen so SCKit's sourceRect stays in bounds.
+        rect.origin.x = min(max(rect.origin.x, full.minX), full.maxX - rect.width)
+        rect.origin.y = min(max(rect.origin.y, full.minY), full.maxY - rect.height)
+
+        guard let img = await captureScreen(in: rect) else { return nil }
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        return RegionCapture(image: img, rect: rect, scale: scale)
     }
 
     /// Captures a rect given in NSScreen coordinates (origin bottom-left, y up).
-    /// Uses SCScreenshotManager to get a single frame, excluding our own panels.
+    /// Builds a fresh filter + config from the cached shareable content each call
+    /// (both are cheap; the expensive `SCShareableContent` fetch is cached). Our
+    /// overlay/magnifier/HUD panels are excluded by matching window number so the
+    /// loupe never captures itself.
     private func captureScreen(in nsRect: CGRect) async -> CGImage? {
         // SCKit uses CG screen coordinates: origin top-left, y down.
         let screenHeight = CGDisplayBounds(CGMainDisplayID()).height
@@ -455,23 +593,20 @@ final class ColorPickerService {
             height: nsRect.height
         )
 
-        // Use cached shareable content; refresh lazily if not yet available.
-        let content: SCShareableContent
-        if let cached = cachedShareableContent {
-            content = cached
-        } else {
-            guard let fresh = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) else { return nil }
-            cachedShareableContent = fresh
-            content = fresh
-        }
+        guard let content = cachedShareableContent,
+              let display = content.displays.first(where: { $0.displayID == CGMainDisplayID() })
+        else { return nil }
 
-        guard let display = content.displays.first(where: { $0.displayID == CGMainDisplayID() }) else { return nil }
-
-        // Match our NSPanel windows to SCWindow by window number so they're excluded.
+        // Exclude our panels (by window number) AND, defensively, every window
+        // owned by our process — so the magnifier can never feed back even if its
+        // window number lookup misses.
+        let myPID = getpid()
         let ourWindowNumbers = Set([overlayWindow, magnifierPanel, hudPanel]
             .compactMap { $0?.windowNumber }
             .filter { $0 > 0 })
-        let excludedWindows = content.windows.filter { ourWindowNumbers.contains(Int($0.windowID)) }
+        let excludedWindows = content.windows.filter {
+            ourWindowNumbers.contains(Int($0.windowID)) || $0.owningApplication?.processID == myPID
+        }
 
         let filter = SCContentFilter(display: display, excludingWindows: excludedWindows)
 
@@ -482,15 +617,15 @@ final class ColorPickerService {
         config.width = max(1, Int(nsRect.width * scale))
         config.height = max(1, Int(nsRect.height * scale))
         config.scalesToFit = false
+        config.showsCursor = false
 
         return try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
     }
 
-    private func extractCenterColor(from image: CGImage) -> NSColor? {
-        let cx = image.width / 2
-        let cy = image.height / 2
-
-        guard let pixel = image.cropping(to: CGRect(x: cx, y: cy, width: 1, height: 1)) else { return nil }
+    /// Reads the sRGB color of a single pixel (`x`, `y` in the image's top-left
+    /// pixel space) by drawing it into a 1×1 context.
+    private func color(atX x: Int, y: Int, in image: CGImage) -> NSColor? {
+        guard let pixel = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1)) else { return nil }
 
         guard let ctx = CGContext(
             data: nil,
