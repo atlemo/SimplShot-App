@@ -20,6 +20,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     var onOpenSettings: (() -> Void)?
     var onColorPicker: (() -> Void)?
+    var onScreenshotsTaken: ((_ count: Int) -> Void)?
 #if !APPSTORE
     var onCheckForUpdates: (() -> Void)?
 #endif
@@ -420,6 +421,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                     } else {
                         showSystemNotification(title: "Screenshots Saved", body: "\(capturedFiles.count) screenshots saved")
                     }
+                    onScreenshotsTaken?(capturedFiles.count)
                 }
                 if !errors.isEmpty {
                     showAlert("Some captures failed:\n" + errors.joined(separator: "\n"))
@@ -586,6 +588,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                     applyTemplateAndCopy(fileURL: finalURL, template: template)
                     showSystemNotification(title: "Screenshot Copied", body: "Click to Edit", imageURL: rawURL)
                 }
+                onScreenshotsTaken?(1)
             }
         }
     }

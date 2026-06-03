@@ -96,6 +96,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menuBuilder.onColorPicker = { [weak self] in
             self?.colorPickerService?.startPicking()
         }
+#if !APPSTORE
+        menuBuilder.onScreenshotsTaken = { [weak self] count in
+            self?.showDonationPromptIfNeeded(screenshotCount: count)
+        }
+#endif
         menuBuilder.onOpenSettings = { [weak self] in
             NSApp.setActivationPolicy(.regular)
             if let action = self?.openSettingsAction {
@@ -220,6 +225,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: WhatsNewView(entries: entries) {
                 WhatsNewService.markAsSeen()
+                window.close()
+            })
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+#endif
+
+#if !APPSTORE
+    func showDonationPromptIfNeeded(screenshotCount: Int = 1) {
+        guard DonationService.recordScreenshots(count: screenshotCount) else { return }
+        DonationService.markPromptShown()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 400, height: 380),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "Support SimplShot"
+            window.level = .floating
+            window.center()
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: DonationPromptView {
+                window.close()
+            } onDonate: {
                 window.close()
             })
             window.makeKeyAndOrderFront(nil)
