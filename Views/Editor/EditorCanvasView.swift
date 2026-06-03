@@ -796,7 +796,7 @@ struct EditorCanvasView: View {
 
             case .text:
                 let fs = annotation.style.fontSize
-                let hPad = fs * 0.55
+
                 let vPad = fs * 0.25
                 let bubbleW = textBubbleWidth(for: annotation)
                 let lines = annotation.text.components(separatedBy: .newlines)
