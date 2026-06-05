@@ -93,10 +93,13 @@ struct EditorCanvasView: View {
             Group {
                 if let pdfSource = pdfPageSource,
                    let page = pdfSource.document.page(at: pdfSource.pageIndex) {
-                    PDFPageView(page: page, pointSize: CGSize(
-                        width: imagePixelSize.width / displayBackingScale,
-                        height: imagePixelSize.height / displayBackingScale
-                    ))
+                    // pointSize must be the page's own point size — the extent
+                    // `page.draw(with: .mediaBox)` fills — NOT imagePixelSize /
+                    // displayBackingScale. Non-active pages can be rasterized at a
+                    // different backing scale (preload uses a lighter one), so
+                    // deriving pointSize from imagePixelSize would mis-scale the
+                    // live view and clip it to the lower-left corner.
+                    PDFPageView(page: page, pointSize: page.rotatedMediaBoxSize)
                     .frame(width: canvasWidth, height: canvasHeight)
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 3)

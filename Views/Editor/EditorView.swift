@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 import AppKit
 import CoreImage
 import ImageIO
+import PDFKit
 #if !APPSTORE
 import WebP
 #endif
@@ -780,11 +781,17 @@ struct EditorView: View {
     private func preloadThumbnails() {
         let targets = sessions.filter { $0.id != activeSessionID && $0.rawImage == nil }
         guard !targets.isEmpty else { return }
+        // Render preloaded PDF pages at the same backing scale as the active page
+        // so every page's imagePixelSize is pointSize × backingScale. Switching to
+        // a preloaded session reuses this image (loadImage is skipped when
+        // session.image != nil), so a lighter scale here would make those pages
+        // display smaller than page 0.
+        let backingScale = displayBackingScale
         Self.imageLoadQueue.async {
             for session in targets {
                 let decoded: (nsImage: NSImage, cgImage: CGImage)?
                 if let pdfSource = session.pdfPageSource,
-                   let cg = pdfSource.renderPage(backingScale: 1.0) {
+                   let cg = pdfSource.renderPage(backingScale: backingScale) {
                     let size = NSSize(width: cg.width, height: cg.height)
                     let img = NSImage(size: size)
                     img.addRepresentation(NSBitmapImageRep(cgImage: cg))
@@ -2171,6 +2178,52 @@ struct EditorView: View {
         return image?.cgImage(forProposedRect: nil, context: nil, hints: nil)
     }
 
+    /// Produce the final composited image (page/screenshot + annotations +
+    /// watermark) for a raster export path (clipboard, PNG, print).
+    ///
+    /// For an *uncropped* PDF page this re-rasterizes from the source page at the
+    /// scan's native resolution so a high-DPI document isn't downsampled to the
+    /// editor's on-screen resolution (point size × backing scale). Cropped PDF
+    /// pages and non-PDF sessions composite onto the existing display raster.
+    /// "Uncropped" is detected by comparing the display raster's pixel size to
+    /// the full page size — a crop produces a smaller display image.
+    private func composedRasterOutput(
+        pdfPage: PDFPage?,
+        displayCG: CGImage?,
+        annotations: [Annotation],
+        watermark: WatermarkSettings,
+        renderer: AnnotationRenderer
+    ) -> CGImage? {
+        if let page = pdfPage {
+            let full = page.rotatedMediaBoxSize
+            let fullW = Int((full.width * displayBackingScale).rounded())
+            let fullH = Int((full.height * displayBackingScale).rounded())
+            let isCropped = displayCG.map { $0.width != fullW || $0.height != fullH } ?? false
+            if !isCropped,
+               let native = renderer.renderPDFPageNative(
+                   page: page,
+                   annotations: annotations,
+                   displayBackingScale: displayBackingScale,
+                   watermark: watermark
+               ) {
+                return native
+            }
+        }
+        guard let cg = displayCG else { return nil }
+        return try? renderer.render(
+            image: cg,
+            annotations: annotations,
+            backingScale: displayBackingScale,
+            cropRect: nil,
+            watermark: watermark
+        )
+    }
+
+    /// The active session's PDF page, if it is a PDF session.
+    private func activePDFPage() -> PDFPage? {
+        activeSession?.pdfPageSource.flatMap { $0.document.page(at: $0.pageIndex) }
+    }
+
     private func copyToClipboard() {
         copyToClipboardSilent()
         onDismiss()
@@ -2178,11 +2231,14 @@ struct EditorView: View {
 
     /// Copies the current image to the clipboard without dismissing the editor.
     private func copyToClipboardSilent() {
-        guard let cgImage = currentCGImage() else { return }
-
         let renderer = AnnotationRenderer()
-        guard let outputImage = try? renderer.render(image: cgImage, annotations: annotations, backingScale: displayBackingScale, cropRect: nil, watermark: watermarkSettings)
-        else { return }
+        guard let outputImage = composedRasterOutput(
+            pdfPage: activePDFPage(),
+            displayCG: currentCGImage(),
+            annotations: annotations,
+            watermark: watermarkSettings,
+            renderer: renderer
+        ) else { return }
 
         let bitmapRep = NSBitmapImageRep(cgImage: outputImage)
         let size = NSSize(width: outputImage.width, height: outputImage.height)
@@ -2447,13 +2503,13 @@ struct EditorView: View {
         for session in sessions {
             let cg = session.currentDisplayCGImage
                 ?? session.image?.cgImage(forProposedRect: nil, context: nil, hints: nil)
-            guard let cgImage = cg else { continue }
-            guard let outputCG = try? renderer.render(
-                image: cgImage,
+            let page = session.pdfPageSource.flatMap { $0.document.page(at: $0.pageIndex) }
+            guard let outputCG = composedRasterOutput(
+                pdfPage: page,
+                displayCG: cg,
                 annotations: session.annotations,
-                backingScale: displayBackingScale,
-                cropRect: nil,
-                watermark: session.watermarkSettings
+                watermark: session.watermarkSettings,
+                renderer: renderer
             ) else { continue }
             let size = NSSize(width: outputCG.width, height: outputCG.height)
             let nsImage = NSImage(size: size)

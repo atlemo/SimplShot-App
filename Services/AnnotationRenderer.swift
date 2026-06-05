@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import CoreImage
 import CoreText
+import PDFKit
 
 /// Renders annotations onto a CGImage for export.
 /// All annotation coordinates are in image-pixel space, matching the CGImage dimensions.
@@ -238,6 +239,62 @@ class AnnotationRenderer {
         }
 
         context.restoreGState()
+    }
+
+    /// Composite a PDF page and its annotations into a raster at the page's
+    /// native bitmap resolution. Used for copy-to-clipboard / PNG export of a
+    /// PDF session so a high-DPI scan isn't downsampled to the page's point size
+    /// × backing scale (the resolution the on-screen editor uses).
+    ///
+    /// The context is scaled so one unit equals one PDF point but pixels are
+    /// allocated at `page.rasterScale`, letting both `page.draw` and the shared
+    /// `drawAnnotationsVector` work in their natural point space while rendering
+    /// at full resolution. Annotations are stored in `displayBackingScale` pixel
+    /// space (matching the editor's `imagePixelSize`); `drawAnnotationsVector`
+    /// maps them into point space. Pixelate is unavailable for PDF sessions.
+    func renderPDFPageNative(
+        page: PDFPage,
+        annotations: [Annotation],
+        displayBackingScale: CGFloat,
+        watermark: WatermarkSettings = WatermarkSettings()
+    ) -> CGImage? {
+        let pointSize = page.rotatedMediaBoxSize
+        guard pointSize.width > 0, pointSize.height > 0 else { return nil }
+
+        let nativeScale = page.rasterScale(minimumScale: displayBackingScale)
+        let width = Int((pointSize.width * nativeScale).rounded())
+        let height = Int((pointSize.height * nativeScale).rounded())
+        guard width > 0, height > 0 else { return nil }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        // Work in point space at native pixel density (1 context unit = 1 point).
+        context.scaleBy(x: nativeScale, y: nativeScale)
+
+        // White page background, then the page content (rotation baked in by draw).
+        context.setFillColor(CGColor.white)
+        context.fill(CGRect(origin: .zero, size: pointSize))
+        page.draw(with: .mediaBox, to: context)
+
+        // Annotations + watermark, mapped from pixel space into the point context.
+        drawAnnotationsVector(
+            annotations: annotations,
+            into: context,
+            contextSize: pointSize,
+            backingScale: displayBackingScale,
+            watermark: watermark
+        )
+
+        return context.makeImage()
     }
 
     // MARK: - Individual Annotation Drawing

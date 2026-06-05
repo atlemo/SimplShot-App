@@ -26,8 +26,10 @@ enum PDFExportService {
               let firstPage = firstSource.document.page(at: firstSource.pageIndex)
         else { throw PDFExportError.noPDFSource }
 
-        let firstBox = firstPage.bounds(for: .mediaBox)
-        var mediaBox = CGRect(origin: .zero, size: firstBox.size)
+        // Use the rotation-aware size so 90°/270° pages aren't clipped (see
+        // PDFPage.rotatedMediaBoxSize). The first page only seeds the context's
+        // initial media box; each page sets its own below.
+        var mediaBox = CGRect(origin: .zero, size: firstPage.rotatedMediaBoxSize)
 
         guard let pdfContext = CGContext(url as CFURL, mediaBox: &mediaBox, nil) else {
             throw PDFExportError.cannotCreateContext
@@ -40,8 +42,12 @@ enum PDFExportService {
                   let page = source.document.page(at: source.pageIndex)
             else { continue }
 
-            let pageBox = page.bounds(for: .mediaBox)
-            var pageMediaBox = CGRect(origin: .zero, size: pageBox.size)
+            // Rotation-aware page size: draw(with:) bakes the page's `/Rotate`
+            // into the content, so the new page's media box must match the
+            // rotated (visible) dimensions, and annotations — stored in that
+            // same visible pixel space — map against it.
+            let pageSize = page.rotatedMediaBoxSize
+            var pageMediaBox = CGRect(origin: .zero, size: pageSize)
 
             pdfContext.beginPage(mediaBox: &pageMediaBox)
 
@@ -55,7 +61,7 @@ enum PDFExportService {
                 renderer.drawAnnotationsVector(
                     annotations: session.annotations,
                     into: pdfContext,
-                    contextSize: pageBox.size,
+                    contextSize: pageSize,
                     backingScale: backingScale,
                     watermark: session.watermarkSettings
                 )
