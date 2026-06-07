@@ -36,6 +36,10 @@ struct EditorView: View {
     /// onChange observers don't treat session-switches as user edits
     /// (which would re-shift annotations or overwrite app defaults).
     @State private var isRestoringSession: Bool = false
+    /// Set while a coalesced display re-render is already queued, so the many
+    /// template-property onChange handlers that fire together (e.g. applying a
+    /// template changes ~7 settings at once) trigger only one render.
+    @State private var displayRefreshScheduled: Bool = false
 
     private var activeSession: ImageSession? {
         sessions.first(where: { $0.id == activeSessionID })
@@ -382,7 +386,7 @@ struct EditorView: View {
                     let newOrigin = isEnabled ? screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment) : .zero
                     shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 }
-                applyDisplayImage(from: rawImage)
+                scheduleDisplayRefresh()
             }
         }
         .onChange(of: editorPadding) { oldValue, newValue in
@@ -393,7 +397,7 @@ struct EditorView: View {
                 let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: oldValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
                 let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: newValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
                 shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
-                applyDisplayImage(from: rawImage)
+                scheduleDisplayRefresh()
             }
         }
         .onChange(of: editorAspectRatioID) { oldID, newID in
@@ -405,20 +409,20 @@ struct EditorView: View {
                 let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: oldRatio)
                 let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: newRatio)
                 shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
-                applyDisplayImage(from: rawImage)
+                scheduleDisplayRefresh()
             }
         }
         .onChange(of: editorCornerRadius) { _, newValue in
             guard !isRestoringSession else { return }
             appSettings?.screenshotTemplate.cornerRadius = newValue
             if selectedWallpaper != nil, let rawImage {
-                applyDisplayImage(from: rawImage)
+                scheduleDisplayRefresh()
             }
         }
         .onChange(of: photoAdjustments) { _, _ in
             guard !isRestoringSession else { return }
             if let rawImage {
-                applyDisplayImage(from: rawImage)
+                scheduleDisplayRefresh()
             }
         }
     }
@@ -432,7 +436,7 @@ struct EditorView: View {
                 let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: oldAlignment)
                 let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: newAlignment)
                 shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
-                applyDisplayImage(from: rawImage)
+                scheduleDisplayRefresh()
             }
         }
         .onChange(of: columnVisibility) { _, newValue in
@@ -452,7 +456,7 @@ struct EditorView: View {
         .onChange(of: shadowIntensity) { _, _ in
             guard !isRestoringSession else { return }
             if selectedWallpaper != nil, let rawImage {
-                applyDisplayImage(from: rawImage)
+                scheduleDisplayRefresh()
             }
         }
         .onChange(of: isCropping) { _, newValue in
@@ -1042,6 +1046,21 @@ struct EditorView: View {
             renderSessionDisplay(originalSession)
         }
     }
+
+    /// Coalesces display re-renders into a single pass on the next runloop tick.
+    /// Applying a template mutates ~7 @State properties at once, each firing its
+    /// own onChange; without coalescing that runs `applyDisplayImage` ~7×. The
+    /// async render reads the final @State, so the result is always up to date.
+    private func scheduleDisplayRefresh() {
+        guard !displayRefreshScheduled else { return }
+        displayRefreshScheduled = true
+        DispatchQueue.main.async {
+            displayRefreshScheduled = false
+            guard let rawImage else { return }
+            applyDisplayImage(from: rawImage)
+        }
+    }
+
     private func applyDisplayImage(from source: NSImage) {
         guard let cgSourceOriginal = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             image = source

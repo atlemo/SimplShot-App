@@ -105,7 +105,7 @@ class AnnotationRenderer {
         // 4. Draw watermark on top of all annotations.
         //    Context is in flipped/top-left space, so CGImage drawing needs a local unflip.
         if watermark.isEnabled, let path = watermark.imagePath,
-           let nsImage = NSImage(contentsOfFile: path), nsImage.isValid {
+           let nsImage = WatermarkImageCache.image(atPath: path) {
             let marginH = CGFloat(width) * 0.02
             let marginV = CGFloat(height) * 0.02
             // widthPx is in logical points; scale to image pixels the same way
@@ -212,7 +212,7 @@ class AnnotationRenderer {
         }
 
         if watermark.isEnabled, let path = watermark.imagePath,
-           let nsImage = NSImage(contentsOfFile: path), nsImage.isValid {
+           let nsImage = WatermarkImageCache.image(atPath: path) {
             let marginH = CGFloat(widthPx) * 0.02
             let marginV = CGFloat(heightPx) * 0.02
             let targetW = max(1, CGFloat(watermark.widthPx) * backingScale)

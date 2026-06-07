@@ -521,8 +521,9 @@ class TemplateRenderer {
     ) {
         guard watermark.isEnabled,
               let path = watermark.imagePath,
-              let nsImage = NSImage(contentsOfFile: path),
-              nsImage.isValid
+              // Cached bytes → fresh NSImage per call (safe to draw off-main, e.g.
+              // capture-time template compositing), avoids re-reading from disk.
+              let nsImage = WatermarkImageCache.image(atPath: path)
         else { return }
 
         let marginH = CGFloat(watermark.edgeOffset) * backingScale

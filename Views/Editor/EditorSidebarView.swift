@@ -71,6 +71,9 @@ struct EditorSidebarView: View {
     @State private var spotlightPopoverVisible = false
     @State private var hoveredTool: AnnotationTool? = nil
     @State private var hoveredSection: SidebarSection? = nil
+    /// Keyboard focus follows the active tool so the focus ring sits on it,
+    /// rather than getting stuck on the first button (Select).
+    @FocusState private var focusedTool: AnnotationTool?
     @AppStorage(Constants.UserDefaultsKeys.editorSidebarCollapsedSections)
     private var collapsedSectionsStorage: String = ""
     @AppStorage(Constants.UserDefaultsKeys.editorSidebarBackgroundType)
@@ -253,6 +256,8 @@ struct EditorSidebarView: View {
                         sidebarToolButton(tool)
                     }
                 }
+                .onAppear { focusedTool = activeToolFocusKey }
+                .onChange(of: currentTool) { _, _ in focusedTool = activeToolFocusKey }
                 if showStyleControls {
                     HStack(spacing: 8) {
                         if showFillColorControl {
@@ -590,21 +595,30 @@ struct EditorSidebarView: View {
     /// True when `tool` is the shapes-group representative and the current tool is any shape.
     private var isShapeGroupActive: Bool { currentTool.isShapeTool }
 
+    /// The tool button that should hold keyboard focus for the active tool.
+    /// Shapes collapse onto the `.rectangle` group representative button.
+    private var activeToolFocusKey: AnnotationTool {
+        currentTool.isShapeTool ? .rectangle : currentTool
+    }
+
     @ViewBuilder
     private func sidebarToolButton(_ tool: AnnotationTool) -> some View {
-        // For the shapes group button (.rectangle is the representative), always show a
-        // combined icon + chevron right, and open the shapes picker on every click.
+        // For the shapes group button (.rectangle is the representative), show a
+        // combined icon + chevron right. First click activates the shapes group
+        // (defaulting to rectangle); clicking again — once a shape is active —
+        // opens the picker to switch shape.
         if tool == .rectangle {
             let isActive = isShapeGroupActive
             let button = Button {
+                if currentTool.isShapeTool {
+                    // Already active — clicking again opens the shape picker.
+                    shapesPopoverVisible.toggle()
+                    return
+                }
                 pixelatePopoverVisible = false
                 arrowStylePopoverVisible = false
                 spotlightPopoverVisible = false
-                // Select the current active shape (or rectangle if none active) then show picker
-                if !currentTool.isShapeTool {
-                    selectTool(.rectangle)
-                }
-                shapesPopoverVisible = true
+                selectTool(.rectangle)
             } label: {
                 HStack(spacing: 3) {
                     shapesGroupIcon
@@ -623,6 +637,7 @@ struct EditorSidebarView: View {
             .buttonStyle(.plain)
             .help("Shapes")
             .onHover { isHovering in hoveredTool = isHovering ? tool : nil }
+            .focused($focusedTool, equals: tool)
             .popover(isPresented: $shapesPopoverVisible, arrowEdge: .trailing) {
                 shapesPickerContent
             }
@@ -639,12 +654,10 @@ struct EditorSidebarView: View {
                     pixelatePopoverVisible.toggle()
                     return
                 }
-                if tool == .arrow {
-                    pixelatePopoverVisible = false
-                    shapesPopoverVisible = false
-                    spotlightPopoverVisible = false
-                    selectTool(.arrow)
-                    arrowStylePopoverVisible = true
+                if tool == .arrow, currentTool == .arrow {
+                    // Already active — clicking again opens the style picker.
+                    // (First selection just activates the tool, no popover.)
+                    arrowStylePopoverVisible.toggle()
                     return
                 }
                 pixelatePopoverVisible = false
@@ -686,8 +699,9 @@ struct EditorSidebarView: View {
                 .contentShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
-            .help(tool == .arrow ? "Arrow Style" : isActive && hasOptions ? "Click again to change style" : tool.label)
+            .help(isActive && hasOptions ? "Click again to change style" : tool.label)
             .onHover { isHovering in hoveredTool = isHovering ? tool : nil }
+            .focused($focusedTool, equals: tool)
 
             if tool == .spotlight {
                 button.popover(isPresented: $spotlightPopoverVisible, arrowEdge: .trailing) {

@@ -238,44 +238,15 @@ struct EditorCanvasView: View {
 
     @ViewBuilder
     private var watermarkPreviewOverlay: some View {
-        if watermarkSettings.isEnabled,
-           let path = watermarkSettings.imagePath,
-           let nsImage = NSImage(contentsOfFile: path),
-           nsImage.isValid {
-            let marginH = CGFloat(watermarkSettings.edgeOffset) * scale * displayBackingScale
-            let marginV = CGFloat(watermarkSettings.bottomOffset) * scale * displayBackingScale
-            // widthPx is in logical points. At true-size zoom this simplifies to
-            // widthPx × zoomLevel view-points, matching what the slider label shows.
-            let targetW = max(1, CGFloat(watermarkSettings.widthPx) * scale * displayBackingScale)
-            let rawSize = nsImage.size
-            let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
-            let targetH = max(1, targetW / aspect)
-            let pos = watermarkPreviewPosition(
-                position: watermarkSettings.position,
-                targetW: targetW, targetH: targetH, marginH: marginH, marginV: marginV
+        if watermarkSettings.isEnabled, let path = watermarkSettings.imagePath {
+            WatermarkPreview(
+                path: path,
+                settings: watermarkSettings,
+                scale: scale,
+                displayBackingScale: displayBackingScale,
+                canvasWidth: canvasWidth,
+                canvasHeight: canvasHeight
             )
-            Image(nsImage: nsImage)
-                .resizable()
-                .frame(width: targetW, height: targetH)
-                .opacity(watermarkSettings.opacity)
-                .position(x: pos.x, y: pos.y)
-                .allowsHitTesting(false)
-        }
-    }
-
-    private func watermarkPreviewPosition(
-        position: WatermarkPosition,
-        targetW: CGFloat, targetH: CGFloat, marginH: CGFloat, marginV: CGFloat
-    ) -> CGPoint {
-        switch position {
-        case .topLeft:
-            return CGPoint(x: marginH + targetW / 2, y: marginV + targetH / 2)
-        case .topRight:
-            return CGPoint(x: canvasWidth - marginH - targetW / 2, y: marginV + targetH / 2)
-        case .bottomLeft:
-            return CGPoint(x: marginH + targetW / 2, y: canvasHeight - marginV - targetH / 2)
-        case .bottomRight:
-            return CGPoint(x: canvasWidth - marginH - targetW / 2, y: canvasHeight - marginV - targetH / 2)
         }
     }
 
@@ -927,6 +898,72 @@ struct EditorCanvasView: View {
         NSEvent.modifierFlags.contains(.shift)
     }
 
+}
+
+// MARK: - Watermark Preview
+
+/// Live watermark preview that loads its image **off the main thread** (so a slow
+/// or blocking path — e.g. on a removed/disconnected volume — never freezes the
+/// editor) and holds the decoded image in `@State` so the constantly
+/// re-evaluating canvas body doesn't redo the work. Placement mirrors the export.
+private struct WatermarkPreview: View {
+    let path: String
+    let settings: WatermarkSettings
+    let scale: CGFloat
+    let displayBackingScale: CGFloat
+    let canvasWidth: CGFloat
+    let canvasHeight: CGFloat
+
+    @State private var image: NSImage?
+
+    var body: some View {
+        // A concrete ZStack (not a Group) hosts the `.task`: modifiers on a Group
+        // distribute to its children, so a `.task` on a conditionally-empty Group
+        // never runs. `Color.clear` + an explicit canvas-sized frame keep the view
+        // present (so the load fires) and give `.position` the canvas coordinate space.
+        ZStack(alignment: .topLeading) {
+            Color.clear
+            if let image {
+                let marginH = CGFloat(settings.edgeOffset) * scale * displayBackingScale
+                let marginV = CGFloat(settings.bottomOffset) * scale * displayBackingScale
+                // widthPx is in logical points. At true-size zoom this simplifies to
+                // widthPx × zoomLevel view-points, matching what the slider shows.
+                let targetW = max(1, CGFloat(settings.widthPx) * scale * displayBackingScale)
+                let rawSize = image.size
+                let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
+                let targetH = max(1, targetW / aspect)
+                let pos = position(targetW: targetW, targetH: targetH, marginH: marginH, marginV: marginV)
+                Image(nsImage: image)
+                    .resizable()
+                    .frame(width: targetW, height: targetH)
+                    .opacity(settings.opacity)
+                    .position(x: pos.x, y: pos.y)
+            }
+        }
+        .frame(width: canvasWidth, height: canvasHeight)
+        .allowsHitTesting(false)
+        .task(id: path) {
+            let loadPath = path
+            let loaded = await Task.detached(priority: .userInitiated) {
+                WatermarkImageCache.image(atPath: loadPath)
+            }.value
+            guard !Task.isCancelled else { return }
+            image = loaded
+        }
+    }
+
+    private func position(targetW: CGFloat, targetH: CGFloat, marginH: CGFloat, marginV: CGFloat) -> CGPoint {
+        switch settings.position {
+        case .topLeft:
+            return CGPoint(x: marginH + targetW / 2, y: marginV + targetH / 2)
+        case .topRight:
+            return CGPoint(x: canvasWidth - marginH - targetW / 2, y: marginV + targetH / 2)
+        case .bottomLeft:
+            return CGPoint(x: marginH + targetW / 2, y: canvasHeight - marginV - targetH / 2)
+        case .bottomRight:
+            return CGPoint(x: canvasWidth - marginH - targetW / 2, y: canvasHeight - marginV - targetH / 2)
+        }
+    }
 }
 
 // MARK: - PDF Page View (Vector Rendering)
