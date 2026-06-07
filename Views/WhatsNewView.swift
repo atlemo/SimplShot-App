@@ -7,6 +7,13 @@ struct WhatsNewEntry {
 
 /// Hardcoded changelog — add new entries at the top before each release.
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.6.5", items: [
+        "Multi-page PDFs now render correctly — pages after the first are no longer cropped or shrunk, and rotated (e.g. scanned) pages appear upright and full size",
+        "Scanned and image-based PDFs now copy, save and print at full resolution instead of looking soft",
+        "Selecting the Arrow or Shapes tool no longer pops open its style picker automatically — click the tool again to change its style",
+        "The toolbar now shows the focus highlight on the active tool instead of the pointer",
+        "Fixed a freeze when applying a template whose watermark image was missing or slow to load, and templates now apply faster",
+    ]),
     WhatsNewEntry(version: "1.6.4", items: [
         "Crop tool: choose a preset aspect ratio (1:1, 4:3, 16:9 and more), and drag inside the selection to reposition it",
         "Save As now lets you choose the file format — PNG, JPEG, HEIC or WebP",
