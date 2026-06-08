@@ -229,6 +229,7 @@ struct EditorCanvasView: View {
                     cropBoundsRect: cropBoundsRect ?? CGRect(origin: .zero, size: imagePixelSize),
                     aspectRatio: cropAspectRatio
                 )
+                .frame(width: canvasWidth, height: canvasHeight, alignment: .topLeading)
             }
         }
         .frame(width: canvasWidth, height: canvasHeight)

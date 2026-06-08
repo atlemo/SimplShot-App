@@ -7,6 +7,9 @@ struct WhatsNewEntry {
 
 /// Hardcoded changelog — add new entries at the top before each release.
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.6.6", items: [
+        "Fixed the Crop tool on screenshots without a background — the crop selection now covers the whole image from the start instead of appearing shifted down and to the right",
+    ]),
     WhatsNewEntry(version: "1.6.5", items: [
         "Multi-page PDFs now render correctly — pages after the first are no longer cropped or shrunk, and rotated (e.g. scanned) pages appear upright and full size",
         "Scanned and image-based PDFs now copy, save and print at full resolution instead of looking soft",

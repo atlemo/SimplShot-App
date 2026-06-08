@@ -415,13 +415,13 @@ struct EditorView: View {
         .onChange(of: editorCornerRadius) { _, newValue in
             guard !isRestoringSession else { return }
             appSettings?.screenshotTemplate.cornerRadius = newValue
-            if selectedWallpaper != nil, let rawImage {
+            if selectedWallpaper != nil, rawImage != nil {
                 scheduleDisplayRefresh()
             }
         }
         .onChange(of: photoAdjustments) { _, _ in
             guard !isRestoringSession else { return }
-            if let rawImage {
+            if rawImage != nil {
                 scheduleDisplayRefresh()
             }
         }
@@ -455,7 +455,7 @@ struct EditorView: View {
         }
         .onChange(of: shadowIntensity) { _, _ in
             guard !isRestoringSession else { return }
-            if selectedWallpaper != nil, let rawImage {
+            if selectedWallpaper != nil, rawImage != nil {
                 scheduleDisplayRefresh()
             }
         }
@@ -1232,6 +1232,7 @@ struct EditorView: View {
             return
         }
 
+
         // Capture the pre-crop state for correct undo (before any state changes).
         preCropSnapshot = EditorSnapshot(
             annotations: annotations,
@@ -1253,6 +1254,11 @@ struct EditorView: View {
                                             height: CGFloat(cg.height),
                                             steps: rotationSteps)
         let fullBounds = CGRect(x: 0, y: 0, width: rotW, height: rotH)
+
+        if selectedWallpaper == nil {
+            cropRect = CGRect(origin: .zero, size: imagePixelSize)
+            return
+        }
 
         // Compute the old gradient offset (before expanding).
         let oldGradientOffset: CGPoint
@@ -1303,6 +1309,14 @@ struct EditorView: View {
     }
 
     private func cancelCrop() {
+        if selectedWallpaper == nil, screenshotCropRect == preCropScreenshotCropRect {
+            cropRect = CGRect(origin: .zero, size: imagePixelSize)
+            preCropSnapshot = nil
+            isCropping = false
+            currentTool = .select
+            return
+        }
+
         // Compute gradient offset for the full image (current crop-mode state).
         let fullGradientOffset: CGPoint
         if selectedWallpaper != nil, !screenshotCropRect.isEmpty {
