@@ -9,6 +9,11 @@ struct PhotoEditSidebarSection: View {
     var isCropping: Bool
     @Binding var cropAspectPreset: CropAspectPreset
     var imagePixelSize: CGSize
+    /// True while a background template is active. Resize works on the raw
+    /// screenshot, but the W/H fields show the templated canvas (screenshot +
+    /// constant-pixel padding), so the result could never match the requested
+    /// size and annotations would drift — disable instead of producing both.
+    var resizeDisabled: Bool = false
     var onEnterCrop: () -> Void
     var onApplyCrop: () -> Void
     var onCancelCrop: () -> Void
@@ -235,6 +240,13 @@ struct PhotoEditSidebarSection: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader("Resize")
 
+            if resizeDisabled {
+                Text("Remove the background to resize the image.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             HStack(spacing: 6) {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
@@ -306,6 +318,7 @@ struct PhotoEditSidebarSection: View {
                     return w == Int(imagePixelSize.width) && h == Int(imagePixelSize.height)
                 }())
         }
+        .disabled(resizeDisabled)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
     }

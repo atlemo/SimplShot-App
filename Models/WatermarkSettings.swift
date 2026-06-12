@@ -38,6 +38,12 @@ enum WatermarkImageCache {
         let loaded = try? Data(contentsOf: URL(fileURLWithPath: path))
 
         lock.lock()
+        // Evict entries for older mtimes of the same path — without this,
+        // replacing the watermark file accumulates stale image bytes forever.
+        let stalePrefix = "\(path)|"
+        for staleKey in cache.keys where staleKey.hasPrefix(stalePrefix) && staleKey != key {
+            cache.removeValue(forKey: staleKey)
+        }
         cache[key] = loaded
         lock.unlock()
         return loaded

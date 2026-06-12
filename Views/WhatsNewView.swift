@@ -7,6 +7,14 @@ struct WhatsNewEntry {
 
 /// Hardcoded changelog — add new entries at the top before each release.
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.6.7", items: [
+        "You can now open password-protected PDFs — SimplShot asks for the password and unlocks the document",
+        "Much smoother editing: adjusting padding, background, alignment or aspect ratio no longer makes annotations wobble, and the preview keeps up with fast slider drags",
+        "Smoother pinch-zoom in the editor — the view stays anchored under your cursor instead of jittering",
+        "Annotations in the editor now match the exported image exactly, at any zoom level",
+        "Resizing a rotated image now scales annotations and text correctly",
+        "Many smaller fixes from a full code review — deleting a multi-page PDF trashes the right file, text annotations undo cleanly, and more",
+    ]),
     WhatsNewEntry(version: "1.6.6", items: [
         "Fixed the Crop tool on screenshots without a background — the crop selection now covers the whole image from the start instead of appearing shifted down and to the right",
     ]),

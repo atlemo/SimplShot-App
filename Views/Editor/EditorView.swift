@@ -40,6 +40,10 @@ struct EditorView: View {
     /// template-property onChange handlers that fire together (e.g. applying a
     /// template changes ~7 settings at once) trigger only one render.
     @State private var displayRefreshScheduled: Bool = false
+    /// Latest-wins bookkeeping for the asynchronous display-render pipeline,
+    /// including the annotation shift that must commit atomically with the
+    /// re-rendered bitmap.
+    @State private var renderCoordinator = DisplayRenderCoordinator()
 
     private var activeSession: ImageSession? {
         sessions.first(where: { $0.id == activeSessionID })
@@ -134,6 +138,11 @@ struct EditorView: View {
     @State private var zoomLevel: CGFloat = 1.0  // 1.0 = fit to view
     @State private var fitScale: CGFloat = 0.5   // computed base scale to fit image
     @State private var lastViewSize: CGSize = .zero  // cached for re-fitting after image swap
+    /// Transient pinch-zoom bookkeeping. Lives in a reference-type box (not
+    /// individual @State values) because magnify ticks arrive faster than the
+    /// canvas can re-layout, and mutating plain @State on every tick would
+    /// invalidate the view tree without driving any UI.
+    @State private var magnifyState = MagnifyGestureState()
 
     @Environment(\.requestReview) private var requestReview
 
@@ -384,7 +393,7 @@ struct EditorView: View {
                     let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
                     let oldOrigin = wasEnabled ? screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment) : .zero
                     let newOrigin = isEnabled ? screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment) : .zero
-                    shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                    deferAnnotationShift(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 }
                 scheduleDisplayRefresh()
             }
@@ -396,7 +405,7 @@ struct EditorView: View {
                 let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
                 let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: oldValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
                 let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: newValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
-                shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                deferAnnotationShift(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 scheduleDisplayRefresh()
             }
         }
@@ -408,7 +417,7 @@ struct EditorView: View {
                 let newRatio = aspectRatioValue(for: newID)
                 let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: oldRatio)
                 let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: newRatio)
-                shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                deferAnnotationShift(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 scheduleDisplayRefresh()
             }
         }
@@ -435,7 +444,7 @@ struct EditorView: View {
                 let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
                 let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: oldAlignment)
                 let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: newAlignment)
-                shiftAnnotations(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                deferAnnotationShift(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
                 scheduleDisplayRefresh()
             }
         }
@@ -482,6 +491,18 @@ struct EditorView: View {
                   let template = appSettings.editorTemplates.first(where: { $0.id == id })
             else { return }
             applyTemplateToAllSessions(template)
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSView.frameDidChangeNotification,
+            object: nsScrollView?.documentView
+        )) { _ in
+            // The canvas finished resizing for an in-flight pinch-zoom step —
+            // apply the scroll-anchor correction now, in the same pass as the
+            // resize, instead of racing it from a detached async block (which
+            // made content visibly shift and settle on every zoom step).
+            guard let origin = magnifyState.pendingScrollOrigin,
+                  let scrollView = nsScrollView else { return }
+            finishZoomAnchorCorrection(scrollView: scrollView, origin: origin)
         }
         .alert("Delete Screenshot?", isPresented: $showTrashAlert) {
             Button("Delete", role: .destructive) {
@@ -623,7 +644,10 @@ struct EditorView: View {
                 GeometryReader { geo in
                     Group {
                         if let image {
-                            ScrollView([.horizontal, .vertical], showsIndicators: zoomLevel > 1.0) {
+                            // Indicators stay enabled at all zoom levels: toggling them at
+                            // the 1.0 boundary forced a scroller reconfiguration mid-gesture.
+                            // Overlay scrollers auto-hide when the content fits anyway.
+                            ScrollView([.horizontal, .vertical], showsIndicators: true) {
                                 EditorCanvasView(
                                     image: image,
                                     imagePixelSize: imagePixelSize,
@@ -720,8 +744,11 @@ struct EditorView: View {
         let scaleX = availableWidth / imagePixelSize.width
         let scaleY = availableHeight / imagePixelSize.height
 
-        // Pick up the current screen's backing scale (handles display changes).
-        displayBackingScale = NSScreen.main?.backingScaleFactor ?? 2.0
+        // Pick up the backing scale of the screen this window is actually on
+        // (an editor dragged to a 1×/3× secondary display would otherwise use
+        // the key screen's scale). Falls back to NSScreen.main before the
+        // window reference is captured.
+        displayBackingScale = (hostingWindow?.screen ?? NSScreen.main)?.backingScaleFactor ?? 2.0
 
         // "True size" scale: 1 image pixel = 1/backingScale view points.
         // At this scale the image displays at the same size as the original window.
@@ -848,10 +875,11 @@ struct EditorView: View {
         applyEditorTemplate(template)
 
         // After the synchronous @State writes above, SwiftUI schedules onChange
-        // handlers which re-render the canvas. Once that's done, sync the
-        // freshly-rendered @State back into the active session so its thumbnail
-        // refreshes too.
+        // handlers which queue a canvas re-render. Flush it so the session
+        // stores the freshly-rendered image (and its thumbnail refreshes),
+        // not a stale frame from before the template was applied.
         DispatchQueue.main.async {
+            flushPendingDisplayRender()
             saveActiveSessionState()
         }
 
@@ -1047,21 +1075,121 @@ struct EditorView: View {
         }
     }
 
-    /// Coalesces display re-renders into a single pass on the next runloop tick.
-    /// Applying a template mutates ~7 @State properties at once, each firing its
-    /// own onChange; without coalescing that runs `applyDisplayImage` ~7×. The
-    /// async render reads the final @State, so the result is always up to date.
+    /// Coalesces display re-renders into a single request on the next runloop
+    /// tick. Applying a template mutates ~7 @State properties at once, each
+    /// firing its own onChange; without coalescing that would start ~7 renders.
     private func scheduleDisplayRefresh() {
         guard !displayRefreshScheduled else { return }
         displayRefreshScheduled = true
         DispatchQueue.main.async {
             displayRefreshScheduled = false
-            guard let rawImage else { return }
-            applyDisplayImage(from: rawImage)
+            startDisplayRender()
         }
     }
 
+    /// Serial queue for display-pipeline renders (rotate → crop → adjust →
+    /// template). Serial so the active session's TemplateRenderer caches are
+    /// only ever touched by one render at a time; latest-wins via generations.
+    private static let displayRenderQueue = DispatchQueue(
+        label: "com.simplshot.displayRender",
+        qos: .userInteractive
+    )
+
+    /// Snapshot of every input the display render reads, captured on the main
+    /// thread so the background pass touches no @State.
+    private struct DisplayRenderSpec {
+        var rotationSteps: Int
+        var screenshotCropRect: CGRect
+        var photoAdjustments: PhotoAdjustments
+        var wallpaper: WallpaperSource?
+        var padding: Int
+        var cornerRadius: Int
+        var aspectRatio: Double?
+        var shadowIntensity: Double
+        var alignment: CanvasAlignment
+        var backingScale: CGFloat
+    }
+
+    private func displayRenderSpec() -> DisplayRenderSpec {
+        DisplayRenderSpec(
+            rotationSteps: rotationSteps,
+            screenshotCropRect: screenshotCropRect,
+            photoAdjustments: photoAdjustments,
+            wallpaper: isPDFSession ? nil : selectedWallpaper,
+            padding: editorPadding,
+            cornerRadius: editorCornerRadius,
+            aspectRatio: selectedEditorAspectRatio?.ratio,
+            shadowIntensity: shadowIntensity,
+            alignment: screenshotAlignment,
+            backingScale: displayBackingScale
+        )
+    }
+
+    /// Starts a latest-wins background render of the display image, keeping the
+    /// main thread free during slider drags. Stale queued requests are skipped
+    /// before doing any work; each completed render commits atomically — the
+    /// bitmap, the derived sizes, and the annotation shift snapshotted for it —
+    /// so annotations can never move ahead of the image they are drawn over.
+    private func startDisplayRender() {
+        guard let rawImage else { return }
+        guard let sourceCG = rawImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            // Non-bitmap source — the synchronous path has a fallback for it.
+            applyDisplayImage(from: rawImage)
+            return
+        }
+
+        let generation = renderCoordinator.advanceGeneration()
+        renderCoordinator.hasUncommittedRender = true
+        let shiftTarget = renderCoordinator.cumulativeShift
+        let spec = displayRenderSpec()
+        let renderer = templateRenderer
+        let context = ciContext
+        let baseTemplate = template
+
+        Self.displayRenderQueue.async {
+            // Superseded while queued — skip without rendering.
+            guard renderCoordinator.isCurrent(generation) else { return }
+            let displayCG = Self.composeDisplayImage(
+                source: sourceCG,
+                spec: spec,
+                template: baseTemplate,
+                renderer: renderer,
+                ciContext: context
+            )
+            DispatchQueue.main.async {
+                // Progressive latest-wins: commit anything newer than the last
+                // commit (so the preview keeps updating mid-drag even when every
+                // render is superseded before it finishes), drop renders that
+                // lost to a newer commit (e.g. a synchronous flush).
+                guard generation > renderCoordinator.lastCommittedGeneration else { return }
+                renderCoordinator.lastCommittedGeneration = generation
+                if renderCoordinator.isCurrent(generation) {
+                    renderCoordinator.hasUncommittedRender = false
+                }
+                shiftAnnotations(by: renderCoordinator.takeShift(upTo: shiftTarget))
+                commitDisplayImage(displayCG)
+            }
+        }
+    }
+
+    /// Synchronously completes any pending display work (accumulated annotation
+    /// shift + in-flight background render) so @State reflects the freshest
+    /// template settings. Call before exports, session switches, and geometry
+    /// edits that read annotation positions.
+    private func flushPendingDisplayRender() {
+        guard renderCoordinator.isDirty, let rawImg = rawImage else { return }
+        applyDisplayImage(from: rawImg)
+    }
+
+    /// Synchronous render + commit. Used by one-shot edits (crop, rotate,
+    /// resize, image load) that need the result immediately. Also flushes any
+    /// annotation shift the async pipeline still owes and supersedes in-flight
+    /// background renders, so this path always commits the freshest state.
     private func applyDisplayImage(from source: NSImage) {
+        shiftAnnotations(by: renderCoordinator.takeShift(upTo: renderCoordinator.cumulativeShift))
+        renderCoordinator.lastCommittedGeneration = renderCoordinator.advanceGeneration()
+        renderCoordinator.hasUncommittedRender = false
+
         guard let cgSourceOriginal = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             image = source
             currentDisplayCGImage = nil
@@ -1070,18 +1198,43 @@ struct EditorView: View {
             return
         }
 
+        // Run on the render queue (synchronously) so the TemplateRenderer's
+        // caches stay confined to one render at a time.
+        let spec = displayRenderSpec()
+        let displayCG = Self.displayRenderQueue.sync {
+            Self.composeDisplayImage(
+                source: cgSourceOriginal,
+                spec: spec,
+                template: template,
+                renderer: templateRenderer,
+                ciContext: ciContext
+            )
+        }
+        commitDisplayImage(displayCG)
+    }
+
+    /// The display pipeline: rotation → non-destructive crop → photo
+    /// adjustments → template compositing. Pure function of its inputs (no
+    /// @State access) so it can run on the render queue.
+    private static func composeDisplayImage(
+        source cgSourceOriginal: CGImage,
+        spec: DisplayRenderSpec,
+        template: ScreenshotTemplate,
+        renderer: TemplateRenderer,
+        ciContext: CIContext
+    ) -> CGImage {
         // Apply rotation FIRST so all subsequent geometry (crop, adjustments,
         // template) operates in the rotated coordinate space. screenshotCropRect
         // and annotations are also stored in this rotated-raw coord space.
-        let cgSource = Self.rotateCGImage90(cgSourceOriginal, steps: rotationSteps, ciContext: ciContext)
+        let cgSource = rotateCGImage90(cgSourceOriginal, steps: spec.rotationSteps, ciContext: ciContext)
             ?? cgSourceOriginal
 
         // Apply non-destructive crop to the (rotated) raw screenshot before compositing.
         var croppedCG = cgSource
-        if !screenshotCropRect.isEmpty {
+        if !spec.screenshotCropRect.isEmpty {
             let fullBounds = CGRect(x: 0, y: 0,
                                     width: CGFloat(cgSource.width), height: CGFloat(cgSource.height))
-            let clampedCrop = screenshotCropRect.intersection(fullBounds)
+            let clampedCrop = spec.screenshotCropRect.intersection(fullBounds)
             if !clampedCrop.isEmpty, clampedCrop != fullBounds,
                let cropped = cgSource.cropping(to: clampedCrop) {
                 croppedCG = cropped
@@ -1091,31 +1244,36 @@ struct EditorView: View {
         // Apply photo adjustments (non-destructive CI filter chain).
         // Runs in Edit mode when any slider is non-default, but the result is
         // always available for export regardless of current mode.
-        if !photoAdjustments.isDefault {
-            croppedCG = photoAdjustments.apply(to: croppedCG, ciContext: ciContext)
+        if !spec.photoAdjustments.isDefault {
+            croppedCG = spec.photoAdjustments.apply(to: croppedCG, ciContext: ciContext)
         }
 
         var displayCG = croppedCG
-        if let wallpaper = selectedWallpaper, !isPDFSession {
+        if let wallpaper = spec.wallpaper {
             // Build a template with the current editor slider values and selected wallpaper,
             // applied to the already-cropped screenshot (never the raw+wallpaper composite).
             var editorTemplate = template
-            editorTemplate.padding = editorPadding
-            editorTemplate.cornerRadius = editorCornerRadius
+            editorTemplate.padding = spec.padding
+            editorTemplate.cornerRadius = spec.cornerRadius
             editorTemplate.wallpaperSource = wallpaper
             editorTemplate.watermarkSettings = WatermarkSettings()
-            if let templated = try? templateRenderer.applyTemplate(
+            if let templated = try? renderer.applyTemplate(
                 editorTemplate,
                 to: croppedCG,
-                backingScale: displayBackingScale,
-                targetAspectRatio: selectedEditorAspectRatio?.ratio,
-                shadowIntensity: shadowIntensity,
-                alignment: screenshotAlignment
+                backingScale: spec.backingScale,
+                targetAspectRatio: spec.aspectRatio,
+                shadowIntensity: spec.shadowIntensity,
+                alignment: spec.alignment
             ) {
                 displayCG = templated
             }
         }
+        return displayCG
+    }
 
+    /// Writes a rendered display image into @State in one transaction, keeping
+    /// fitScale in step so the canvas doesn't re-fit on a later frame.
+    private func commitDisplayImage(_ displayCG: CGImage) {
         let size = CGSize(width: displayCG.width, height: displayCG.height)
         let nsImage = NSImage(size: size)
         nsImage.addRepresentation(NSBitmapImageRep(cgImage: displayCG))
@@ -1123,11 +1281,14 @@ struct EditorView: View {
         currentDisplayCGImage = displayCG
         imagePixelSize = size
         cropRect = CGRect(origin: .zero, size: size)
+        updateFitScale(viewSize: lastViewSize)
     }
 
     // MARK: - Crop
 
     private func applyCrop() {
+        flushPendingDisplayRender()
+
         // Compute the gradient offset so we can convert display-space cropRect
         // back to raw screenshot pixel space.
         let gradientOffset: CGPoint
@@ -1223,6 +1384,8 @@ struct EditorView: View {
     /// Expands the display to the full uncropped image and positions the crop rect
     /// over the previously-cropped region so the user can readjust from the original.
     private func enterCropMode() {
+        flushPendingDisplayRender()
+
         // Each crop session starts unconstrained.
         cropAspectPreset = .free
         guard let rawImg = rawImage,
@@ -1309,6 +1472,8 @@ struct EditorView: View {
     }
 
     private func cancelCrop() {
+        flushPendingDisplayRender()
+
         if selectedWallpaper == nil, screenshotCropRect == preCropScreenshotCropRect {
             cropRect = CGRect(origin: .zero, size: imagePixelSize)
             preCropSnapshot = nil
@@ -1367,16 +1532,21 @@ struct EditorView: View {
     // MARK: - Resize
 
     private func resizeImage(toWidth targetWidth: Int, height targetHeight: Int) {
+        flushPendingDisplayRender()
         guard let rawImg = rawImage,
               let srcCG = rawImg.cgImage(forProposedRect: nil, context: nil, hints: nil),
               imagePixelSize.width > 0, imagePixelSize.height > 0,
               targetWidth > 0, targetHeight > 0
         else { return }
 
+        // scaleX/scaleY are in display (rotated) space. The raw bitmap is
+        // unrotated, so for odd quarter-turns its axes are swapped relative to
+        // the display: the displayed width corresponds to the source height.
         let scaleX = CGFloat(targetWidth) / imagePixelSize.width
         let scaleY = CGFloat(targetHeight) / imagePixelSize.height
-        let newW = max(1, Int((CGFloat(srcCG.width) * scaleX).rounded()))
-        let newH = max(1, Int((CGFloat(srcCG.height) * scaleY).rounded()))
+        let (srcScaleX, srcScaleY) = rotationSteps % 2 == 0 ? (scaleX, scaleY) : (scaleY, scaleX)
+        let newW = max(1, Int((CGFloat(srcCG.width) * srcScaleX).rounded()))
+        let newH = max(1, Int((CGFloat(srcCG.height) * srcScaleY).rounded()))
 
         let colorSpace = srcCG.colorSpace ?? CGColorSpaceCreateDeviceRGB()
         guard let ctx = CGContext(
@@ -1402,6 +1572,13 @@ struct EditorView: View {
             if !ann.points.isEmpty {
                 a.points = ann.points.map { CGPoint(x: $0.x * scaleX, y: $0.y * scaleY) }
             }
+            // fontSize and textWidth are stored in image-pixel space (unlike
+            // strokeWidth, which is logical points), so they must scale with
+            // the image or text bubbles change size relative to the content.
+            a.style.fontSize = ann.style.fontSize * min(scaleX, scaleY)
+            if let w = ann.style.textWidth {
+                a.style.textWidth = w * scaleX
+            }
             return a
         }
 
@@ -1419,6 +1596,16 @@ struct EditorView: View {
     }
 
     // MARK: - Annotation Helpers
+
+    /// Queues a template-driven annotation shift to be applied atomically with
+    /// the next display commit (async render or synchronous flush), so the
+    /// annotations never move ahead of the bitmap they are drawn over — the
+    /// cause of the visible "shift, then settle" while dragging the padding
+    /// slider.
+    private func deferAnnotationShift(by delta: CGPoint) {
+        renderCoordinator.cumulativeShift.x += delta.x
+        renderCoordinator.cumulativeShift.y += delta.y
+    }
 
     /// Shifts all annotation points by `delta` in both X and Y (image pixel space).
     /// Used to keep annotations anchored to screenshot content when the template
@@ -1640,8 +1827,12 @@ struct EditorView: View {
             }
 
             // Backspace (51) or forward-delete (117) → delete selected annotation.
+            // Scope to this editor's window: every editor installs its own local
+            // monitor, so without this check a Delete in any window of the app
+            // would delete the selection in every open editor.
             if event.keyCode == 51 || event.keyCode == 117 {
                 if hasBlockedModifier { return event }
+                guard let win = hostingWindow, event.window === win else { return event }
                 deleteSelected()
                 return nil
             }
@@ -1748,9 +1939,32 @@ struct EditorView: View {
     }
 
     private func handleMagnifyEvent(_ event: NSEvent) {
+        magnifyState.lastLocationInWindow = event.locationInWindow
+        magnifyState.pendingMagnification *= (1 + event.magnification)
+        // One zoom step at a time: while a re-layout + anchor correction is in
+        // flight, further pinch ticks accumulate into pendingMagnification and
+        // are applied as the next step once the canvas resize lands. This keeps
+        // a slow layout (large image, many annotations) from piling up state
+        // writes it can't keep pace with.
+        if magnifyState.pendingScrollOrigin == nil {
+            applyPendingMagnification()
+        }
+    }
+
+    /// Applies the accumulated pinch factor as a single zoom step and computes
+    /// the scroll origin that keeps the content under the cursor anchored. The
+    /// origin is applied when the canvas resize actually lands (frameDidChange
+    /// observer in `bodyWithObservers`), not from a detached async tick that
+    /// races SwiftUI's layout — that race is what made annotations visibly
+    /// shift and then settle on every zoom step.
+    private func applyPendingMagnification() {
+        let factor = magnifyState.pendingMagnification
+        magnifyState.pendingMagnification = 1.0
+        guard factor != 1.0 else { return }
+
         let oldScale = effectiveScale
-        let newZoom = min(max(zoomLevel * (1 + event.magnification), minZoomLevel), maxZoomLevel)
-        let newScale = fitScale * newZoom
+        let newZoom = min(max(zoomLevel * factor, minZoomLevel), maxZoomLevel)
+        guard newZoom != zoomLevel else { return }
 
         guard let scrollView = nsScrollView, oldScale > 0 else {
             zoomLevel = newZoom
@@ -1758,14 +1972,15 @@ struct EditorView: View {
             return
         }
 
-        let scaleFactor = newScale / oldScale
+        let scaleFactor = (fitScale * newZoom) / oldScale
 
-        let windowPoint = event.locationInWindow
+        let windowPoint = magnifyState.lastLocationInWindow
         let scrollOrigin = scrollView.documentVisibleRect.origin
+        let scrollViewWindowOrigin = scrollView.convert(NSPoint.zero, to: nil)
 
         let cursorInClip = NSPoint(
-            x: windowPoint.x - scrollView.convert(NSPoint.zero, to: nil).x,
-            y: windowPoint.y - scrollView.convert(NSPoint.zero, to: nil).y
+            x: windowPoint.x - scrollViewWindowOrigin.x,
+            y: windowPoint.y - scrollViewWindowOrigin.y
         )
 
         let contentPoint = NSPoint(
@@ -1773,22 +1988,33 @@ struct EditorView: View {
             y: scrollOrigin.y + cursorInClip.y
         )
 
-        let newContentPoint = NSPoint(
-            x: contentPoint.x * scaleFactor,
-            y: contentPoint.y * scaleFactor
-        )
-
         let newOrigin = NSPoint(
-            x: newContentPoint.x - cursorInClip.x,
-            y: newContentPoint.y - cursorInClip.y
+            x: contentPoint.x * scaleFactor - cursorInClip.x,
+            y: contentPoint.y * scaleFactor - cursorInClip.y
         )
 
+        magnifyState.pendingScrollOrigin = newOrigin
         zoomLevel = newZoom
         syncZoomToPDFGroup()
 
+        // Fallback: a microscopic zoom step can round to an identical canvas
+        // frame, in which case frameDidChange never fires. Apply on the next
+        // runloop turn rather than leaving the gesture stuck waiting for a
+        // resize that won't come. No-op when the observer already ran.
         DispatchQueue.main.async {
-            scrollView.contentView.scroll(to: newOrigin)
-            scrollView.reflectScrolledClipView(scrollView.contentView)
+            guard magnifyState.pendingScrollOrigin == newOrigin else { return }
+            finishZoomAnchorCorrection(scrollView: scrollView, origin: newOrigin)
+        }
+    }
+
+    /// Re-anchors the viewport after a zoom step's canvas resize, then applies
+    /// any pinch movement that accumulated while the resize was in flight.
+    private func finishZoomAnchorCorrection(scrollView: NSScrollView, origin: NSPoint) {
+        magnifyState.pendingScrollOrigin = nil
+        scrollView.contentView.scroll(to: origin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        if magnifyState.pendingMagnification != 1.0 {
+            applyPendingMagnification()
         }
     }
 
@@ -1833,7 +2059,26 @@ struct EditorView: View {
 
     private func trashScreenshot() {
         try? FileManager.default.trashItem(at: imageURL, resultingItemURL: nil)
-        onDismiss()
+
+        // With multiple images open, only close the trashed one — dismissing the
+        // whole editor would silently discard the other sessions' unsaved edits.
+        // PDF pages share one file, so trashing it removes the entire group.
+        guard sessions.count > 1, let active = activeSession else {
+            onDismiss()
+            return
+        }
+        if let groupID = active.pdfGroupID {
+            let groupIDs = sessions.filter { $0.pdfGroupID == groupID }.map(\.id)
+            guard groupIDs.count < sessions.count else {
+                onDismiss()
+                return
+            }
+            for id in groupIDs {
+                removeSession(id)
+            }
+        } else {
+            removeSession(active.id)
+        }
     }
 
     // MARK: - Tool Change
@@ -1870,6 +2115,7 @@ struct EditorView: View {
         let d = ((delta % 4) + 4) % 4
         guard d != 0 else { return }
 
+        flushPendingDisplayRender()
         pushUndo()
         selectedAnnotationID = nil
 
@@ -2008,7 +2254,15 @@ struct EditorView: View {
 
     // MARK: - Undo
 
+    /// Maximum undo depth. Snapshots retain full-resolution bitmaps (`image`,
+    /// and after crop/rotate/resize a distinct `rawImage`), so an unbounded
+    /// stack can pin hundreds of MB during a long session on a large screenshot.
+    private static let maxUndoDepth = 50
+
     private func pushUndo() {
+        if undoStack.count >= Self.maxUndoDepth {
+            undoStack.removeFirst(undoStack.count - Self.maxUndoDepth + 1)
+        }
         undoStack.append(EditorSnapshot(
             annotations: annotations,
             image: image,
@@ -2024,6 +2278,9 @@ struct EditorView: View {
 
     private func undo() {
         guard let snapshot = undoStack.popLast() else { return }
+        // Settle any pending shift/render first — a deferred shift belongs to
+        // the pre-undo annotations and must not land on the restored ones.
+        flushPendingDisplayRender()
         annotations = snapshot.annotations
         // Restore the non-destructive crop rect before re-rendering.
         if let scRect = snapshot.screenshotCropRect {
@@ -2119,6 +2376,10 @@ struct EditorView: View {
     private func restoreSessionState(from session: ImageSession) {
         isRestoringSession = true
 
+        // Supersede any in-flight display render — it belongs to the previous
+        // session and must not commit into this one's @State.
+        renderCoordinator.invalidate()
+
         image = session.image
         rawImage = session.rawImage
         currentDisplayCGImage = session.currentDisplayCGImage
@@ -2160,6 +2421,9 @@ struct EditorView: View {
         guard id != activeSessionID,
               let target = sessions.first(where: { $0.id == id })
         else { return }
+        // Settle any in-flight render/shift so the stored session state is a
+        // consistent image + annotations pair.
+        flushPendingDisplayRender()
         saveActiveSessionState()
         activeSessionID = id
         restoreSessionState(from: target)
@@ -2264,6 +2528,7 @@ struct EditorView: View {
 
     /// Copies the current image to the clipboard without dismissing the editor.
     private func copyToClipboardSilent() {
+        flushPendingDisplayRender()
         let renderer = AnnotationRenderer()
         guard let outputImage = composedRasterOutput(
             pdfPage: activePDFPage(),
@@ -2284,12 +2549,15 @@ struct EditorView: View {
         // like Slack derive a filename) and the TIFF image data. Using separate
         // writeObjects entries caused recipient apps to see two images.
         if let pngData = bitmapRep.representation(using: .png, properties: [:]) {
-            let tempURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("SimplShot_pasted.png")
-            try? pngData.write(to: tempURL)
-
             let item = NSPasteboardItem()
-            item.setString(tempURL.absoluteString, forType: .fileURL)
+            // Unique name per copy: a fixed name lets a later copy (e.g. from a
+            // second editor window) overwrite the file a recipient app hasn't
+            // read yet. Only attach the URL if the write actually succeeded.
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("SimplShot_pasted_\(UUID().uuidString.prefix(8)).png")
+            if (try? pngData.write(to: tempURL)) != nil {
+                item.setString(tempURL.absoluteString, forType: .fileURL)
+            }
             if let tiffData = finalImage.tiffRepresentation {
                 item.setData(tiffData, forType: .tiff)
             }
@@ -2334,6 +2602,7 @@ struct EditorView: View {
 
     private func saveOverwrite() {
         do {
+            flushPendingDisplayRender()
             saveActiveSessionState()
 
             // Group PDF sessions by their shared pdfGroupID and export each group
@@ -2386,7 +2655,9 @@ struct EditorView: View {
     }
 
     /// Write a CGImage to disk, picking the encoder from the URL's extension.
-    private static func writeImage(_ cgImage: CGImage, to url: URL) throws {
+    /// Covers every format the app can open (Finder/drag-drop/Open File), so a
+    /// save-overwrite never writes mismatched bytes (e.g. JPEG data into a .gif).
+    static func writeImage(_ cgImage: CGImage, to url: URL) throws {
         let ext = url.pathExtension.lowercased()
 
         #if !APPSTORE
@@ -2398,17 +2669,21 @@ struct EditorView: View {
         #endif
 
         let utType: CFString
+        var isLossy = false
         switch ext {
-        case "png":  utType = UTType.png.identifier as CFString
-        case "heic": utType = UTType.heic.identifier as CFString
-        default:     utType = UTType.jpeg.identifier as CFString
+        case "png":         utType = UTType.png.identifier as CFString
+        case "heic":        utType = UTType.heic.identifier as CFString; isLossy = true
+        case "tiff", "tif": utType = UTType.tiff.identifier as CFString
+        case "gif":         utType = UTType.gif.identifier as CFString
+        case "bmp":         utType = UTType.bmp.identifier as CFString
+        default:            utType = UTType.jpeg.identifier as CFString; isLossy = true
         }
 
         var properties: [CFString: Any] = [
             kCGImagePropertyDPIWidth: 72.0,
             kCGImagePropertyDPIHeight: 72.0,
         ]
-        if ext != "png" {
+        if isLossy {
             properties[kCGImageDestinationLossyCompressionQuality] = 0.9
         }
 
@@ -2422,6 +2697,8 @@ struct EditorView: View {
     }
 
     private func saveAs() {
+        flushPendingDisplayRender()
+
         let panel = NSSavePanel()
 
         // Held for the lifetime of the (modal) panel so its popup target stays alive.
@@ -2528,6 +2805,7 @@ struct EditorView: View {
     // MARK: - Print
 
     private func printImage() {
+        flushPendingDisplayRender()
         saveActiveSessionState()
 
         var images: [NSImage] = []
@@ -2641,6 +2919,75 @@ private class MultiPagePrintView: NSView {
                        from: .zero, operation: .sourceOver, fraction: 1.0)
         }
         context.restoreGraphicsState()
+    }
+}
+
+/// Holder for in-flight pinch-zoom state. Magnify events multiply into
+/// `pendingMagnification`; one zoom step (state write + canvas re-layout +
+/// scroll-anchor correction) is in flight at a time, marked by a non-nil
+/// `pendingScrollOrigin`. Ticks that arrive mid-flight accumulate and are
+/// applied as the next step once the resize lands.
+private final class MagnifyGestureState {
+    var pendingMagnification: CGFloat = 1.0
+    var pendingScrollOrigin: NSPoint?
+    var lastLocationInWindow: NSPoint = .zero
+}
+
+/// Coordinates the asynchronous display-render pipeline. Generations implement
+/// latest-wins: stale queued renders are skipped before doing any work, and a
+/// completed render commits only if it is newer than the last commit.
+///
+/// The template-driven annotation shift (padding/wallpaper/aspect/alignment
+/// changes) is tracked as a running total (`cumulativeShift`) plus the portion
+/// already applied (`appliedShift`). Each render snapshots the total at its
+/// start and, at commit, applies exactly the difference to the applied amount —
+/// so the shift lands once and only once no matter which renders get skipped
+/// or commit progressively. (Tracking per-render deltas instead double-applies
+/// when two overlapping renders both commit.)
+///
+/// Reference type so per-tick bookkeeping doesn't invalidate the SwiftUI view
+/// tree; only `generation` crosses threads (guarded by the lock).
+private final class DisplayRenderCoordinator {
+    private let lock = NSLock()
+    private var generation = 0
+
+    // Main-thread-only bookkeeping.
+    /// Total shift requested since the last invalidation. Running sum — never
+    /// reduced by commits.
+    var cumulativeShift: CGPoint = .zero
+    /// The portion of `cumulativeShift` already applied to the annotations.
+    private var appliedShift: CGPoint = .zero
+    var lastCommittedGeneration = 0
+    var hasUncommittedRender = false
+
+    var isDirty: Bool { hasUncommittedRender || cumulativeShift != appliedShift }
+
+    /// Returns the shift still owed up to `target` (a snapshot of
+    /// `cumulativeShift`) and marks it applied. Commits happen in generation
+    /// order, so targets are monotone and each delta is applied exactly once.
+    func takeShift(upTo target: CGPoint) -> CGPoint {
+        let delta = CGPoint(x: target.x - appliedShift.x, y: target.y - appliedShift.y)
+        appliedShift = target
+        return delta
+    }
+
+    func advanceGeneration() -> Int {
+        lock.lock(); defer { lock.unlock() }
+        generation += 1
+        return generation
+    }
+
+    func isCurrent(_ g: Int) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return g == generation
+    }
+
+    /// Supersedes all pending work and clears bookkeeping (session switches).
+    func invalidate() {
+        lastCommittedGeneration = advanceGeneration()
+        cumulativeShift = .zero
+        appliedShift = .zero
+        hasUncommittedRender = false
     }
 }
 

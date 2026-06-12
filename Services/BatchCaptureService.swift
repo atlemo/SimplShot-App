@@ -48,6 +48,14 @@ class BatchCaptureService {
             }
         }
 
+        // Restore even when a capture throws mid-batch — otherwise an error
+        // leaves every window of the target app resized.
+        defer {
+            for (window, state) in originalStates {
+                _ = windowManager.restore(window, to: state)
+            }
+        }
+
         var capturedFiles: [URL] = []
         let multipleWindows = windows.count > 1
 
@@ -88,11 +96,6 @@ class BatchCaptureService {
                 )
                 capturedFiles.append(url)
             }
-        }
-
-        // Restore original states
-        for (window, state) in originalStates {
-            _ = windowManager.restore(window, to: state)
         }
 
         return capturedFiles

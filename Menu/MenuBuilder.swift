@@ -451,10 +451,14 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             // Brief pause so the menu fully dismisses before the crosshair appears
             try? await Task.sleep(for: .milliseconds(200))
 
-            // Build a temp file path for screencapture output
-            let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
-                .replacingOccurrences(of: ":", with: "-")
-                .replacingOccurrences(of: " ", with: "_")
+            // Build a temp file path for screencapture output.
+            // Full date + time with a fixed locale: a time-only localized stamp
+            // made captures at the same time-of-day on different days silently
+            // overwrite each other.
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+            let timestamp = formatter.string(from: Date())
 
             try? FileManager.default.createDirectory(at: saveURL, withIntermediateDirectories: true)
 
@@ -655,6 +659,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
         let saveURL = appSettings.screenshotSaveURL
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
         let timestamp = formatter.string(from: Date())
         let filename = "Clipboard_\(timestamp).png"
@@ -907,11 +912,10 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             let renderer = TemplateRenderer()
             if let templated = try? renderer.applyTemplate(template, to: cgImage, backingScale: backingScale) {
                 finalCG = templated
-                // Overwrite saved file with the templated version
-                if let dest = CGImageDestinationCreateWithURL(fileURL as CFURL, UTType.png.identifier as CFString, 1, nil) {
-                    CGImageDestinationAddImage(dest, finalCG, nil)
-                    CGImageDestinationFinalize(dest)
-                }
+                // Overwrite the saved file with the templated version, encoded
+                // to match the file's actual extension (this used to always
+                // write PNG bytes, even into a .jpeg/.heic file).
+                try? EditorView.writeImage(finalCG, to: fileURL)
             }
         }
 

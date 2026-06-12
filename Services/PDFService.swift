@@ -1,3 +1,4 @@
+import AppKit
 import PDFKit
 
 extension PDFPage {
@@ -80,7 +81,20 @@ struct PDFPageSource {
     let pageIndex: Int
     let sourceURL: URL
 
+    /// Serializes all background page rasterization. PDFKit page drawing is not
+    /// thread-safe across pages of the same document, and renders are reached
+    /// from the concurrent `imageLoadQueue` by two independent tasks (the active
+    /// page's `loadImage` and the `preloadThumbnails` loop), which can otherwise
+    /// draw two pages of one `PDFDocument` simultaneously.
+    private static let renderQueue = DispatchQueue(label: "com.simplshot.pdfRender", qos: .userInitiated)
+
     func renderPage(backingScale: CGFloat = 2.0) -> CGImage? {
+        Self.renderQueue.sync {
+            renderPageSerialized(backingScale: backingScale)
+        }
+    }
+
+    private func renderPageSerialized(backingScale: CGFloat) -> CGImage? {
         guard let page = document.page(at: pageIndex) else { return nil }
         let pointSize = page.rotatedMediaBoxSize
         let width = Int((pointSize.width * backingScale).rounded())
@@ -107,8 +121,19 @@ struct PDFPageSource {
 }
 
 enum PDFService {
+    /// Loads one `ImageSession` per page. If the document is password protected,
+    /// presents a modal password dialog (retrying on a wrong password) and
+    /// returns `[]` if the user cancels. Must be called on the main thread.
+    ///
+    /// Unlocking mutates the in-memory `PDFDocument`, which every page's
+    /// `PDFPageSource` (and thus `PDFExportService`) shares — so unlocking once
+    /// here covers display, raster export, and vector PDF re-export.
     static func loadPages(from url: URL) -> [ImageSession] {
         guard let document = PDFDocument(url: url) else { return [] }
+        if document.isLocked,
+           !unlockInteractively(document, filename: url.lastPathComponent) {
+            return []
+        }
         let pageCount = document.pageCount
         guard pageCount > 0 else { return [] }
 
@@ -117,5 +142,35 @@ enum PDFService {
             let source = PDFPageSource(document: document, pageIndex: index, sourceURL: url)
             return ImageSession(pdfPageSource: source, pdfGroupID: groupID)
         }
+    }
+
+    /// Prompts for the document password until it unlocks or the user cancels.
+    private static func unlockInteractively(_ document: PDFDocument, filename: String) -> Bool {
+        var lastAttemptFailed = false
+        while true {
+            guard let password = promptForPassword(filename: filename, retry: lastAttemptFailed) else {
+                return false
+            }
+            if document.unlock(withPassword: password) { return true }
+            lastAttemptFailed = true
+        }
+    }
+
+    private static func promptForPassword(filename: String, retry: Bool) -> String? {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = retry ? "Incorrect Password" : "Password Required"
+        alert.informativeText = retry
+            ? "The password for “\(filename)” was incorrect. Please try again."
+            : "“\(filename)” is password protected. Enter the password to open it."
+        alert.alertStyle = .informational
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        field.placeholderString = "Password"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Unlock")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        return field.stringValue
     }
 }

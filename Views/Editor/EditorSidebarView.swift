@@ -104,12 +104,15 @@ struct EditorSidebarView: View {
     ]
 
     // .rectangle acts as the shapes-group representative (circle/triangle/star are in the shapes picker).
-    // For PDF sessions, pixelate is omitted: PDFs export as vector and pixelate would force rasterization.
+    // For PDF sessions (hasTemplate == false), pixelate is omitted (PDFs export as
+    // vector; pixelate would force rasterization) and crop is omitted too: the live
+    // vector page view and the PDF export both draw the full page, so a crop would
+    // distort the on-screen page and be silently dropped from the saved PDF.
     private var drawingTools: [AnnotationTool] {
         let base: [AnnotationTool] = [
             .select, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep, .measurement, .pixelate, .spotlight, .crop
         ]
-        return hasTemplate ? base : base.filter { $0 != .pixelate }
+        return hasTemplate ? base : base.filter { $0 != .pixelate && $0 != .crop }
     }
 
     private let stylingTools: [AnnotationTool] = [
@@ -156,6 +159,7 @@ struct EditorSidebarView: View {
                     isCropping: isCropping,
                     cropAspectPreset: $cropAspectPreset,
                     imagePixelSize: imagePixelSize,
+                    resizeDisabled: selectedWallpaper != nil,
                     onEnterCrop: onEnterCrop,
                     onApplyCrop: onApplyCrop,
                     onCancelCrop: onCancelCrop,

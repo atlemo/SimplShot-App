@@ -62,6 +62,10 @@ struct EditorCanvasView: View {
     /// For text editing
     @State private var editingTextID: UUID?
     @State private var editingText: String = ""
+    /// True while editing a freshly-placed (never committed) text annotation.
+    /// Drives undo bookkeeping in `commitTextEdit`: a new bubble must not leave
+    /// an empty ghost annotation in the undo snapshot.
+    @State private var editingTextIsNew: Bool = false
     /// Measured content size reported back by GrowingTextField
     @State private var editingContentSize: CGSize = .zero
     /// Drag state for moving / reshaping selected annotations
@@ -578,6 +582,7 @@ struct EditorCanvasView: View {
         annotations.append(annotation)
         selectedAnnotationID = annotation.id
         editingTextID = annotation.id
+        editingTextIsNew = true
         editingText = ""
         editingContentSize = .zero
     }
@@ -602,18 +607,33 @@ struct EditorCanvasView: View {
         guard let editID = editingTextID,
               let idx = annotations.firstIndex(where: { $0.id == editID }) else {
             editingTextID = nil
+            editingTextIsNew = false
             return
         }
 
         if editingText.isEmpty {
-            onCommit()
-            annotations.remove(at: idx)
+            if editingTextIsNew {
+                // The empty bubble was never committed — drop it without an
+                // undo entry, so undo can't resurrect an invisible annotation.
+                annotations.remove(at: idx)
+            } else {
+                onCommit()
+                annotations.remove(at: idx)
+            }
             selectedAnnotationID = nil
+        } else if editingTextIsNew {
+            // Snapshot the state *without* the pending bubble so a single undo
+            // removes the whole annotation instead of leaving an empty ghost.
+            var ann = annotations.remove(at: idx)
+            onCommit()
+            ann.text = editingText
+            annotations.insert(ann, at: idx)
         } else {
             onCommit()
             annotations[idx].text = editingText
         }
         editingTextID = nil
+        editingTextIsNew = false
         editingContentSize = .zero
     }
 
@@ -621,6 +641,7 @@ struct EditorCanvasView: View {
     private func beginTextEdit(id: UUID, text: String) {
         selectedAnnotationID = id
         editingTextID = id
+        editingTextIsNew = false
         editingText = text
         // Pre-compute the content size from the existing text so the bubble
         // shows at the correct size immediately (no zero-size flash).

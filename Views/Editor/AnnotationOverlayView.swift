@@ -23,6 +23,14 @@ struct AnnotationOverlayView: View {
 
     // MARK: - Shape Rendering
 
+    /// Stroke width in view points, matching the exported result: the export
+    /// bakes `strokeWidth × backingScale` into image pixels, which display at
+    /// × `scale`. Using the raw point value here made previews look thicker
+    /// than the saved file at any zoom other than 100%.
+    private var displayStrokeWidth: CGFloat {
+        annotation.style.strokeWidth * displayBackingScale * scale
+    }
+
     @ViewBuilder
     private var annotationShape: some View {
         let start = scaled(annotation.startPoint)
@@ -31,7 +39,7 @@ struct AnnotationOverlayView: View {
 
         switch annotation.tool {
         case .arrow:
-            let sw   = annotation.style.strokeWidth
+            let sw   = displayStrokeWidth
             let col  = annotation.style.strokeColor
             let ss   = StrokeStyle(lineWidth: sw, lineCap: .round, lineJoin: .round)
             if annotation.style.arrowStyle == .curved {
@@ -60,19 +68,19 @@ struct AnnotationOverlayView: View {
             }
 
         case .measurement:
-            MeasurementLineShape(start: start, end: end, lineWidth: annotation.style.strokeWidth)
+            MeasurementLineShape(start: start, end: end, lineWidth: displayStrokeWidth)
             .stroke(
                 annotation.style.strokeColor,
                 style: StrokeStyle(
-                    lineWidth: annotation.style.strokeWidth,
+                    lineWidth: displayStrokeWidth,
                     lineCap: .round,
                     lineJoin: .round,
-                    dash: [0, annotation.style.strokeWidth * 4]
+                    dash: [0, displayStrokeWidth * 4]
                 )
             )
-            MeasurementHeadShape(baseCenter: end, toward: start, lineWidth: annotation.style.strokeWidth)
+            MeasurementHeadShape(baseCenter: end, toward: start, lineWidth: displayStrokeWidth)
                 .fill(annotation.style.strokeColor)
-            MeasurementHeadShape(baseCenter: start, toward: end, lineWidth: annotation.style.strokeWidth)
+            MeasurementHeadShape(baseCenter: start, toward: end, lineWidth: displayStrokeWidth)
                 .fill(annotation.style.strokeColor)
             measurementLabel(start: start, end: end)
 
@@ -81,7 +89,7 @@ struct AnnotationOverlayView: View {
                 .stroke(
                     annotation.style.strokeColor,
                     style: StrokeStyle(
-                        lineWidth: annotation.style.strokeWidth,
+                        lineWidth: displayStrokeWidth,
                         lineCap: .round,
                         lineJoin: .round
                     )
@@ -95,23 +103,25 @@ struct AnnotationOverlayView: View {
             .stroke(
                 annotation.style.strokeColor,
                 style: StrokeStyle(
-                    lineWidth: annotation.style.strokeWidth,
+                    lineWidth: displayStrokeWidth,
                     lineCap: .round,
                     lineJoin: .round
                 )
             )
 
         case .rectangle:
-            RoundedRectangle(cornerRadius: 6)
+            // Export draws the corner at 6 × backingScale image pixels.
+            let rectCorner = 6 * displayBackingScale * scale
+            RoundedRectangle(cornerRadius: rectCorner)
                 .fill(annotation.style.fillColor ?? Color.clear)
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth))
+                .overlay(RoundedRectangle(cornerRadius: rectCorner).stroke(annotation.style.strokeColor, lineWidth: displayStrokeWidth))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
 
         case .circle:
             Ellipse()
                 .fill(annotation.style.fillColor ?? Color.clear)
-                .overlay(Ellipse().stroke(annotation.style.strokeColor, lineWidth: annotation.style.strokeWidth))
+                .overlay(Ellipse().stroke(annotation.style.strokeColor, lineWidth: displayStrokeWidth))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
 
@@ -119,7 +129,7 @@ struct AnnotationOverlayView: View {
             TriangleShape()
                 .fill(annotation.style.fillColor ?? Color.clear)
                 .overlay(TriangleShape().stroke(annotation.style.strokeColor,
-                    style: StrokeStyle(lineWidth: annotation.style.strokeWidth, lineJoin: .round)))
+                    style: StrokeStyle(lineWidth: displayStrokeWidth, lineJoin: .round)))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
 
@@ -127,7 +137,7 @@ struct AnnotationOverlayView: View {
             StarShape()
                 .fill(annotation.style.fillColor ?? Color.clear)
                 .overlay(StarShape().stroke(annotation.style.strokeColor,
-                    style: StrokeStyle(lineWidth: annotation.style.strokeWidth, lineJoin: .round)))
+                    style: StrokeStyle(lineWidth: displayStrokeWidth, lineJoin: .round)))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
 
@@ -191,11 +201,12 @@ struct AnnotationOverlayView: View {
             } else {
                 let fullW = imagePixelSize.width * scale
                 let fullH = imagePixelSize.height * scale
-                let blurRadius = annotation.style.spotlightFeather * scale
+                // Export blurs at feather × backingScale image pixels.
+                let blurRadius = annotation.style.spotlightFeather * displayBackingScale * scale
                 SpotlightOverlayShape(
                     cutouts: [rect],
                     canvasSize: CGSize(width: fullW, height: fullH),
-                    cornerRadius: max(6 * scale, 6),
+                    cornerRadius: 6 * displayBackingScale * scale,
                     outsetForBlur: blurRadius * 3
                 )
                 .fill(Color.black.opacity(annotation.style.spotlightOpacity), style: FillStyle(eoFill: true))
@@ -300,11 +311,14 @@ struct AnnotationOverlayView: View {
         let true1xDistance = max(0, pixelDistance / max(displayBackingScale, 1))
         let label = "\(Int(true1xDistance.rounded())) px"
         let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
+        // Export renders the label at 11 × backingScale image pixels with
+        // 7/4-point padding — mirror that so the pill matches the saved file.
+        let f = displayBackingScale * scale
         Text(label)
-            .font(.system(size: max(10, 11 * scale), weight: .medium, design: .monospaced))
+            .font(.system(size: 11 * f, weight: .medium, design: .monospaced))
             .foregroundStyle(annotation.style.isLight ? Color.black : Color.white)
-            .padding(.horizontal, max(6, 7 * scale))
-            .padding(.vertical, max(3, 4 * scale))
+            .padding(.horizontal, 7 * f)
+            .padding(.vertical, 4 * f)
             .background(annotation.style.strokeColor, in: Capsule())
             .position(mid)
     }
@@ -759,6 +773,7 @@ struct CommittedAnnotationsView: Equatable, View {
             SharedSpotlightOverlay(
                 annotations: spotlightAnnotations,
                 scale: scale,
+                displayBackingScale: displayBackingScale,
                 imagePixelSize: imagePixelSize
             )
             .allowsHitTesting(false)
@@ -782,6 +797,7 @@ struct CommittedAnnotationsView: Equatable, View {
 private struct SharedSpotlightOverlay: View {
     let annotations: [Annotation]
     let scale: CGFloat
+    let displayBackingScale: CGFloat
     let imagePixelSize: CGSize
 
     var body: some View {
@@ -797,12 +813,14 @@ private struct SharedSpotlightOverlay: View {
             )
         }
         let feather = annotations.map(\.style.spotlightFeather).max() ?? 0
-        let blurRadius = feather * scale
+        // Export blurs at feather × backingScale image pixels and rounds the
+        // cutout at 6 × backingScale — mirror both so preview matches output.
+        let blurRadius = feather * displayBackingScale * scale
 
         SpotlightOverlayShape(
             cutouts: cutouts,
             canvasSize: CGSize(width: fullW, height: fullH),
-            cornerRadius: max(6 * scale, 6),
+            cornerRadius: 6 * displayBackingScale * scale,
             outsetForBlur: blurRadius * 3
         )
         .fill(

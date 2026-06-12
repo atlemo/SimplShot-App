@@ -25,21 +25,24 @@ class TemplateRenderer {
         static let maxYOffset: CGFloat = 28
     }
 
-    // Cache for flattenNativeCorners — keyed by image dimensions + data pointer.
+    // Cache for flattenNativeCorners — keyed by source image identity.
     // The result depends only on the source image pixels, not on corner radius,
-    // so we can reuse it across rapid slider changes.
+    // so we can reuse it across rapid slider changes. Holding a strong reference
+    // to the source (rather than a raw pointer string) means the identity check
+    // can never alias a new image allocated at a freed image's address.
     private var cachedFlattenedImage: CGImage?
-    private var cachedFlattenKey: String = ""
+    private var cachedFlattenSource: CGImage?
+    private var cachedFlattenScale: CGFloat = 0
 
     private func cachedFlattenNativeCorners(_ image: CGImage, backingScale: CGFloat) -> CGImage {
-        // Key by image identity: dimensions + data provider pointer
-        let key = "\(image.width)x\(image.height)_\(Unmanaged.passUnretained(image).toOpaque())_\(backingScale)"
-        if key == cachedFlattenKey, let cached = cachedFlattenedImage {
+        if image === cachedFlattenSource, backingScale == cachedFlattenScale,
+           let cached = cachedFlattenedImage {
             return cached
         }
         let result = flattenNativeCorners(image, backingScale: backingScale)
         cachedFlattenedImage = result
-        cachedFlattenKey = key
+        cachedFlattenSource = image
+        cachedFlattenScale = backingScale
         return result
     }
 
@@ -49,6 +52,65 @@ class TemplateRenderer {
     // full-canvas gradient fill on every slider tick.
     private var cachedBackgroundImage: CGImage?
     private var cachedBackgroundKey: String = ""
+
+    // Cache for the pre-blurred drop-shadow sprite. Keyed by shape size, corner
+    // radii, and shadow parameters; canvas size and position don't matter, so
+    // padding/alignment/aspect drags hit this cache on every frame.
+    private var cachedShadowSprite: CGImage?
+    private var cachedShadowSpriteKey: String = ""
+    private var cachedShadowSpriteMargin: CGFloat = 0
+
+    /// Renders (or returns cached) the blurred squircle drop shadow as a
+    /// standalone sprite. The shape is drawn far outside the sprite with a
+    /// compensating shadow offset, so only the shadow lands inside it.
+    /// `margin` is the sprite's padding around the nominal shape rect.
+    private func shadowSprite(
+        shapeSize: CGSize,
+        radii: (tl: CGFloat, tr: CGFloat, bl: CGFloat, br: CGFloat),
+        blur: CGFloat,
+        offsetY: CGFloat,
+        alpha: CGFloat
+    ) -> (sprite: CGImage, margin: CGFloat)? {
+        guard shapeSize.width > 0, shapeSize.height > 0 else { return nil }
+        let margin = ceil(blur * 2 + abs(offsetY))
+        let key = "\(shapeSize.width)x\(shapeSize.height)_\(radii.tl)_\(radii.tr)_\(radii.bl)_\(radii.br)_\(blur)_\(offsetY)_\(alpha)"
+        if key == cachedShadowSpriteKey, let cached = cachedShadowSprite {
+            return (cached, cachedShadowSpriteMargin)
+        }
+
+        let spriteW = Int(shapeSize.width + margin * 2)
+        let spriteH = Int(shapeSize.height + margin * 2)
+        guard let ctx = CGContext(
+            data: nil,
+            width: spriteW,
+            height: spriteH,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        // Draw the shape shifted entirely out of view; the compensating shadow
+        // offset puts only its shadow back inside the sprite.
+        let outOfView = CGFloat(spriteW) + blur * 4
+        ctx.setShadow(
+            offset: CGSize(width: outOfView, height: offsetY),
+            blur: blur,
+            color: CGColor(gray: 0, alpha: alpha)
+        )
+        let shapeRect = CGRect(x: margin - outOfView, y: margin,
+                               width: shapeSize.width, height: shapeSize.height)
+        ctx.addPath(squirclePath(in: shapeRect, topLeft: radii.tl, topRight: radii.tr,
+                                 bottomLeft: radii.bl, bottomRight: radii.br))
+        ctx.setFillColor(CGColor(gray: 0, alpha: 1))
+        ctx.fillPath()
+
+        guard let sprite = ctx.makeImage() else { return nil }
+        cachedShadowSprite = sprite
+        cachedShadowSpriteKey = key
+        cachedShadowSpriteMargin = margin
+        return (sprite, margin)
+    }
 
     func applyTemplate(
         _ template: ScreenshotTemplate,
@@ -164,51 +226,37 @@ class TemplateRenderer {
 
             let clipPath = squirclePath(in: screenshotRect, topLeft: rTL, topRight: rTR, bottomLeft: rBL, bottomRight: rBR)
 
-            // Build intermediate image: full-canvas transparent context with the screenshot
-            // drawn clipped to the squircle. The clip's anti-aliasing gives correct alpha
-            // at the edge so the shadow follows the squircle shape naturally.
-            if let intCtx = CGContext(
-                data: nil,
-                width: canvasWidth,
-                height: canvasHeight,
-                bitsPerComponent: 8,
-                bytesPerRow: 0,
-                space: colorSpace,
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-            ), let clippedImage = { () -> CGImage? in
-                intCtx.addPath(clipPath)
-                intCtx.clip()
-                intCtx.draw(opaqueScreenshot, in: screenshotRect)
-                return intCtx.makeImage()
-            }() {
-                // Draw the alpha-masked squircle image with shadow — one pass, no black fill.
-                context.saveGState()
-                context.setShadow(
-                    offset: CGSize(width: 0, height: -ShadowStyle.maxYOffset * backingScale * clampedShadowIntensity),
-                    blur: ShadowStyle.maxBlur * backingScale * clampedShadowIntensity,
-                    color: CGColor(gray: 0, alpha: ShadowStyle.maxOpacity * clampedShadowIntensity)
-                )
-                context.draw(clippedImage, in: canvasRect)
-                context.restoreGState()
-            } else {
-                // Fallback: original two-pass approach if the intermediate context fails.
-                context.saveGState()
-                context.setShadow(
-                    offset: CGSize(width: 0, height: -ShadowStyle.maxYOffset * backingScale * clampedShadowIntensity),
-                    blur: ShadowStyle.maxBlur * backingScale * clampedShadowIntensity,
-                    color: CGColor(gray: 0, alpha: ShadowStyle.maxOpacity * clampedShadowIntensity)
-                )
-                context.addPath(clipPath)
-                context.setFillColor(CGColor(gray: 0, alpha: 1))
-                context.fillPath()
-                context.restoreGState()
-
-                context.saveGState()
-                context.addPath(clipPath)
-                context.clip()
-                context.draw(opaqueScreenshot, in: screenshotRect)
-                context.restoreGState()
+            // Shadow first, as a pre-blurred sprite blitted at the screenshot's
+            // position. The blurred shape depends only on the screenshot size,
+            // corner radii, and shadow parameters — NOT on canvas size or
+            // position — so dragging the padding/alignment sliders reuses the
+            // cached sprite instead of re-running the (very expensive) CG
+            // shadow blur over the whole canvas on every frame.
+            if clampedShadowIntensity > 0,
+               let shadow = shadowSprite(
+                   shapeSize: screenshotRect.size,
+                   radii: (rTL, rTR, rBL, rBR),
+                   blur: ShadowStyle.maxBlur * backingScale * clampedShadowIntensity,
+                   offsetY: -ShadowStyle.maxYOffset * backingScale * clampedShadowIntensity,
+                   alpha: ShadowStyle.maxOpacity * clampedShadowIntensity
+               ) {
+                context.draw(shadow.sprite, in: CGRect(
+                    x: screenshotRect.minX - shadow.margin,
+                    y: screenshotRect.minY - shadow.margin,
+                    width: CGFloat(shadow.sprite.width),
+                    height: CGFloat(shadow.sprite.height)
+                ))
             }
+
+            // Then the screenshot clipped to the squircle. The clip's
+            // anti-aliased edge composites against background + blurred shadow
+            // — the same layering the previous draw-with-setShadow pass
+            // produced — never against an opaque fill, so no dark fringe.
+            context.saveGState()
+            context.addPath(clipPath)
+            context.clip()
+            context.draw(opaqueScreenshot, in: screenshotRect)
+            context.restoreGState()
         } else {
             // No corner radius — draw with shadow; CG uses the image's alpha for shadow shape.
             context.saveGState()
@@ -429,6 +477,15 @@ class TemplateRenderer {
         return opaqueCtx.makeImage() ?? image
     }
 
+    // Cache for a small gradient tile. The gradient endpoints scale affinely
+    // with the rect (see gradientPoints), so a gradient rendered once into a
+    // square tile and stretch-blitted reproduces the full-size render exactly.
+    // Padding drags change the canvas size every frame — missing the full-size
+    // background cache above — and this keeps them from re-shading millions of
+    // pixels each time.
+    private var cachedGradientTile: CGImage?
+    private var cachedGradientTileKey: String = ""
+
     private func drawGradient(
         _ definition: GradientDefinition,
         in context: CGContext,
@@ -443,6 +500,23 @@ class TemplateRenderer {
             return
         }
 
+        let key = definition.colors
+            .map { "\($0.red),\($0.green),\($0.blue),\($0.alpha)" }
+            .joined(separator: ";") + "@\(definition.angle)"
+        if key != cachedGradientTileKey || cachedGradientTile == nil {
+            cachedGradientTile = renderGradientTile(definition, colors: cgColors)
+            cachedGradientTileKey = key
+        }
+
+        if let tile = cachedGradientTile {
+            context.saveGState()
+            context.interpolationQuality = .high
+            context.draw(tile, in: rect)
+            context.restoreGState()
+            return
+        }
+
+        // Fallback: direct render if the tile couldn't be created.
         guard let gradient = CGGradient(
             colorsSpace: CGColorSpaceCreateDeviceRGB(),
             colors: cgColors as CFArray,
@@ -458,15 +532,58 @@ class TemplateRenderer {
         )
     }
 
+    private func renderGradientTile(_ definition: GradientDefinition, colors: [CGColor]) -> CGImage? {
+        let tileSize = 1024
+        guard let gradient = CGGradient(
+            colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            colors: colors as CFArray,
+            locations: nil
+        ), let ctx = CGContext(
+            data: nil,
+            width: tileSize,
+            height: tileSize,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        let tileRect = CGRect(x: 0, y: 0, width: tileSize, height: tileSize)
+        let (start, end) = gradientPoints(for: definition.angle, in: tileRect)
+        ctx.drawLinearGradient(
+            gradient,
+            start: start,
+            end: end,
+            options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+        )
+        return ctx.makeImage()
+    }
+
+    // Cache for the decoded custom wallpaper bitmap. Single entry keyed by
+    // path: a renderer draws one wallpaper at a time, and the background cache
+    // above misses whenever the canvas size changes (every padding-slider
+    // tick) — without this, each of those misses re-read and re-decoded the
+    // wallpaper file from disk.
+    private var cachedCustomImage: CGImage?
+    private var cachedCustomImagePath: String?
+
     private func drawCustomImage(
         path: String,
         in context: CGContext,
         rect: CGRect
     ) throws {
-        guard let nsImage = NSImage(contentsOfFile: path),
-              let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
-        else {
-            throw TemplateRenderError.cannotLoadCustomImage(path: path)
+        let cgImage: CGImage
+        if path == cachedCustomImagePath, let cached = cachedCustomImage {
+            cgImage = cached
+        } else {
+            guard let nsImage = NSImage(contentsOfFile: path),
+                  let decoded = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            else {
+                throw TemplateRenderError.cannotLoadCustomImage(path: path)
+            }
+            cachedCustomImage = decoded
+            cachedCustomImagePath = path
+            cgImage = decoded
         }
 
         // Aspect-fill: scale the image so it covers the entire rect,

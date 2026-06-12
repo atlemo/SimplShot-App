@@ -82,7 +82,7 @@ class AnnotationRenderer {
 
         // 3. Pixelate renders before spotlight so it appears as image content being dimmed.
         for annotation in annotations where annotation.tool == .pixelate {
-            drawAnnotation(annotation, backingScale: backingScale, in: context)
+            drawAnnotation(annotation, backingScale: backingScale, drawingHeight: CGFloat(height), in: context)
         }
 
         let spotlightAnnotations = annotations.filter { $0.tool == .spotlight }
@@ -99,15 +99,17 @@ class AnnotationRenderer {
         // 4. Draw remaining annotations on top of the spotlight dim.
         for annotation in annotations {
             if annotation.tool == .spotlight || annotation.tool == .pixelate { continue }
-            drawAnnotation(annotation, backingScale: backingScale, in: context)
+            drawAnnotation(annotation, backingScale: backingScale, drawingHeight: CGFloat(height), in: context)
         }
 
         // 4. Draw watermark on top of all annotations.
         //    Context is in flipped/top-left space, so CGImage drawing needs a local unflip.
         if watermark.isEnabled, let path = watermark.imagePath,
            let nsImage = WatermarkImageCache.image(atPath: path) {
-            let marginH = CGFloat(width) * 0.02
-            let marginV = CGFloat(height) * 0.02
+            // Offsets are in logical points (like the sidebar sliders); scale to
+            // image pixels — matching TemplateRenderer and the canvas preview.
+            let marginH = CGFloat(watermark.edgeOffset) * backingScale
+            let marginV = CGFloat(watermark.bottomOffset) * backingScale
             // widthPx is in logical points; scale to image pixels the same way
             // strokeWidth and fontSize are scaled elsewhere (× backingScale).
             let targetW = max(1, CGFloat(watermark.widthPx) * backingScale)
@@ -208,13 +210,15 @@ class AnnotationRenderer {
         for annotation in annotations {
             if annotation.tool == .spotlight { continue }
             if annotation.tool == .pixelate { continue }  // unsupported in vector mode
-            drawAnnotation(annotation, backingScale: backingScale, in: context)
+            drawAnnotation(annotation, backingScale: backingScale, drawingHeight: CGFloat(heightPx), in: context)
         }
 
         if watermark.isEnabled, let path = watermark.imagePath,
            let nsImage = WatermarkImageCache.image(atPath: path) {
-            let marginH = CGFloat(widthPx) * 0.02
-            let marginV = CGFloat(heightPx) * 0.02
+            // Offsets in logical points × backingScale = drawing-space pixels,
+            // matching TemplateRenderer and the canvas preview.
+            let marginH = CGFloat(watermark.edgeOffset) * backingScale
+            let marginV = CGFloat(watermark.bottomOffset) * backingScale
             let targetW = max(1, CGFloat(watermark.widthPx) * backingScale)
             let rawSize = nsImage.size
             let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
@@ -299,7 +303,12 @@ class AnnotationRenderer {
 
     // MARK: - Individual Annotation Drawing
 
-    private func drawAnnotation(_ annotation: Annotation, backingScale: CGFloat, in context: CGContext) {
+    /// `drawingHeight` is the canvas height in the context's current drawing-space
+    /// units (annotation pixel space). It must be passed in rather than read from
+    /// `context.height`: that property is the *bitmap* pixel height, which differs
+    /// from drawing space when the context is scaled (native-resolution PDF raster)
+    /// and is 0 for non-bitmap contexts (vector PDF export).
+    private func drawAnnotation(_ annotation: Annotation, backingScale: CGFloat, drawingHeight: CGFloat, in context: CGContext) {
         let color = annotation.style.cgStrokeColor
         // Style values (strokeWidth, fontSize) are in logical points;
         // multiply by the backing scale to convert to image pixels.
@@ -338,7 +347,7 @@ class AnnotationRenderer {
         case .star:
             drawStar(annotation.boundingRect, fillColor: annotation.style.cgFillColor, color: color, in: context)
         case .text:
-            drawText(annotation.text, at: annotation.startPoint, style: annotation.style, backingScale: backingScale, in: context)
+            drawText(annotation.text, at: annotation.startPoint, style: annotation.style, backingScale: backingScale, drawingHeight: drawingHeight, in: context)
         case .spotlight:
             break
         case .numberedStep:
@@ -477,7 +486,9 @@ class AnnotationRenderer {
         let label = "\(Int(true1xDistance.rounded())) px"
 
         let labelFontSize = max(11 * backingScale, 10)
-        let font = CTFontCreateWithName("SFMono-Medium" as CFString, labelFontSize, nil)
+        // System monospaced font: matches the live preview and never falls back
+        // to Helvetica the way a hardcoded "SFMono-*" PostScript name can.
+        let font = NSFont.monospacedSystemFont(ofSize: labelFontSize, weight: .medium)
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: strokeIsLight ? NSColor.black : NSColor.white
@@ -499,7 +510,7 @@ class AnnotationRenderer {
         context.restoreGState()
 
         context.saveGState()
-        let ascent = CTFontGetAscent(font)
+        let ascent = font.ascender
         let textX = bgRect.minX + hPad
         let textY = bgRect.minY + vPad + ascent
         context.translateBy(x: textX, y: textY)
@@ -797,8 +808,8 @@ class AnnotationRenderer {
             .applyingGaussianBlur(sigma: Double(featherPx))
             .cropped(to: ciImage.extent)
 
-        let ciCtx = CIContext(options: [.useSoftwareRenderer: false])
-        guard let blurredCG = ciCtx.createCGImage(blurred, from: blurred.extent) else { return }
+        // Reuse the renderer's context — creating a CIContext per call is expensive.
+        guard let blurredCG = ciContext.createCGImage(blurred, from: blurred.extent) else { return }
 
         context.saveGState()
         context.scaleBy(x: 1, y: -1)
@@ -807,20 +818,22 @@ class AnnotationRenderer {
         context.restoreGState()
     }
 
-    private func drawText(_ text: String, at point: CGPoint, style: AnnotationStyle, backingScale: CGFloat, in context: CGContext) {
+    private func drawText(_ text: String, at point: CGPoint, style: AnnotationStyle, backingScale: CGFloat, drawingHeight: CGFloat, in context: CGContext) {
         guard !text.isEmpty else { return }
 
         // fontSize is stored in image-pixel space (like annotation coordinates),
         // so no backingScale multiplication is needed here.
         let fontSize = style.fontSize
-        let font = CTFontCreateWithName("Helvetica Neue Medium" as CFString, fontSize, nil)
+        // System font, matching the live overlay/editor (AnnotationOverlayView,
+        // GrowingTextField) so the exported bubble wraps and sizes identically.
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
         let bgColor = style.cgTextBubbleBackground
         let fgColor = style.cgTextBubbleForeground
 
         let hPad = fontSize * 0.55
         let vPad = fontSize * 0.25
-        let ascent = CTFontGetAscent(font)
-        let descent = CTFontGetDescent(font)
+        let ascent = font.ascender
+        let descent = abs(font.descender)
         let lineHeight = ascent + descent
         let lineSpacing = fontSize * 0.22
         let cornerRadius = fontSize * 0.45
@@ -873,10 +886,12 @@ class AnnotationRenderer {
                 width: innerWidth,
                 height: fitSize.height
             )
-            // Un-flip to CG bottom-left space for CTFrame drawing.
+            // Un-flip to CG bottom-left space for CTFrame drawing. Use the
+            // drawing-space height — NOT context.height (bitmap pixels), which
+            // is wrong for scaled contexts and 0 for PDF contexts.
             let cgTextRect = CGRect(
                 x: textRect.minX,
-                y: CGFloat(context.height) - textRect.maxY,  // context is flipped: top-left origin
+                y: drawingHeight - textRect.maxY,  // context is flipped: top-left origin
                 width: textRect.width,
                 height: textRect.height
             )
@@ -884,7 +899,7 @@ class AnnotationRenderer {
             let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), framePath, nil)
             context.saveGState()
             context.scaleBy(x: 1, y: -1)
-            context.translateBy(x: 0, y: -CGFloat(context.height))
+            context.translateBy(x: 0, y: -drawingHeight)
             CTFrameDraw(frame, context)
             context.restoreGState()
         } else {
@@ -975,9 +990,15 @@ class AnnotationRenderer {
         context.fillEllipse(in: circleRect)
         context.restoreGState()
 
-        // Draw number text centered in the circle
+        // Draw number text centered in the circle.
+        // Rounded-design system font: matches the preview's
+        // `.system(... design: .rounded)` and doesn't depend on SF Pro being
+        // installed (the old "SFProRounded-Bold" name silently fell back to
+        // Helvetica on machines without it).
         let labelFontSize = fontSize * 0.75
-        let font = CTFontCreateWithName("SFProRounded-Bold" as CFString, labelFontSize, nil)
+        let baseFont = NSFont.systemFont(ofSize: labelFontSize, weight: .bold)
+        let font = baseFont.fontDescriptor.withDesign(.rounded)
+            .flatMap { NSFont(descriptor: $0, size: labelFontSize) } ?? baseFont
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: style.cgTextBubbleForeground,
@@ -985,8 +1006,8 @@ class AnnotationRenderer {
         let label = "\(number)"
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: label, attributes: attrs))
         let bounds = CTLineGetBoundsWithOptions(line, [])
-        let ascent = CTFontGetAscent(font)
-        let descent = CTFontGetDescent(font)
+        let ascent = font.ascender
+        let descent = abs(font.descender)
 
         let textX = point.x - bounds.width / 2
         let textY = point.y + (ascent - descent) / 2

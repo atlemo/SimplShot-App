@@ -169,6 +169,9 @@ class ScreenshotService {
 
     private static func timestampString() -> String {
         let formatter = DateFormatter()
+        // Fixed locale so filenames are stable regardless of the user's
+        // calendar/numbering system.
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
         return formatter.string(from: Date())
     }
