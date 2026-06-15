@@ -4,6 +4,7 @@ import SwiftUI
 
 enum AnnotationTool: String, CaseIterable, Identifiable {
     case select
+    case textSelect
     case arrow
     case freeDraw
     case measurement
@@ -23,6 +24,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .select:       return "Select"
+        case .textSelect:   return "Select Text"
         case .arrow:        return "Arrow"
         case .freeDraw:     return "Free Drawing"
         case .measurement:  return "Measurement"
@@ -42,6 +44,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .select:       return "cursorarrow"
+        case .textSelect:   return "character.cursor.ibeam"
         case .arrow:        return "arrow.up.right"
         case .freeDraw:     return "pencil.and.scribble"
         case .measurement:  return "ruler"

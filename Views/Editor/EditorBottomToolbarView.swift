@@ -26,6 +26,8 @@ struct EditorBottomToolbarView: View {
     var onZoomOut: () -> Void
     var onZoomIn: () -> Void
     var onZoomReset: () -> Void
+    var onFitWidth: () -> Void = {}
+    var onActualSize: () -> Void = {}
 
     @AppStorage("debugSimulateSonomaAppearance") private var simulateSonoma = false
 
@@ -195,9 +197,18 @@ struct EditorBottomToolbarView: View {
             .buttonStyle(.plain)
             .help("Zoom Out")
 
-            Text("\(displayZoomPercent)%")
-                .font(.system(size: 11, design: .monospaced))
-                .frame(width: 40, alignment: .center)
+            Menu {
+                Button("Fit Page", action: onZoomReset)
+                Button("Fit Width", action: onFitWidth)
+                Button("Actual Size", action: onActualSize)
+            } label: {
+                Text("\(displayZoomPercent)%")
+                    .font(.system(size: 11, design: .monospaced))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .frame(width: 46, alignment: .center)
+            .help("Zoom presets")
 
             Button(action: onZoomIn) {
                 Image(systemName: "plus.magnifyingglass")

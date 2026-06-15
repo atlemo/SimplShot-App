@@ -245,7 +245,9 @@ struct EditorView: View {
 
         _sessions = State(initialValue: sessions)
         _activeSessionID = State(initialValue: sessions.first?.id)
-        _editorMode = State(initialValue: .annotate)
+        // PDFs open in View mode (reading-first); raster sessions in Annotate.
+        let isPDF = sessions.first?.pdfPageSource != nil
+        _editorMode = State(initialValue: isPDF ? .view : .annotate)
         _columnVisibility = State(initialValue: .all)
         _watermarkSettings = State(initialValue: WatermarkSettings())
     }
@@ -274,6 +276,20 @@ struct EditorView: View {
     @State private var middleMouseScrollOrigin: NSPoint?
     @State private var nsScrollView: NSScrollView?
     @State private var canvasViewportFrame: CGRect = .zero
+    // In-document find (PDF only).
+    @State private var isFindBarVisible = false
+    @State private var findQuery = ""
+    @State private var findMatches: [PDFSelection] = []
+    @State private var currentMatchIndex = 0
+    @State private var findFocusToken = 0
+    // Parsed PDF outline (table of contents), cached per document group.
+    @State private var pdfOutlineNodes: [PDFOutlineNode] = []
+    @State private var outlineGroupID: UUID?
+    @State private var showPDFInfo = false
+    // Continuous (scroll-all-pages) reading mode — View mode + PDF only.
+    @State private var pdfContinuousScroll = false
+    @State private var continuousScrollTarget: Int?
+    @State private var continuousVisiblePage = 0
     /// The NSWindow hosting this editor. Captured via WindowAccessor so the
     /// local key-event monitor can scope its handling to events targeted at
     /// this window (when multiple editor windows are open).
@@ -348,17 +364,23 @@ struct EditorView: View {
             if let appSettings {
                 editorPadding = template.padding
                 editorCornerRadius = template.cornerRadius
-                if appSettings.editorUseTemplateBackground || appSettings.screenshotTemplate.isEnabled {
-                    selectedWallpaper = template.wallpaperSource
-                }
-                if let savedTemplate = appSettings.selectedEditorTemplate {
-                    applyEditorTemplate(savedTemplate)
+                // Templates (background, padding, shadow) never auto-apply to a
+                // PDF — only screenshots get the beautification treatment by
+                // default. PDFs would need an explicit opt-in.
+                if !isPDFSession {
+                    if appSettings.editorUseTemplateBackground || appSettings.screenshotTemplate.isEnabled {
+                        selectedWallpaper = template.wallpaperSource
+                    }
+                    if let savedTemplate = appSettings.selectedEditorTemplate {
+                        applyEditorTemplate(savedTemplate)
+                    }
                 }
             }
             loadImage()
             propagateInitialTemplateToOtherSessions()
             preloadThumbnails()
             installKeyMonitorIfNeeded()
+            refreshPDFOutlineIfNeeded()
             onModeChange(editorMode)
             onEditModeAvailabilityChange(!isPDFSession)
         }
@@ -370,6 +392,12 @@ struct EditorView: View {
                   mode != .edit || !isPDFSession
             else { return }
             editorMode = mode
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .editorActionCommand)) { notification in
+            guard notification.object as? NSWindow === hostingWindow,
+                  let action = notification.userInfo?["action"] as? String
+            else { return }
+            handleMenuAction(action)
         }
         .onDisappear {
             removeKeyMonitor()
@@ -512,6 +540,16 @@ struct EditorView: View {
         } message: {
             Text("The file will be moved to the Trash.")
         }
+        .sheet(isPresented: $showPDFInfo) {
+            if let doc = pdfDocument {
+                PDFInfoView(
+                    document: doc,
+                    page: activePDFPage(),
+                    url: activeSession?.pdfPageSource?.sourceURL,
+                    onClose: { showPDFInfo = false }
+                )
+            }
+        }
     }
 
     // MARK: - Navigation Content
@@ -529,6 +567,13 @@ struct EditorView: View {
         .animation(.easeInOut(duration: 0.2), value: showProSidebar)
         .animation(.easeInOut(duration: 0.2), value: editorMode)
         .toolbar {
+            // [PDF page navigation] — leading, PDF sessions only.
+            ToolbarItem(placement: .automatic) {
+                if isPDFSession {
+                    pdfPageNavigator
+                }
+            }
+
             // [flexible spacer] — keeps mode toggle centred
             ToolbarItem(placement: .automatic) {
                 Spacer()
@@ -643,7 +688,18 @@ struct EditorView: View {
             ZStack(alignment: .trailing) {
                 GeometryReader { geo in
                     Group {
-                        if let image {
+                        if isContinuousPDF, let doc = pdfDocument {
+                            // Read-only scroll through all PDF pages (View mode).
+                            ContinuousPDFView(
+                                document: doc,
+                                scrollTarget: $continuousScrollTarget,
+                                visiblePage: $continuousVisiblePage,
+                                highlights: { searchHighlights(on: $0) },
+                                activeHighlight: { activeSearchHighlight(on: $0) },
+                                onOpenURL: openPDFLinkURL,
+                                onGoToDestination: goToPDFDestination
+                            )
+                        } else if let image {
                             // Indicators stay enabled at all zoom levels: toggling them at
                             // the 1.0 boundary forced a scroller reconfiguration mid-gesture.
                             // Overlay scrollers auto-hide when the content fits anyway.
@@ -655,6 +711,10 @@ struct EditorView: View {
                                     displayBackingScale: displayBackingScale,
                                     editorMode: editorMode,
                                     pdfPageSource: activeSession?.pdfPageSource,
+                                    searchHighlights: searchHighlightsForActivePage,
+                                    activeSearchHighlight: activeSearchHighlightForPage,
+                                    onOpenPDFURL: openPDFLinkURL,
+                                    onGoToPDFDestination: goToPDFDestination,
                                     shadowIntensity: 0,
                                     showBorderOutline: selectedWallpaper == nil,
                                     annotations: $annotations,
@@ -697,12 +757,32 @@ struct EditorView: View {
                         onMove: { from, to in
                             sessions.move(fromOffsets: IndexSet(integer: from),
                                           toOffset: to > from ? to + 1 : to)
-                        }
+                        },
+                        outline: pdfOutlineNodes,
+                        activePageIndex: activeSession?.pdfPageSource?.pageIndex,
+                        onSelectOutline: { selectOutlineNode($0) }
                     )
                     .padding(.trailing, 12)
                     .padding(.vertical, 12)
                 }
             }
+            .overlay(alignment: .top) {
+                if isFindBarVisible {
+                    PDFFindBar(
+                        query: $findQuery,
+                        currentMatch: currentMatchIndex,
+                        totalMatches: findMatches.count,
+                        focusToken: findFocusToken,
+                        onNext: findNext,
+                        onPrevious: findPrevious,
+                        onClose: closeFindBar
+                    )
+                    .padding(.top, 12)
+                    .onChange(of: findQuery) { _, _ in runSearch() }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.15), value: isFindBarVisible)
 
             EditorBottomToolbarView(
                 imagePixelSize: imagePixelSize,
@@ -720,7 +800,9 @@ struct EditorView: View {
                 displayZoomPercent: Int(displayZoomPercent),
                 onZoomOut: zoomOut,
                 onZoomIn: zoomIn,
-                onZoomReset: { zoomLevel = 1.0; syncZoomToPDFGroup() }
+                onZoomReset: { zoomLevel = 1.0; syncZoomToPDFGroup() },
+                onFitWidth: fitToWidth,
+                onActualSize: actualSize
             )
             .offset(y: -3)
         }
@@ -770,6 +852,23 @@ struct EditorView: View {
             zoomLevel = max(prev, minZoomLevel)
             syncZoomToPDFGroup()
         }
+    }
+
+    /// Zoom preset: 1 image pixel == 1/backingScale points (100% / true size).
+    private func actualSize() {
+        guard fitScale > 0 else { return }
+        let trueSizeScale = 1.0 / displayBackingScale
+        zoomLevel = min(max(trueSizeScale / fitScale, minZoomLevel), maxZoomLevel)
+        syncZoomToPDFGroup()
+    }
+
+    /// Zoom preset: scale so the image width fills the available viewport width.
+    private func fitToWidth() {
+        guard fitScale > 0, imagePixelSize.width > 0, lastViewSize.width > 0 else { return }
+        let availableWidth = max(lastViewSize.width - 42, 100) // 40 chrome + 2 fudge
+        let target = availableWidth / imagePixelSize.width
+        zoomLevel = min(max(target / fitScale, minZoomLevel), maxZoomLevel)
+        syncZoomToPDFGroup()
     }
 
     /// When the active session belongs to a PDF group, mirror the current zoom level
@@ -859,7 +958,8 @@ struct EditorView: View {
         for session in sessions where session.id != active.id {
             session.editorPadding = active.editorPadding
             session.editorCornerRadius = active.editorCornerRadius
-            session.selectedWallpaper = active.selectedWallpaper
+            // Never carry a template background onto a PDF page.
+            session.selectedWallpaper = session.isPDF ? nil : active.selectedWallpaper
             session.shadowIntensity = active.shadowIntensity
             session.editorAspectRatioID = active.editorAspectRatioID
             session.screenshotAlignment = active.screenshotAlignment
@@ -929,7 +1029,8 @@ struct EditorView: View {
             }
         }
 
-        session.selectedWallpaper = template.wallpaperSource
+        // Never apply a template background to a PDF page.
+        session.selectedWallpaper = session.isPDF ? nil : template.wallpaperSource
         session.editorPadding = template.padding
         session.editorCornerRadius = template.cornerRadius
         session.shadowIntensity = template.shadowIntensity
@@ -972,7 +1073,9 @@ struct EditorView: View {
         }
 
         var displayCG = croppedCG
-        if let wallpaper = session.selectedWallpaper {
+        // Templates never apply to PDF pages (mirrors the active-display guard
+        // `wallpaper: isPDFSession ? nil` in displayRenderSpec).
+        if !session.isPDF, let wallpaper = session.selectedWallpaper {
             var editorTemplate = self.template
             editorTemplate.padding = session.editorPadding
             editorTemplate.cornerRadius = session.editorCornerRadius
@@ -1790,6 +1893,20 @@ struct EditorView: View {
     private func installKeyMonitorIfNeeded() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // PDF find shortcuts — handled before the text-field passthrough so
+            // Esc / ⌘G work even while the find field has focus.
+            if isPDFSession, let win = hostingWindow, event.window === win {
+                let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                let key = event.charactersIgnoringModifiers?.lowercased()
+                if mods == .command, key == "f" { showFindBar(); return nil }
+                if mods == .command, key == "i" { showPDFInfo = true; return nil }
+                if isFindBarVisible {
+                    if event.keyCode == 53 { closeFindBar(); return nil }            // Esc
+                    if mods == .command, key == "g" { findNext(); return nil }       // ⌘G
+                    if mods == [.command, .shift], key == "g" { findPrevious(); return nil } // ⌘⇧G
+                }
+            }
+
             // Don't steal events from text editing fields.
             if let firstResponder = event.window?.firstResponder {
                 if firstResponder is NSTextView || firstResponder is NSTextField {
@@ -1870,6 +1987,23 @@ struct EditorView: View {
                     default: break
                     }
                     return nil
+                }
+            }
+
+            // PDF page-navigation keys: Home/End, Page Up/Down, and Space /
+            // ⇧Space (Space only in View mode, where it's unambiguous).
+            if isPDFSession, let win = hostingWindow, event.window === win {
+                let onlyShift = event.modifierFlags
+                    .intersection([.command, .option, .control]).isEmpty
+                switch event.keyCode {
+                case 115: goToPDFPageNumber(1); return nil                             // Home
+                case 119: goToPDFPageNumber(pdfDocument?.pageCount ?? 1); return nil    // End
+                case 116: goToAdjacentPDFPage(-1); return nil                          // Page Up
+                case 121: goToAdjacentPDFPage(1); return nil                           // Page Down
+                case 49 where onlyShift && editorMode == .view:                        // Space
+                    goToAdjacentPDFPage(event.modifierFlags.contains(.shift) ? -1 : 1)
+                    return nil
+                default: break
                 }
             }
 
@@ -2057,6 +2191,296 @@ struct EditorView: View {
         switchToSession(sessions[next].id)
     }
 
+    // MARK: - PDF Navigation (shared by Find, Links, Outline)
+
+    /// The shared `PDFDocument` backing the active PDF session (nil for images).
+    private var pdfDocument: PDFDocument? {
+        activeSession?.pdfPageSource?.document
+    }
+
+    /// Sessions belonging to the active PDF's page group, keyed for page lookups.
+    private var activePDFGroupSessions: [ImageSession] {
+        guard let gid = activeSession?.pdfGroupID else { return [] }
+        return sessions.filter { $0.pdfGroupID == gid }
+    }
+
+    /// 1-based page number of the active PDF page, or nil for images.
+    private var currentPDFPageNumber: Int? {
+        activeSession?.pdfPageSource.map { $0.pageIndex + 1 }
+    }
+
+    /// Switches to the session showing `page` and, if a page-space `rect` is
+    /// given, scrolls it into view once the new page has laid out. Used by Find,
+    /// internal links, and the outline.
+    private func jumpToPDFPage(_ page: PDFPage, scrollingTo rect: CGRect? = nil) {
+        guard let doc = page.document else { return }
+        let idx = doc.index(for: page)
+        // In continuous mode, scroll the stacked view to the page instead of
+        // switching the single-page session.
+        if isContinuousPDF {
+            continuousScrollTarget = idx
+            return
+        }
+        guard let target = sessions.first(where: {
+            $0.pdfPageSource?.document === doc && $0.pdfPageSource?.pageIndex == idx
+        }) else { return }
+        if target.id != activeSessionID {
+            switchToSession(target.id)
+        }
+        guard let rect else { return }
+        // Defer so the (possibly newly switched) page has laid out and fitScale
+        // settled before we read effectiveScale / imagePixelSize for the scroll.
+        DispatchQueue.main.async { scrollPDFRectIntoView(rect, on: page) }
+    }
+
+    /// Scrolls the canvas so a page-space `rect` (PDF points, bottom-left origin)
+    /// is visible, with margin. No-op if the canvas scroll view isn't ready.
+    private func scrollPDFRectIntoView(_ rect: CGRect, on page: PDFPage) {
+        guard let docView = nsScrollView?.documentView else { return }
+        let pointSize = page.rotatedMediaBoxSize
+        guard pointSize.width > 0, pointSize.height > 0 else { return }
+        // page-points → canvas points (canvasW = imagePixelSize.w * effectiveScale).
+        let kx = imagePixelSize.width / pointSize.width * effectiveScale
+        let ky = imagePixelSize.height / pointSize.height * effectiveScale
+        let pad: CGFloat = 20 // matches the canvas `.padding(20)`
+        let docRect = CGRect(
+            x: rect.minX * kx + pad,
+            y: (pointSize.height - rect.maxY) * ky + pad,
+            width: rect.width * kx,
+            height: rect.height * ky
+        )
+        docView.scrollToVisible(docRect.insetBy(dx: -60, dy: -60))
+    }
+
+    /// Jumps to a 1-based page number within the active PDF.
+    private func goToPDFPageNumber(_ oneBased: Int) {
+        guard let gid = activeSession?.pdfGroupID,
+              let doc = activeSession?.pdfPageSource?.document else { return }
+        let idx = oneBased - 1
+        guard idx >= 0, idx < doc.pageCount else { return }
+        if isContinuousPDF {
+            continuousScrollTarget = idx
+            return
+        }
+        guard let target = sessions.first(where: {
+            $0.pdfGroupID == gid && $0.pdfPageSource?.pageIndex == idx
+        }) else { return }
+        switchToSession(target.id)
+    }
+
+    /// Moves `delta` pages from the current one (clamped: out-of-range no-ops).
+    private func goToAdjacentPDFPage(_ delta: Int) {
+        if isContinuousPDF {
+            let count = pdfDocument?.pageCount ?? 1
+            continuousScrollTarget = min(max(continuousVisiblePage + delta, 0), count - 1)
+            return
+        }
+        guard let current = currentPDFPageNumber else { return }
+        goToPDFPageNumber(current + delta)
+    }
+
+    /// Leading toolbar control: ‹ [page] / total › for the active PDF.
+    @ViewBuilder
+    private var pdfPageNavigator: some View {
+        let total = pdfDocument?.pageCount ?? activePDFGroupSessions.count
+        let current = isContinuousPDF ? continuousVisiblePage + 1 : (currentPDFPageNumber ?? 1)
+        HStack(spacing: 4) {
+            Button { goToAdjacentPDFPage(-1) } label: {
+                Image(systemName: "chevron.left")
+            }
+            .help("Previous Page")
+            .disabled(current <= 1)
+
+            TextField("", value: Binding(
+                get: { current },
+                set: { goToPDFPageNumber($0) }
+            ), format: .number)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 38)
+            .multilineTextAlignment(.center)
+
+            Text("/ \(total)")
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+
+            Button { goToAdjacentPDFPage(1) } label: {
+                Image(systemName: "chevron.right")
+            }
+            .help("Next Page")
+            .disabled(current >= total)
+
+            if editorMode == .view {
+                Divider().frame(height: 14)
+                Button { toggleContinuousScroll() } label: {
+                    Image(systemName: pdfContinuousScroll ? "rectangle.stack.fill" : "rectangle.stack")
+                }
+                .help(pdfContinuousScroll ? "Single Page View" : "Continuous Scroll")
+            }
+
+            Divider().frame(height: 14)
+
+            Button { rotatePDFPage(deltaSteps: 3) } label: {
+                Image(systemName: "rotate.left")
+            }
+            .help("Rotate Left")
+            Button { rotatePDFPage(deltaSteps: 1) } label: {
+                Image(systemName: "rotate.right")
+            }
+            .help("Rotate Right")
+        }
+    }
+
+    /// Toggles the continuous (all-pages) reading view, entering at the page the
+    /// single-page view was showing.
+    private func toggleContinuousScroll() {
+        if !pdfContinuousScroll {
+            continuousVisiblePage = activeSession?.pdfPageSource?.pageIndex ?? 0
+        }
+        pdfContinuousScroll.toggle()
+    }
+
+    // MARK: - In-Document Find (PDF)
+
+    /// Search matches that fall on the currently-displayed page (tinted).
+    private var searchHighlightsForActivePage: [PDFSelection] {
+        guard isFindBarVisible, let page = activePDFPage() else { return [] }
+        return findMatches.filter { $0.pages.contains(page) }
+    }
+
+    /// The current match, if it is on the displayed page (emphasized).
+    private var activeSearchHighlightForPage: PDFSelection? {
+        guard isFindBarVisible, let page = activePDFPage(),
+              findMatches.indices.contains(currentMatchIndex) else { return nil }
+        let match = findMatches[currentMatchIndex]
+        return match.pages.contains(page) ? match : nil
+    }
+
+    /// True when the continuous (scroll-all-pages) PDF reading view is showing.
+    private var isContinuousPDF: Bool {
+        isPDFSession && editorMode == .view && pdfContinuousScroll
+    }
+
+    /// Search matches on a given page — used by the continuous view to highlight
+    /// any page, not just the single active one.
+    private func searchHighlights(on page: PDFPage) -> [PDFSelection] {
+        guard isFindBarVisible else { return [] }
+        return findMatches.filter { $0.pages.contains(page) }
+    }
+
+    private func activeSearchHighlight(on page: PDFPage) -> PDFSelection? {
+        guard isFindBarVisible, findMatches.indices.contains(currentMatchIndex) else { return nil }
+        let match = findMatches[currentMatchIndex]
+        return match.pages.contains(page) ? match : nil
+    }
+
+    /// Re-runs the document search for the current query and jumps to the first
+    /// match. Called as the query changes.
+    private func runSearch() {
+        guard let doc = pdfDocument, !findQuery.isEmpty else {
+            findMatches = []
+            currentMatchIndex = 0
+            return
+        }
+        findMatches = doc.findString(findQuery, withOptions: [.caseInsensitive])
+        currentMatchIndex = 0
+        if !findMatches.isEmpty { focusMatch(0) }
+    }
+
+    /// Selects match `index`, switching to its page and scrolling it into view.
+    private func focusMatch(_ index: Int) {
+        guard findMatches.indices.contains(index) else { return }
+        currentMatchIndex = index
+        let match = findMatches[index]
+        if let page = match.pages.first {
+            jumpToPDFPage(page, scrollingTo: match.bounds(for: page))
+        }
+    }
+
+    private func findNext() {
+        guard !findMatches.isEmpty else { return }
+        focusMatch((currentMatchIndex + 1) % findMatches.count)
+    }
+
+    private func findPrevious() {
+        guard !findMatches.isEmpty else { return }
+        focusMatch((currentMatchIndex - 1 + findMatches.count) % findMatches.count)
+    }
+
+    private func showFindBar() {
+        guard isPDFSession else { return }
+        isFindBarVisible = true
+        findFocusToken += 1 // (re)focus the field, even if already open
+    }
+
+    private func closeFindBar() {
+        isFindBarVisible = false
+        findQuery = ""
+        findMatches = []
+        currentMatchIndex = 0
+    }
+
+    // MARK: - PDF Links
+
+    /// Opens an external link the user clicked in the PDF. This is a deliberate
+    /// user action on their own document; the destination is shown on hover.
+    private func openPDFLinkURL(_ url: URL) {
+        NSWorkspace.shared.open(url)
+    }
+
+    /// Follows an internal go-to link: switches to the destination page and
+    /// scrolls to the destination point (when the PDF specifies one).
+    private func goToPDFDestination(_ dest: PDFDestination) {
+        guard let page = dest.page else { return }
+        let pt = dest.point
+        let unspecified = pt.x == kPDFDestinationUnspecifiedValue
+            || pt.y == kPDFDestinationUnspecifiedValue
+        let rect: CGRect? = unspecified
+            ? nil
+            : CGRect(x: pt.x - 4, y: pt.y - 12, width: 8, height: 16)
+        jumpToPDFPage(page, scrollingTo: rect)
+    }
+
+    // MARK: - PDF Outline (Table of Contents)
+
+    /// Rebuilds the cached outline when the active PDF document changes. Parsing
+    /// once (not per render) keeps `PDFOutlineNode` ids stable for `ForEach`.
+    private func refreshPDFOutlineIfNeeded() {
+        let gid = activeSession?.pdfGroupID
+        guard gid != outlineGroupID else { return }
+        outlineGroupID = gid
+        pdfOutlineNodes = PDFOutlineNode.tree(from: pdfDocument?.outlineRoot)
+    }
+
+    /// Jumps to an outline entry's destination page (and point, when specified).
+    private func selectOutlineNode(_ node: PDFOutlineNode) {
+        guard let page = node.page else { return }
+        let rect: CGRect? = node.point.map {
+            CGRect(x: $0.x - 4, y: $0.y - 12, width: 8, height: 16)
+        }
+        jumpToPDFPage(page, scrollingTo: rect)
+    }
+
+    // MARK: - Menu Actions
+
+    /// Dispatches a menu-bar command (posted by `EditorWindowController` to this
+    /// window) to the matching editor action.
+    private func handleMenuAction(_ action: String) {
+        switch action {
+        case "find":         showFindBar()
+        case "findNext":     findNext()
+        case "findPrevious": findPrevious()
+        case "documentInfo": if isPDFSession { showPDFInfo = true }
+        case "nextPage":     goToAdjacentPDFPage(1)
+        case "previousPage": goToAdjacentPDFPage(-1)
+        case "actualSize":   actualSize()
+        case "fitWidth":     fitToWidth()
+        case "fitPage":      zoomLevel = 1.0; syncZoomToPDFGroup()
+        case "rotateLeft":   if isPDFSession { rotatePDFPage(deltaSteps: 3) } else { rotate(deltaSteps: 3) }
+        case "rotateRight":  if isPDFSession { rotatePDFPage(deltaSteps: 1) } else { rotate(deltaSteps: 1) }
+        default: break
+        }
+    }
+
     private func trashScreenshot() {
         try? FileManager.default.trashItem(at: imageURL, resultingItemURL: nil)
 
@@ -2195,6 +2619,60 @@ struct EditorView: View {
 
     private func rotateLeft()  { rotate(deltaSteps: 3) }  // 90° CCW = +3 mod 4
     private func rotateRight() { rotate(deltaSteps: 1) }  // 90° CW
+
+    /// Rotates the active PDF page by `delta` × 90° clockwise. Unlike the raster
+    /// `rotate(deltaSteps:)`, this drives the live VECTOR view (and export) via
+    /// `page.rotation`, re-renders the raster for the thumbnail, and rotates any
+    /// annotations about the page so they stay anchored to the content.
+    private func rotatePDFPage(deltaSteps delta: Int) {
+        guard isPDFSession,
+              let session = activeSession,
+              let src = session.pdfPageSource,
+              let page = src.document.page(at: src.pageIndex) else { return }
+        let d = ((delta % 4) + 4) % 4
+        guard d != 0 else { return }
+
+        flushPendingDisplayRender()
+        pushUndo()
+        selectedAnnotationID = nil
+
+        // Rotate annotations (image-pixel space) to follow the content. PDFs have
+        // no template/crop, so no gradient-offset remap is needed.
+        let oldSize = imagePixelSize
+        if !annotations.isEmpty {
+            annotations = annotations.map { ann in
+                var a = ann
+                a.startPoint = Self.rotatePoint90(ann.startPoint, steps: d, in: oldSize)
+                a.endPoint = Self.rotatePoint90(ann.endPoint, steps: d, in: oldSize)
+                if !ann.points.isEmpty {
+                    a.points = ann.points.map { Self.rotatePoint90($0, steps: d, in: oldSize) }
+                }
+                return a
+            }
+        }
+
+        // Rotate the page itself — drives the live vector view and PDF export.
+        page.rotation = ((page.rotation + d * 90) % 360 + 360) % 360
+
+        // Re-render the raster (thumbnail + raster export) at the new orientation.
+        guard let cg = src.renderPage(backingScale: displayBackingScale) else { return }
+        let newSize = CGSize(width: cg.width, height: cg.height)
+        let nsImage = NSImage(size: NSSize(width: newSize.width, height: newSize.height))
+        nsImage.addRepresentation(NSBitmapImageRep(cgImage: cg))
+
+        // A PDF page is the whole "screenshot" (no crop). Reset the crop rect to
+        // the rotated raster's bounds so composeDisplayImage doesn't clip the new
+        // orientation to the pre-rotation rect (which squished the aspect).
+        screenshotCropRect = CGRect(origin: .zero, size: newSize)
+        session.screenshotCropRect = screenshotCropRect
+
+        rawImage = nsImage
+        session.rawImage = nsImage
+        applyDisplayImage(from: nsImage)        // commits image, imagePixelSize, currentDisplayCGImage
+        session.generateThumbnail(from: nsImage)
+        updateFitScale(viewSize: lastViewSize)
+        saveActiveSessionState()
+    }
 
     // MARK: - Rotation helpers (pure, static)
 
@@ -2380,6 +2858,9 @@ struct EditorView: View {
         // session and must not commit into this one's @State.
         renderCoordinator.invalidate()
 
+        // Rebuild the cached outline if we've switched to a different document.
+        refreshPDFOutlineIfNeeded()
+
         image = session.image
         rawImage = session.rawImage
         currentDisplayCGImage = session.currentDisplayCGImage
@@ -2431,6 +2912,10 @@ struct EditorView: View {
         if target.isPDF && editorMode == .edit {
             editorMode = .annotate
         }
+        // The Text Selection tool is PDF-only — fall back to Select on images.
+        if !target.isPDF && currentTool == .textSelect {
+            currentTool = .select
+        }
         if target.image == nil {
             loadImage()
         } else {
@@ -2454,6 +2939,9 @@ struct EditorView: View {
                 restoreSessionState(from: target)
                 if target.isPDF && editorMode == .edit {
                     editorMode = .annotate
+                }
+                if !target.isPDF && currentTool == .textSelect {
+                    currentTool = .select
                 }
                 if target.image == nil {
                     loadImage()

@@ -240,7 +240,7 @@ struct AnnotationOverlayView: View {
             }
             .position(x: start.x, y: start.y)
 
-        case .select, .crop:
+        case .select, .textSelect, .crop:
             EmptyView()
         }
     }
@@ -284,7 +284,7 @@ struct AnnotationOverlayView: View {
         case .freeDraw, .numberedStep:
             EmptyView()
 
-        case .select, .crop:
+        case .select, .textSelect, .crop:
             EmptyView()
         }
     }

@@ -3,6 +3,9 @@ import SwiftUI
 
 extension Notification.Name {
     static let editorModeCommand = Notification.Name("SimplShotEditorModeCommand")
+    /// A menu command (Find, Document Info, page nav, zoom…) targeted at a
+    /// specific editor window (posted with that `NSWindow` as the object).
+    static let editorActionCommand = Notification.Name("SimplShotEditorActionCommand")
 }
 
 /// Manages the standalone editor window.
@@ -24,6 +27,16 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
     static func setModeForKeyWindow(_ mode: EditorMode) {
         guard canSetMode(mode) else { return }
         keyEditorController?.setEditorMode?(mode)
+    }
+
+    /// Posts a menu action to the key editor window (Find, Document Info, etc.).
+    static func sendActionToKeyWindow(_ action: String) {
+        guard let window = keyEditorController?.window else { return }
+        NotificationCenter.default.post(
+            name: .editorActionCommand,
+            object: window,
+            userInfo: ["action": action]
+        )
     }
 
     private static var keyEditorController: EditorWindowController? {

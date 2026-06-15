@@ -112,7 +112,11 @@ struct EditorSidebarView: View {
         let base: [AnnotationTool] = [
             .select, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep, .measurement, .pixelate, .spotlight, .crop
         ]
-        return hasTemplate ? base : base.filter { $0 != .pixelate && $0 != .crop }
+        guard !hasTemplate else { return base }
+        // PDF sessions: pixelate/crop don't apply (vector export draws the full
+        // page); add a text-selection tool so the page's text can be selected and
+        // copied without leaving the markup mode.
+        return [.select, .textSelect] + base.filter { $0 != .select && $0 != .pixelate && $0 != .crop }
     }
 
     private let stylingTools: [AnnotationTool] = [

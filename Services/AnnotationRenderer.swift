@@ -352,7 +352,7 @@ class AnnotationRenderer {
             break
         case .numberedStep:
             drawNumberedStep(annotation.stepNumber, at: annotation.startPoint, style: annotation.style, backingScale: backingScale, in: context)
-        case .select, .crop, .pixelate:
+        case .select, .textSelect, .crop, .pixelate:
             break // Not drawn here (.pixelate is handled before the coordinate flip)
         }
 

@@ -29,6 +29,64 @@ struct SimplShotApp: App {
                     .disabled(!EditorWindowController.canSetMode(.edit))
                 editorModeToggle(.view, shortcut: "3")
             }
+
+            // Find — in the Edit menu. No-ops on non-PDF / non-editor windows.
+            CommandGroup(after: .textEditing) {
+                Divider()
+                Button("Find…") {
+                    EditorWindowController.sendActionToKeyWindow("find")
+                }
+                .keyboardShortcut("f", modifiers: .command)
+                Button("Find Next") {
+                    EditorWindowController.sendActionToKeyWindow("findNext")
+                }
+                .keyboardShortcut("g", modifiers: .command)
+                Button("Find Previous") {
+                    EditorWindowController.sendActionToKeyWindow("findPrevious")
+                }
+                .keyboardShortcut("g", modifiers: [.command, .shift])
+            }
+
+            // Go — page navigation, document info, and zoom presets.
+            CommandMenu("Go") {
+                Button("Next Page") {
+                    EditorWindowController.sendActionToKeyWindow("nextPage")
+                }
+                .keyboardShortcut(.downArrow, modifiers: .command)
+                Button("Previous Page") {
+                    EditorWindowController.sendActionToKeyWindow("previousPage")
+                }
+                .keyboardShortcut(.upArrow, modifiers: .command)
+
+                Divider()
+                Button("Rotate Left") {
+                    EditorWindowController.sendActionToKeyWindow("rotateLeft")
+                }
+                .keyboardShortcut("l", modifiers: .command)
+                Button("Rotate Right") {
+                    EditorWindowController.sendActionToKeyWindow("rotateRight")
+                }
+                .keyboardShortcut("r", modifiers: .command)
+
+                Divider()
+                Button("Document Info") {
+                    EditorWindowController.sendActionToKeyWindow("documentInfo")
+                }
+                .keyboardShortcut("i", modifiers: .command)
+
+                Divider()
+                Button("Actual Size") {
+                    EditorWindowController.sendActionToKeyWindow("actualSize")
+                }
+                .keyboardShortcut("0", modifiers: .command)
+                Button("Fit Width") {
+                    EditorWindowController.sendActionToKeyWindow("fitWidth")
+                }
+                Button("Fit Page") {
+                    EditorWindowController.sendActionToKeyWindow("fitPage")
+                }
+                .keyboardShortcut("9", modifiers: .command)
+            }
         }
     }
 

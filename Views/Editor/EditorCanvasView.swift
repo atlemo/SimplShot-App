@@ -37,6 +37,13 @@ struct EditorCanvasView: View {
     /// of a raster `Image(nsImage:)`. The `image` property is still used as
     /// `sourceImage` for pixelate annotations.
     var pdfPageSource: PDFPageSource? = nil
+    /// In-document find highlights for the active PDF page: all matches on the
+    /// page (tinted) and the current match (emphasized).
+    var searchHighlights: [PDFSelection] = []
+    var activeSearchHighlight: PDFSelection? = nil
+    /// Link follow handlers for the active PDF page.
+    var onOpenPDFURL: ((URL) -> Void)? = nil
+    var onGoToPDFDestination: ((PDFDestination) -> Void)? = nil
     var shadowIntensity: Double = 0 // drop shadow opacity (0 = none, 1 = full)
     var showBorderOutline: Bool = false
 
@@ -91,6 +98,26 @@ struct EditorCanvasView: View {
     private var canvasWidth: CGFloat { imagePixelSize.width * scale }
     private var canvasHeight: CGFloat { imagePixelSize.height * scale }
 
+    /// PDF text selection is active in View mode (always) and when the Text
+    /// Selection tool is chosen in Annotate mode. Only PDF pages have a text
+    /// layer, so it never applies to raster images.
+    private var isTextSelectionActive: Bool {
+        guard pdfPageSource != nil else { return false }
+        return editorMode == .view || (editorMode == .annotate && currentTool == .textSelect)
+    }
+
+    /// Annotation drawing/selection gestures are attached only when actively
+    /// marking up — Annotate mode with a drawing tool. On a PDF page the Text
+    /// Selection tool suppresses them (and View mode never attaches them) so the
+    /// page's backing NSView receives the mouse events it needs for selection.
+    /// The Text Selection tool is PDF-only, so on a raster image gestures stay
+    /// enabled even if `currentTool` is left on `.textSelect` after a switch.
+    private var annotationGesturesEnabled: Bool {
+        guard editorMode == .annotate else { return false }
+        if pdfPageSource != nil && currentTool == .textSelect { return false }
+        return true
+    }
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             // Base image + gesture layer combined (so gestures don't block other views)
@@ -103,7 +130,13 @@ struct EditorCanvasView: View {
                     // different backing scale (preload uses a lighter one), so
                     // deriving pointSize from imagePixelSize would mis-scale the
                     // live view and clip it to the lower-left corner.
-                    PDFPageView(page: page, pointSize: page.rotatedMediaBoxSize)
+                    PDFPageView(page: page,
+                                pointSize: page.rotatedMediaBoxSize,
+                                isTextSelectable: isTextSelectionActive,
+                                searchHighlights: searchHighlights,
+                                activeSearchHighlight: activeSearchHighlight,
+                                onOpenURL: onOpenPDFURL,
+                                onGoToDestination: onGoToPDFDestination)
                     .frame(width: canvasWidth, height: canvasHeight)
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 3)
@@ -117,21 +150,27 @@ struct EditorCanvasView: View {
             }
             .shadow(color: .black.opacity(0.5 * shadowIntensity), radius: 60 * shadowIntensity, x: 0, y: 28 * shadowIntensity)
             .overlay(
-                showBorderOutline
-                    ? RoundedRectangle(cornerRadius: pdfPageSource != nil ? 6 : 0, style: .continuous)
-                        .stroke(Color.primary.opacity(0.15), lineWidth: 1)
-                    : nil
+                Group {
+                    if showBorderOutline {
+                        RoundedRectangle(cornerRadius: pdfPageSource != nil ? 6 : 0, style: .continuous)
+                            .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                    }
+                }
+                .allowsHitTesting(false)
             )
             .contentShape(Rectangle())
-            .gesture(editorMode == .annotate ? canvasGesture : nil)
-            .onTapGesture(count: 2) { location in
-                guard editorMode == .annotate else { return }
-                handleDoubleTap(at: location)
-            }
-            .onTapGesture { location in
-                guard editorMode == .annotate else { return }
-                handleTap(at: location)
-            }
+            // Canvas gestures attach only while actively marking up (see
+            // `annotationGesturesEnabled`). When the Text Selection tool is
+            // active, or in View mode, no SwiftUI gesture is installed on the
+            // canvas, so the PDF page's backing NSView receives the mouse events
+            // it needs for interactive text selection (see `_PDFPageNSView`).
+            .gesture(annotationGesturesEnabled ? canvasGesture : nil)
+            .gesture(annotationGesturesEnabled
+                     ? SpatialTapGesture(count: 2).onEnded { handleDoubleTap(at: $0.location) }
+                     : nil)
+            .gesture(annotationGesturesEnabled
+                     ? SpatialTapGesture(count: 1).onEnded { handleTap(at: $0.location) }
+                     : nil)
 
             // Annotations clipped to image bounds
             ZStack(alignment: .topLeading) {
@@ -815,7 +854,7 @@ struct EditorCanvasView: View {
                     return annotation.id
                 }
 
-            case .select, .crop:
+            case .select, .textSelect, .crop:
                 break
             }
         }
@@ -995,17 +1034,44 @@ private struct WatermarkPreview: View {
 private struct PDFPageView: NSViewRepresentable {
     let page: PDFPage
     let pointSize: CGSize
+    /// When true (View mode), the backing view lets the user select and copy
+    /// the page's text. Disabled in Annotate mode, where canvas drags draw
+    /// annotations instead.
+    var isTextSelectable: Bool = false
+    /// Search-match selections on this page (drawn tinted) and the active match
+    /// (emphasized) during an in-document find.
+    var searchHighlights: [PDFSelection] = []
+    var activeSearchHighlight: PDFSelection? = nil
+    /// Link follow handlers (external URL / internal go-to destination).
+    var onOpenURL: ((URL) -> Void)? = nil
+    var onGoToDestination: ((PDFDestination) -> Void)? = nil
 
     func makeNSView(context: Context) -> _PDFPageNSView {
         let v = _PDFPageNSView()
         v.page = page
         v.pdfPointSize = pointSize
+        v.isTextSelectable = isTextSelectable
+        v.searchHighlights = searchHighlights
+        v.activeSearchHighlight = activeSearchHighlight
+        v.onOpenURL = onOpenURL
+        v.onGoToDestination = onGoToDestination
         return v
     }
 
     func updateNSView(_ v: _PDFPageNSView, context: Context) {
+        // Drop any active selection when the displayed page changes (page or
+        // session switch) so it can't linger onto unrelated content.
+        if v.page !== page {
+            v.clearSelection()
+            v.window?.invalidateCursorRects(for: v) // rebuild link cursor rects
+        }
         v.page = page
         v.pdfPointSize = pointSize
+        v.isTextSelectable = isTextSelectable
+        v.searchHighlights = searchHighlights
+        v.activeSearchHighlight = activeSearchHighlight
+        v.onOpenURL = onOpenURL
+        v.onGoToDestination = onGoToDestination
         v.needsDisplay = true
     }
 }
@@ -1014,11 +1080,56 @@ private struct PDFPageView: NSViewRepresentable {
 /// context. Because `draw(_:)` runs inside the window's display cycle,
 /// the page is rasterized at the *current* backing-scale × view-transform,
 /// keeping text and line art sharp regardless of zoom.
+///
+/// In View mode (`isTextSelectable`), it also supports native PDF text
+/// selection (click-drag, double-click word, triple-click line) and copy
+/// (⌘C or the right-click menu), reusing PDFKit's `PDFSelection`.
 final class _PDFPageNSView: NSView {
     var page: PDFPage?
     var pdfPointSize: CGSize = .zero
 
+    /// Enables interactive text selection + copy. Set from the SwiftUI layer
+    /// (true only in View mode). Disabling clears any active selection.
+    var isTextSelectable: Bool = false {
+        didSet {
+            guard oldValue != isTextSelectable else { return }
+            if !isTextSelectable { clearSelection() }
+            window?.invalidateCursorRects(for: self)
+            updateTrackingAreas()
+        }
+    }
+
+    /// The current text selection, in PDF page space — drawn as a highlight and
+    /// used as the source for copy.
+    private var selection: PDFSelection?
+    /// Anchor point (PDF page space) for an in-progress click-drag selection.
+    private var dragAnchor: CGPoint?
+
+    /// Search-match highlights for THIS page, set from the SwiftUI layer during
+    /// an in-document find. All matches are tinted; the active one is emphasized.
+    var searchHighlights: [PDFSelection] = [] { didSet { needsDisplay = true } }
+    var activeSearchHighlight: PDFSelection? { didSet { needsDisplay = true } }
+
+    /// Invoked when the user clicks a link annotation: an external URL or an
+    /// internal go-to destination. Set from the SwiftUI layer.
+    var onOpenURL: ((URL) -> Void)?
+    var onGoToDestination: ((PDFDestination) -> Void)?
+
+    /// Link under the cursor at mouse-down — a single click (no drag) follows it.
+    private var mouseDownLink: PDFAnnotation?
+    /// Whether the current mouse sequence dragged (→ a text selection, not a click).
+    private var didDrag = false
+
     override var isFlipped: Bool { true }
+    override var acceptsFirstResponder: Bool { isTextSelectable }
+
+    /// Clears any active or in-progress selection and redraws.
+    func clearSelection() {
+        guard selection != nil || dragAnchor != nil else { return }
+        selection = nil
+        dragAnchor = nil
+        needsDisplay = true
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         guard let page, let ctx = NSGraphicsContext.current?.cgContext else { return }
@@ -1040,7 +1151,214 @@ final class _PDFPageNSView: NSView {
         ctx.scaleBy(x: sx, y: sy)
 
         page.draw(with: .mediaBox, to: ctx)
+
+        // Highlight, in the same page-point space so rects line up with the
+        // glyphs: search matches underneath, then the user's text selection on
+        // top. Each visual line is filled separately (clipped to the page) so a
+        // highlight tracks the text line-by-line.
+        let pageRect = page.bounds(for: .mediaBox)
+        func fillSelection(_ sel: PDFSelection, _ color: CGColor) {
+            ctx.setFillColor(color)
+            for line in sel.selectionsByLine() {
+                let r = line.bounds(for: page).intersection(pageRect)
+                guard !r.isNull, r.width > 0, r.height > 0 else { continue }
+                ctx.fill(r)
+            }
+        }
+        for match in searchHighlights {
+            fillSelection(match, NSColor.systemYellow.withAlphaComponent(0.35).cgColor)
+        }
+        if let activeSearchHighlight {
+            fillSelection(activeSearchHighlight, NSColor.systemOrange.withAlphaComponent(0.55).cgColor)
+        }
+        if let selection {
+            fillSelection(selection, NSColor.selectedTextBackgroundColor.withAlphaComponent(0.5).cgColor)
+        }
+
         ctx.restoreGState()
+    }
+
+    // MARK: - Text Selection
+
+    /// Converts a mouse event location into PDF page space (points, bottom-left
+    /// origin) for the current bounds — the space PDFKit's selection APIs use.
+    ///
+    /// Correct for unrotated pages, which is the only case with a real text
+    /// layer; rotated pages here are scanned bitmaps with nothing to select.
+    private func pagePoint(for event: NSEvent) -> CGPoint {
+        let v = convert(event.locationInWindow, from: nil) // flipped: top-left origin
+        guard bounds.width > 0, bounds.height > 0 else { return .zero }
+        let nx = v.x / bounds.width
+        let ny = v.y / bounds.height
+        return CGPoint(x: nx * pdfPointSize.width,
+                       y: (1 - ny) * pdfPointSize.height)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard isTextSelectable, let page else {
+            super.mouseDown(with: event)
+            return
+        }
+        window?.makeFirstResponder(self)
+        let p = pagePoint(for: event)
+        didDrag = false
+        // Only a single click can follow a link; double/triple click selects.
+        mouseDownLink = event.clickCount == 1 ? linkAnnotation(at: p) : nil
+        switch event.clickCount {
+        case 2:  // double-click selects the word
+            selection = page.selectionForWord(at: p)
+            dragAnchor = nil
+        case 3:  // triple-click selects the line
+            selection = page.selectionForLine(at: p)
+            dragAnchor = nil
+        default: // single click starts a drag selection (and clears any prior one)
+            dragAnchor = p
+            selection = nil
+        }
+        needsDisplay = true
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isTextSelectable, let page, let anchor = dragAnchor else {
+            super.mouseDragged(with: event)
+            return
+        }
+        didDrag = true
+        selection = page.selection(from: anchor, to: pagePoint(for: event))
+        needsDisplay = true
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard isTextSelectable else {
+            super.mouseUp(with: event)
+            return
+        }
+        dragAnchor = nil
+        // A click (no drag) that began and ended on the same link follows it,
+        // rather than leaving a stray selection.
+        if !didDrag, let link = mouseDownLink,
+           linkAnnotation(at: pagePoint(for: event)) === link {
+            followLink(link)
+            selection = nil
+            needsDisplay = true
+        }
+        mouseDownLink = nil
+    }
+
+    // MARK: - Links
+
+    /// The link annotation at a page-space point, or nil.
+    private func linkAnnotation(at point: CGPoint) -> PDFAnnotation? {
+        guard let annotation = page?.annotation(at: point),
+              annotation.type == "Link" else { return nil }
+        return annotation
+    }
+
+    private func followLink(_ annotation: PDFAnnotation) {
+        if let url = annotation.url ?? (annotation.action as? PDFActionURL)?.url {
+            onOpenURL?(url)
+        } else if let dest = annotation.destination ?? (annotation.action as? PDFActionGoTo)?.destination {
+            onGoToDestination?(dest)
+        }
+    }
+
+    private func linkURL(at point: CGPoint) -> URL? {
+        guard let link = linkAnnotation(at: point) else { return nil }
+        return link.url ?? (link.action as? PDFActionURL)?.url
+    }
+
+    // MARK: - Copy
+
+    @objc func copy(_ sender: Any?) {
+        guard let text = selection?.string, !text.isEmpty else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
+    }
+
+    /// Selects all text on the page (⌘A), so ⌘C then copies the whole page.
+    override func selectAll(_ sender: Any?) {
+        guard isTextSelectable, let page else { return }
+        selection = page.selection(for: page.bounds(for: .mediaBox))
+        dragAnchor = nil
+        needsDisplay = true
+    }
+
+    /// Handles ⌘C / ⌘A on the page. `performKeyEquivalent` is dispatched through
+    /// the whole view hierarchy, so this works even though the status-bar app has
+    /// no standard Edit menu.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard isTextSelectable,
+              event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
+        else { return super.performKeyEquivalent(with: event) }
+        switch event.charactersIgnoringModifiers {
+        case "c" where selection?.string?.isEmpty == false:
+            copy(nil)
+            return true
+        case "a":
+            selectAll(nil)
+            return true
+        default:
+            return super.performKeyEquivalent(with: event)
+        }
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard isTextSelectable else { return nil }
+        let menu = NSMenu()
+        if selection?.string?.isEmpty == false {
+            menu.addItem(withTitle: "Copy", action: #selector(copy(_:)), keyEquivalent: "")
+        }
+        menu.addItem(withTitle: "Select All", action: #selector(selectAll(_:)), keyEquivalent: "")
+        return menu
+    }
+
+    // MARK: - Cursor + Tooltip
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        guard isTextSelectable else { return }
+        // Drives the link hover tooltip only — the cursor itself is handled by
+        // cursor rects below (which cooperate with overlapping SwiftUI views).
+        addTrackingArea(NSTrackingArea(
+            rect: bounds,
+            options: [.activeInKeyWindow, .inVisibleRect, .mouseMoved],
+            owner: self
+        ))
+    }
+
+    /// Cursor *rects* (not `NSCursor.set`) so the cursor respects view stacking:
+    /// SwiftUI views layered on top (e.g. the find bar) keep the normal arrow,
+    /// while text shows the I-beam and links show the pointing hand.
+    override func resetCursorRects() {
+        guard isTextSelectable else { return }
+        addCursorRect(bounds, cursor: .iBeam)
+        if let page {
+            for annotation in page.annotations where annotation.type == "Link" {
+                addCursorRect(viewRect(forPageRect: annotation.bounds), cursor: .pointingHand)
+            }
+        }
+    }
+
+    /// Converts a page-space rect (PDF points, bottom-left origin) to view coords.
+    private func viewRect(forPageRect r: CGRect) -> CGRect {
+        guard pdfPointSize.width > 0, pdfPointSize.height > 0 else { return .zero }
+        let kx = bounds.width / pdfPointSize.width
+        let ky = bounds.height / pdfPointSize.height
+        return CGRect(x: r.minX * kx,
+                      y: bounds.height - r.maxY * ky,
+                      width: r.width * kx,
+                      height: r.height * ky)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard isTextSelectable else {
+            super.mouseMoved(with: event)
+            return
+        }
+        // Show the destination URL on hover (transparency before opening).
+        toolTip = linkURL(at: pagePoint(for: event))?.absoluteString
     }
 }
 
@@ -1136,5 +1454,237 @@ private struct GrowingTextField: NSViewRepresentable {
             let callback = parent.onSizeChange
             DispatchQueue.main.async { callback(size) }
         }
+    }
+}
+
+// MARK: - PDF Find Bar
+
+/// A compact find bar overlaid at the top of the editor canvas for in-document
+/// PDF search. `EditorView` owns the query + match state and drives
+/// search/navigation; this view is presentation + input only.
+struct PDFFindBar: View {
+    @Binding var query: String
+    /// 0-based index of the current match; ignored when `totalMatches == 0`.
+    let currentMatch: Int
+    let totalMatches: Int
+    /// Bumped by the parent to (re)focus the field — e.g. when ⌘F is pressed
+    /// while the bar is already open.
+    let focusToken: Int
+
+    var onNext: () -> Void
+    var onPrevious: () -> Void
+    var onClose: () -> Void
+
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .font(.system(size: 12))
+
+            TextField("Find in document", text: $query)
+                .textFieldStyle(.plain)
+                .frame(width: 200)
+                .focused($focused)
+                .onSubmit { onNext() }
+
+            Group {
+                if totalMatches > 0 {
+                    Text("\(currentMatch + 1) of \(totalMatches)")
+                } else if !query.isEmpty {
+                    Text("Not found")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+
+            Divider().frame(height: 16)
+
+            Button(action: onPrevious) {
+                Image(systemName: "chevron.up")
+            }
+            .buttonStyle(.plain)
+            .disabled(totalMatches == 0)
+            .help("Previous match (⇧⏎)")
+
+            Button(action: onNext) {
+                Image(systemName: "chevron.down")
+            }
+            .buttonStyle(.plain)
+            .disabled(totalMatches == 0)
+            .help("Next match (⏎)")
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.plain)
+            .help("Close (Esc)")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
+        .onAppear { focused = true }
+        .onChange(of: focusToken) { _, _ in focused = true }
+    }
+}
+
+// MARK: - Continuous PDF Scroll
+
+/// Read-only vertical scroll of every page in a PDF, used in View mode. Each
+/// page is a vector, text-selectable `PDFPageView` sized to fit the width; there
+/// are no annotation overlays (annotation editing stays in the single-page
+/// canvas). Pages load lazily so large documents stay responsive.
+struct ContinuousPDFView: View {
+    let document: PDFDocument
+    /// Set by the parent (Find / outline / links / page controls) to scroll to a
+    /// page; the view resets it to nil after scrolling.
+    @Binding var scrollTarget: Int?
+    /// Reports the page nearest the viewport centre back to the parent so the
+    /// page indicator tracks scrolling.
+    @Binding var visiblePage: Int
+    var highlights: (PDFPage) -> [PDFSelection] = { _ in [] }
+    var activeHighlight: (PDFPage) -> PDFSelection? = { _ in nil }
+    var onOpenURL: ((URL) -> Void)? = nil
+    var onGoToDestination: ((PDFDestination) -> Void)? = nil
+
+    var body: some View {
+        GeometryReader { geo in
+            let pageWidth = max(geo.size.width - 32, 50)
+            ScrollViewReader { proxy in
+                ScrollView(.vertical) {
+                    LazyVStack(spacing: 14) {
+                        ForEach(0..<document.pageCount, id: \.self) { i in
+                            pageRow(i, width: pageWidth).id(i)
+                        }
+                    }
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity)
+                }
+                .coordinateSpace(name: "continuousPDF")
+                .onPreferenceChange(ContinuousPageMidKey.self) { mids in
+                    let center = geo.size.height / 2
+                    if let nearest = mids.min(by: { abs($0.value - center) < abs($1.value - center) }),
+                       nearest.key != visiblePage {
+                        visiblePage = nearest.key
+                    }
+                }
+                .onChange(of: scrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo(target, anchor: .top)
+                    }
+                    DispatchQueue.main.async { scrollTarget = nil }
+                }
+                .onAppear {
+                    if visiblePage > 0 { proxy.scrollTo(visiblePage, anchor: .top) }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pageRow(_ i: Int, width: CGFloat) -> some View {
+        if let page = document.page(at: i) {
+            let size = page.rotatedMediaBoxSize
+            let aspect = size.height > 0 ? size.width / size.height : 0.75
+            let height = aspect > 0 ? width / aspect : width
+            PDFPageView(
+                page: page,
+                pointSize: size,
+                isTextSelectable: true,
+                searchHighlights: highlights(page),
+                activeSearchHighlight: activeHighlight(page),
+                onOpenURL: onOpenURL,
+                onGoToDestination: onGoToDestination
+            )
+            .frame(width: width, height: height)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 2)
+            .background(
+                GeometryReader { g in
+                    Color.clear.preference(
+                        key: ContinuousPageMidKey.self,
+                        value: [i: g.frame(in: .named("continuousPDF")).midY]
+                    )
+                }
+            )
+        }
+    }
+}
+
+/// Reports each rendered page's vertical midpoint so the container can pick the
+/// page nearest the viewport centre.
+private struct ContinuousPageMidKey: PreferenceKey {
+    static var defaultValue: [Int: CGFloat] = [:]
+    static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
+// MARK: - PDF Document Info
+
+/// A small modal showing the PDF's metadata (⌘I). Presented as a sheet by
+/// `EditorView`.
+struct PDFInfoView: View {
+    let document: PDFDocument
+    let page: PDFPage?
+    let url: URL?
+    var onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Document Info").font(.headline)
+                Spacer()
+                Button("Done", action: onClose)
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(.bottom, 14)
+
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 8) {
+                ForEach(infoRows, id: \.0) { row in
+                    GridRow {
+                        Text(row.0)
+                            .foregroundStyle(.secondary)
+                            .gridColumnAlignment(.trailing)
+                        Text(row.1)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .frame(width: 380)
+    }
+
+    private var infoRows: [(String, String)] {
+        var rows: [(String, String)] = []
+        let attrs = document.documentAttributes ?? [:]
+        if let title = attrs[PDFDocumentAttribute.titleAttribute] as? String, !title.isEmpty {
+            rows.append(("Title", title))
+        }
+        if let author = attrs[PDFDocumentAttribute.authorAttribute] as? String, !author.isEmpty {
+            rows.append(("Author", author))
+        }
+        rows.append(("Pages", "\(document.pageCount)"))
+        if let url {
+            rows.append(("File", url.lastPathComponent))
+            if let bytes = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                rows.append(("Size", ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)))
+            }
+        }
+        if let page {
+            let s = page.rotatedMediaBoxSize
+            rows.append(("Page size", "\(Int(s.width.rounded())) × \(Int(s.height.rounded())) pt"))
+        }
+        return rows
     }
 }
