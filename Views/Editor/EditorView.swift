@@ -267,6 +267,19 @@ struct EditorView: View {
 
     // Alerts
     @State private var showTrashAlert: Bool = false
+
+    /// "Apply background & effects to all open images" — when on, the active
+    /// image's wallpaper, padding, corner radius, shadow, alignment and aspect
+    /// ratio are mirrored onto every other open image as they're edited.
+    @State private var applyTemplateToAllImages = false
+    /// Drives the confirm alert shown when enabling the toggle would overwrite
+    /// other images' individual template edits.
+    @State private var showApplyToAllConfirm = false
+    /// Debounce token for the coalesced sibling template re-render.
+    @State private var siblingSyncToken = 0
+    /// Debounce token for refreshing the active image's own thumbnail as its
+    /// display image changes (so the strip updates without leaving the image).
+    @State private var activeThumbnailToken = 0
     @State private var keyMonitor: Any?
     @State private var magnifyMonitor: Any?
     @State private var middleMouseMonitor: Any?
@@ -353,6 +366,18 @@ struct EditorView: View {
 
     var body: some View {
         bodyWithObservers
+            // Kept on this outer layer (not in `bodyWithObservers`) so the long
+            // observer chain stays within the Swift type-checker's budget.
+            .onChange(of: templateSignature) { _, _ in
+                guard !isRestoringSession, applyTemplateToAllImages else { return }
+                scheduleSiblingTemplateSync()
+            }
+            .alert("Apply to all open images?", isPresented: $showApplyToAllConfirm) {
+                Button("Cancel", role: .cancel) {}
+                Button("Apply to All") { confirmApplyTemplateToAllImages() }
+            } message: {
+                Text("This replaces every other open image's background and effects with the current image's style. Annotations, crops and photo adjustments are kept.")
+            }
     }
 
     // Split into two computed properties to help the Swift type checker
@@ -675,7 +700,9 @@ struct EditorView: View {
             watermarkSettings: watermarkSettingsBinding,
             onPickWatermarkImage: pickWatermarkImage,
             imagePixelSize: imagePixelSize,
-            onResizeImage: resizeImage
+            onResizeImage: resizeImage,
+            applyToAllImagesAvailable: applyToAllImagesAvailable,
+            applyTemplateToAllImages: applyTemplateToAllImagesBinding
         )
         .frame(width: 260)
         .background(.thickMaterial)
@@ -836,8 +863,18 @@ struct EditorView: View {
         // At this scale the image displays at the same size as the original window.
         let trueSizeScale = 1.0 / displayBackingScale
 
-        // Fit to view, but never scale up beyond true size.
-        fitScale = min(min(scaleX, scaleY), trueSizeScale)
+        let fitToView = min(scaleX, scaleY)
+        if isPDFSession {
+            // A PDF page renders as live vector content (re-rasterized sharp at
+            // any zoom), so fit it to the viewport even when that means scaling
+            // *up* past true size — a small page should fill the window like any
+            // PDF viewer, and "Fit" should enlarge it rather than pin it at 100%.
+            fitScale = fitToView
+        } else {
+            // Raster screenshots: fit to view, but never scale up beyond true
+            // size — upscaling a bitmap past 1:1 only makes it blurry.
+            fitScale = min(fitToView, trueSizeScale)
+        }
     }
 
     private func zoomIn() {
@@ -1042,6 +1079,144 @@ struct EditorView: View {
         // template settings will be picked up on first activation by loadImage.
         if session.rawImage != nil {
             renderSessionDisplay(session)
+        }
+    }
+
+    // MARK: - Apply Background & Effects To All Images
+
+    /// True when the toggle should be offered: more than one raster image is
+    /// open. PDF pages never take a background, so they don't count.
+    private var applyToAllImagesAvailable: Bool {
+        sessions.filter { !$0.isPDF }.count > 1
+    }
+
+    /// The template fields mirrored by "apply to all". Used as one `onChange`
+    /// trigger so a change to any of them syncs the others.
+    private struct TemplateSignature: Equatable {
+        var wallpaper: WallpaperSource?
+        var padding: Int
+        var cornerRadius: Int
+        var shadow: Double
+        var alignment: CanvasAlignment
+        var aspectRatioID: UUID?
+    }
+    private var templateSignature: TemplateSignature {
+        TemplateSignature(
+            wallpaper: selectedWallpaper, padding: editorPadding,
+            cornerRadius: editorCornerRadius, shadow: shadowIntensity,
+            alignment: screenshotAlignment, aspectRatioID: editorAspectRatioID
+        )
+    }
+
+    /// Binding for the sidebar toggle. Turning it on while other images carry
+    /// diverging template edits routes through a confirmation first.
+    private var applyTemplateToAllImagesBinding: Binding<Bool> {
+        Binding(
+            get: { applyTemplateToAllImages },
+            set: { newValue in
+                if newValue {
+                    if otherImagesDivergeFromActiveTemplate() {
+                        showApplyToAllConfirm = true   // ask before overwriting
+                    } else {
+                        applyTemplateToAllImages = true
+                    }
+                } else {
+                    applyTemplateToAllImages = false
+                }
+            }
+        )
+    }
+
+    /// True if any other open image's background/effects differ from the active
+    /// image's — i.e. enabling "apply to all" would overwrite individual edits.
+    private func otherImagesDivergeFromActiveTemplate() -> Bool {
+        for session in sessions
+        where session.id != activeSessionID && !session.isPDF {
+            if session.selectedWallpaper != selectedWallpaper
+                || session.editorPadding != editorPadding
+                || session.editorCornerRadius != editorCornerRadius
+                || session.shadowIntensity != shadowIntensity
+                || session.screenshotAlignment != screenshotAlignment
+                || session.editorAspectRatioID != editorAspectRatioID {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Confirm-handler for the alert: enable the toggle and push the active
+    /// image's style onto every other open image right away.
+    private func confirmApplyTemplateToAllImages() {
+        applyTemplateToAllImages = true
+        flushPendingDisplayRender()
+        applyCurrentTemplateToOtherImages()
+    }
+
+    /// Coalesced (debounced) sibling sync used during live edits, so a slider
+    /// drag re-renders the other images once it settles, not every tick.
+    private func scheduleSiblingTemplateSync() {
+        guard applyTemplateToAllImages, applyToAllImagesAvailable else { return }
+        siblingSyncToken &+= 1
+        let token = siblingSyncToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            guard token == siblingSyncToken else { return }   // superseded
+            applyCurrentTemplateToOtherImages()
+        }
+    }
+
+    /// Run any pending sibling sync immediately (before a session switch/save).
+    private func flushSiblingTemplateSync() {
+        guard applyTemplateToAllImages else { return }
+        siblingSyncToken &+= 1   // cancel any pending debounce
+        applyCurrentTemplateToOtherImages()
+    }
+
+    /// Copies the active image's background + effects (wallpaper, padding,
+    /// corner radius, shadow, alignment, aspect ratio) onto every other open
+    /// image, shifting each one's annotations to track the new template canvas
+    /// and re-rendering it. Watermark, photo adjustments, crop, rotation and
+    /// annotations stay per-image; PDF pages are skipped (they take no
+    /// background). Mirrors `applyTemplate(_:toSession:)` but reads live @State
+    /// instead of a preset and leaves the watermark untouched.
+    private func applyCurrentTemplateToOtherImages() {
+        let activeRatio = selectedEditorAspectRatio?.ratio
+        for session in sessions
+        where session.id != activeSessionID && !session.isPDF {
+            let cropSize = session.screenshotCropRect.isEmpty
+                ? (session.rawImage?.size ?? session.imagePixelSize)
+                : session.screenshotCropRect.size
+            let oldRatio = editorAspectRatios.first(where: { $0.id == session.editorAspectRatioID })?.ratio
+            let oldOrigin: CGPoint = (session.selectedWallpaper != nil)
+                ? screenshotOriginInTemplatedCanvas(
+                    screenshotPixelSize: cropSize, padding: session.editorPadding,
+                    aspectRatio: oldRatio, alignment: session.screenshotAlignment)
+                : .zero
+            let newOrigin: CGPoint = (selectedWallpaper != nil)
+                ? screenshotOriginInTemplatedCanvas(
+                    screenshotPixelSize: cropSize, padding: editorPadding,
+                    aspectRatio: activeRatio, alignment: screenshotAlignment)
+                : .zero
+            let delta = CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y)
+            if (delta.x != 0 || delta.y != 0), !session.annotations.isEmpty {
+                session.annotations = session.annotations.map { ann in
+                    var a = ann
+                    a.startPoint = CGPoint(x: ann.startPoint.x + delta.x, y: ann.startPoint.y + delta.y)
+                    a.endPoint = CGPoint(x: ann.endPoint.x + delta.x, y: ann.endPoint.y + delta.y)
+                    if !ann.points.isEmpty {
+                        a.points = ann.points.map { CGPoint(x: $0.x + delta.x, y: $0.y + delta.y) }
+                    }
+                    return a
+                }
+            }
+            session.selectedWallpaper = selectedWallpaper
+            session.editorPadding = editorPadding
+            session.editorCornerRadius = editorCornerRadius
+            session.shadowIntensity = shadowIntensity
+            session.screenshotAlignment = screenshotAlignment
+            session.editorAspectRatioID = editorAspectRatioID
+            if session.rawImage != nil {
+                renderSessionDisplay(session)
+            }
         }
     }
 
@@ -1385,6 +1560,23 @@ struct EditorView: View {
         imagePixelSize = size
         cropRect = CGRect(origin: .zero, size: size)
         updateFitScale(viewSize: lastViewSize)
+        // Keep the active image's own thumbnail in step with its live display,
+        // so the strip updates while you stay on the image (e.g. changing the
+        // background) instead of only after switching away and back.
+        scheduleActiveThumbnailRefresh()
+    }
+
+    /// Debounced refresh of the active session's thumbnail from its current
+    /// display image. Debounced because a slider drag commits many frames — only
+    /// the last needs a new thumbnail. Skipped when no strip is shown.
+    private func scheduleActiveThumbnailRefresh() {
+        guard sessions.count > 1 else { return }
+        activeThumbnailToken &+= 1
+        let token = activeThumbnailToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            guard token == activeThumbnailToken, let active = activeSession else { return }
+            active.generateThumbnail(from: image)
+        }
     }
 
     // MARK: - Crop
@@ -2905,6 +3097,7 @@ struct EditorView: View {
         // Settle any in-flight render/shift so the stored session state is a
         // consistent image + annotations pair.
         flushPendingDisplayRender()
+        flushSiblingTemplateSync()
         saveActiveSessionState()
         activeSessionID = id
         restoreSessionState(from: target)

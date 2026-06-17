@@ -62,6 +62,14 @@ struct EditorSidebarView: View {
     var imagePixelSize: CGSize
     var onResizeImage: (Int, Int) -> Void
 
+    /// Whether to offer the "apply to all images" toggle — true when more than
+    /// one raster image is open (PDF pages take no background, so don't count).
+    var applyToAllImagesAvailable: Bool = false
+    /// When on, the active image's background + effects are mirrored onto every
+    /// other open image. The binding routes a "would overwrite edits" case
+    /// through a confirmation in `EditorView`.
+    @Binding var applyTemplateToAllImages: Bool
+
     @State private var colorPopoverVisible = false
     @State private var fillColorPopoverVisible = false
     @State private var sizePopoverVisible = false
@@ -208,6 +216,10 @@ struct EditorSidebarView: View {
                             sectionDivider
                             paddingShadowCornersSection
                             sectionDivider
+                            if applyToAllImagesAvailable {
+                                applyToAllImagesRow
+                                sectionDivider
+                            }
                             alignmentRatioSection
                             sectionDivider
                         }
@@ -253,6 +265,30 @@ struct EditorSidebarView: View {
             return "\(template.name) *"
         }
         return template.name
+    }
+
+    /// Toggle shown when several images are open: mirror the current image's
+    /// background + effects onto all the others as they're edited.
+    private var applyToAllImagesRow: some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Apply to all images")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                Text("Use this background & effects for every open image")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Toggle("", isOn: $applyTemplateToAllImages)
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
     }
 
     private var toolsSection: some View {

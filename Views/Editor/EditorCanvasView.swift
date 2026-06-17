@@ -98,6 +98,15 @@ struct EditorCanvasView: View {
     private var canvasWidth: CGFloat { imagePixelSize.width * scale }
     private var canvasHeight: CGFloat { imagePixelSize.height * scale }
 
+    /// Corner radius for the display-time "card" treatment — subtle rounded
+    /// corners + drop shadow shown when no template background is applied,
+    /// consistent across screenshots, images, and PDF pages (single or
+    /// multiple). It's zero when a background is present, since the composed
+    /// template image already carries its own corners; PDFs never take a
+    /// background, so they always round. Display-only — the exported/raw image
+    /// is unaffected.
+    private var cardCornerRadius: CGFloat { showBorderOutline ? 6 : 0 }
+
     /// PDF text selection is active in View mode (always) and when the Text
     /// Selection tool is chosen in Annotate mode. Only PDF pages have a text
     /// layer, so it never applies to raster images.
@@ -138,13 +147,14 @@ struct EditorCanvasView: View {
                                 onOpenURL: onOpenPDFURL,
                                 onGoToDestination: onGoToPDFDestination)
                     .frame(width: canvasWidth, height: canvasHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
                     .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 3)
                 } else {
                     Image(nsImage: image)
                         .resizable()
                         .interpolation(.high)
                         .frame(width: canvasWidth, height: canvasHeight)
+                        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
                         .shadow(color: showBorderOutline ? .black.opacity(0.18) : .clear, radius: 10, x: 0, y: 3)
                 }
             }
@@ -152,7 +162,7 @@ struct EditorCanvasView: View {
             .overlay(
                 Group {
                     if showBorderOutline {
-                        RoundedRectangle(cornerRadius: pdfPageSource != nil ? 6 : 0, style: .continuous)
+                        RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                             .stroke(Color.primary.opacity(0.15), lineWidth: 1)
                     }
                 }

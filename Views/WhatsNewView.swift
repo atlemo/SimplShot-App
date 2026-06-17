@@ -7,6 +7,12 @@ struct WhatsNewEntry {
 
 /// Hardcoded changelog — add new entries at the top before each release.
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.6.8", items: [
+        "Apply one look to every open image at once — switch on “Apply to all images” in the editor sidebar to share the same background, padding, corner radius, shadow and alignment across all your open screenshots. If some images are already styled differently, SimplShot asks before replacing them.",
+        "PDFs now open zoomed to fit the window — the page fills the available space instead of opening small, and the Fit button scales it up to fit, not just down.",
+        "Screenshots without a background again show with subtle rounded corners and a soft drop shadow, matching the look used for PDF pages.",
+        "Thumbnails in the open-images strip now update live as you restyle an image, so they always match what you see.",
+    ]),
     WhatsNewEntry(version: "1.6.7", items: [
         "You can now open password-protected PDFs — SimplShot asks for the password and unlocks the document",
         "Much smoother editing: adjusting padding, background, alignment or aspect ratio no longer makes annotations wobble, and the preview keeps up with fast slider drags",
