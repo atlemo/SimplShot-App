@@ -18,7 +18,6 @@ struct EditorBottomToolbarView: View {
     var onTrash: () -> Void
     var onCancel: () -> Void
     var onSaveAs: () -> Void
-    var onPrint: () -> Void
 
     // Right — annotations + zoom
     let annotationsCount: Int
@@ -30,6 +29,9 @@ struct EditorBottomToolbarView: View {
     var onActualSize: () -> Void = {}
 
     @AppStorage("debugSimulateSonomaAppearance") private var simulateSonoma = false
+    /// Global toggle (View ▸ Display pixel dimensions). Off by default, so neither
+    /// screenshots nor PDFs show the px readout until the user opts in.
+    @AppStorage(Constants.UserDefaultsKeys.displayPixelDimensions) private var displayPixelDimensions = false
 
     private var useGlass: Bool {
         guard #available(macOS 26, *) else { return false }
@@ -44,7 +46,7 @@ struct EditorBottomToolbarView: View {
                     if useTemplateBackground && !hideSliders {
                         sliders
                             .pillBackground(useGlass: useGlass)
-                    } else if imagePixelSize != .zero {
+                    } else if displayPixelDimensions && imagePixelSize != .zero {
                         Text("\(Int(imagePixelSize.width)) × \(Int(imagePixelSize.height)) px")
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.secondary)
@@ -163,19 +165,6 @@ struct EditorBottomToolbarView: View {
             }
             .buttonStyle(ToolbarHoverButtonStyle())
             .help("Save a copy")
-            .keyboardShortcut("s", modifiers: [.command, .shift])
-
-            Divider().frame(height: 16).padding(.horizontal, 2)
-
-            Button(action: onPrint) {
-                Label("Print", systemImage: "printer")
-                    .labelStyle(.iconOnly)
-                    .frame(width: 36, height: pillHeight)
-                    .contentShape(RoundedRectangle(cornerRadius: 8))
-            }
-            .buttonStyle(ToolbarHoverButtonStyle())
-            .help("Print")
-            .keyboardShortcut("p", modifiers: .command)
         }
         .padding(.horizontal, 4)
     }
@@ -241,7 +230,10 @@ struct EditorBottomToolbarView: View {
 
 // MARK: - Hover button style
 
-private struct ToolbarHoverButtonStyle: ButtonStyle {
+/// Icon/text toolbar button whose hover highlight hugs the label (via the
+/// label's own frame + contentShape) instead of the oversized default toolbar
+/// button background. Shared by the bottom bar and the PDF page navigator.
+struct ToolbarHoverButtonStyle: ButtonStyle {
     @State private var isHovered = false
 
     func makeBody(configuration: Configuration) -> some View {
@@ -258,7 +250,7 @@ private struct ToolbarHoverButtonStyle: ButtonStyle {
 
 // MARK: - Pill background helper
 
-private extension View {
+extension View {
     @ViewBuilder
     func pillBackground(useGlass: Bool) -> some View {
         if #available(macOS 26, *), useGlass {

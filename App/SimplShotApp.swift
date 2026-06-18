@@ -4,6 +4,7 @@ import SwiftUI
 struct SimplShotApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.openSettings) private var openSettings
+    @AppStorage(Constants.UserDefaultsKeys.displayPixelDimensions) private var displayPixelDimensions = false
 
     var body: some Scene {
         let _ = installOpenSettings()
@@ -22,12 +23,36 @@ struct SimplShotApp: App {
                 }
             }
 
+            // Save As / Print — routed to the key editor window. No-ops when no
+            // editor window is focused (like the Go and Find commands).
+            CommandGroup(after: .saveItem) {
+                Button("Save As…") {
+                    EditorWindowController.sendActionToKeyWindow("saveAs")
+                }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+            }
+
+            CommandGroup(after: .printItem) {
+                Button("Print…") {
+                    EditorWindowController.sendActionToKeyWindow("print")
+                }
+                .keyboardShortcut("p", modifiers: .command)
+            }
+
             CommandGroup(after: .toolbar) {
                 Divider()
                 editorModeToggle(.annotate, shortcut: "1")
                 editorModeToggle(.edit, shortcut: "2")
                     .disabled(!EditorWindowController.canSetMode(.edit))
                 editorModeToggle(.view, shortcut: "3")
+
+                Divider()
+                Toggle("Display Pixel Dimensions", isOn: $displayPixelDimensions)
+                // Trailing divider fences this item into its own section so it
+                // isn't grouped with the icon-bearing system "Enter Full Screen"
+                // item below it — otherwise macOS reserves an icon column for the
+                // whole section and indents this checkmark-only item.
+                Divider()
             }
 
             // Find — in the Edit menu. No-ops on non-PDF / non-editor windows.

@@ -62,6 +62,10 @@ struct ThumbnailStripView: View {
     private enum NavTab { case thumbnails, outline }
     private var hasOutline: Bool { !outline.isEmpty }
 
+    /// The strip's fixed width — wider when the outline tab is available. Exposed
+    /// so callers (e.g. the continuous PDF view) can reserve matching space.
+    static func width(hasOutline: Bool) -> CGFloat { hasOutline ? 190 : 90 }
+
     var body: some View {
         VStack(spacing: 6) {
             if hasOutline {
@@ -81,7 +85,7 @@ struct ThumbnailStripView: View {
                 thumbnailList
             }
         }
-        .frame(width: hasOutline ? 190 : 90)
+        .frame(width: Self.width(hasOutline: hasOutline))
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }

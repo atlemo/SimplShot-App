@@ -66,5 +66,6 @@ enum Constants {
         static let screenRecordingWasEverGranted = "screenRecordingWasEverGranted"
         static let screenRecordingLastGrantDate = "screenRecordingLastGrantDate"
         static let screenRecordingHasRequested = "screenRecordingHasRequested"
+        static let displayPixelDimensions = "displayPixelDimensions"
     }
 }

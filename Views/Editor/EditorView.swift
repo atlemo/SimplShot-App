@@ -219,7 +219,14 @@ struct EditorView: View {
 
         // Always start with the sidebar shown — simple mode has been removed.
         _columnVisibility = State(initialValue: .all)
-        _watermarkSettings = State(initialValue: resolvedTemplate.watermarkSettings)
+        // The watermark is part of the template, so it auto-applies only when the
+        // user has templates enabled in Settings ("Apply selected template to
+        // screenshots"). With the toggle off the image opens with no watermark,
+        // matching the no-background behaviour in `onAppear`.
+        let useTemplate = appSettings?.screenshotTemplate.isEnabled ?? false
+        _watermarkSettings = State(initialValue:
+            useTemplate ? resolvedTemplate.watermarkSettings : WatermarkSettings()
+        )
 #if !APPSTORE
         _editorAspectRatioID = State(initialValue:
             preferOriginalAspectRatio ? nil : appSettings?.selectedRatioID
@@ -392,13 +399,18 @@ struct EditorView: View {
                 // Templates (background, padding, shadow) never auto-apply to a
                 // PDF — only screenshots get the beautification treatment by
                 // default. PDFs would need an explicit opt-in.
-                if !isPDFSession {
-                    if appSettings.editorUseTemplateBackground || appSettings.screenshotTemplate.isEnabled {
-                        selectedWallpaper = template.wallpaperSource
-                    }
-                    if let savedTemplate = appSettings.selectedEditorTemplate {
-                        applyEditorTemplate(savedTemplate)
-                    }
+                //
+                // And only when the user has turned templates on in Settings
+                // ("Apply selected template to screenshots",
+                // `screenshotTemplate.isEnabled`). With the toggle off the
+                // screenshot opens as-is — `selectedWallpaper` stays nil.
+                // Previously the editor's selected template (which defaults to the
+                // first in the list) was applied unconditionally, so every
+                // screenshot got a background regardless of the setting.
+                if !isPDFSession,
+                   appSettings.screenshotTemplate.isEnabled,
+                   let savedTemplate = appSettings.selectedEditorTemplate {
+                    applyEditorTemplate(savedTemplate)
                 }
             }
             loadImage()
@@ -591,67 +603,35 @@ struct EditorView: View {
         // Scoped animation: only animates the sidebar's insertion/removal transition.
         .animation(.easeInOut(duration: 0.2), value: showProSidebar)
         .animation(.easeInOut(duration: 0.2), value: editorMode)
-        .toolbar {
-            // [PDF page navigation] — leading, PDF sessions only.
-            ToolbarItem(placement: .automatic) {
-                if isPDFSession {
-                    pdfPageNavigator
-                }
-            }
-
-            // [flexible spacer] — keeps mode toggle centred
-            ToolbarItem(placement: .automatic) {
-                Spacer()
-            }
-
-            // [Mode Toggle] — Annotate | Edit | View. Sidebar visibility is driven
-            // by the mode (View hides it), so no separate panel-toggle button is needed.
-            ToolbarItem(placement: .automatic) {
-                EditorModeToggle(editorMode: $editorMode, isPDFSession: isPDFSession)
-            }
-
-            // [flexible spacer] — pins Undo & Done to far right
-            ToolbarItem(placement: .automatic) {
-                Spacer()
-            }
-
-            // [Undo & Done buttons] — far right, each in its own item to prevent style bleed
-            ToolbarItem(placement: .automatic) {
-                Button(action: undo) {
-                    Image(systemName: "arrow.uturn.backward")
-                }
-                .buttonStyle(.bordered)
-                .help("Undo")
-                .keyboardShortcut("z", modifiers: .command)
-                .disabled(undoStack.isEmpty)
-            }
-            ToolbarItem(placement: .automatic) {
-                // With multiple images the clipboard can only hold one, so we drop the
-                // "& Copy" suffix and skip the clipboard write (see saveOverwrite).
-                // For an unedited PDF, label becomes "Done" since there's nothing to save.
-                let isMulti = sessions.count > 1
-                let isPDFDone = isPDFSession && !pdfDocumentHasEdits
-                let hasEdits = anySessionHasEdits
-                let label: String = isPDFDone
-                    ? "Done"
-                    : isMulti
-                        ? (hasEdits ? "Save All" : "Done")
-                        : (hasEdits ? "Save & Copy" : "Copy")
-                let help: String = isPDFDone
-                    ? "Close the document"
-                    : isMulti
-                        ? (hasEdits ? "Save all open images and close" : "Close all images")
-                        : (hasEdits ? "Save, close and copy the image to your clipboard" : "Copy the image to your clipboard")
-                Button(action: saveOverwrite) {
-                    Text(label)
-                        .padding(.horizontal, 6)
-                }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut("s", modifiers: .command)
-                    .help(help)
-            }
-        }
+        // Top controls are NOT a window toolbar — see `topActionBar`, which lives
+        // inside `detailContent` (right of the sidebar) so it follows the content
+        // and slides with the sidebar, mirroring the bottom toolbar.
     }
+
+    // MARK: - Toolbar Trailing Action
+
+    /// Trailing save/done/copy button label (depends on session count, PDF edit
+    /// state, and whether anything's been edited).
+    private var saveActionLabel: String {
+        let isMulti = sessions.count > 1
+        let isPDFDone = isPDFSession && !pdfDocumentHasEdits
+        let hasEdits = anySessionHasEdits
+        if isPDFDone { return "Done" }
+        if isMulti { return hasEdits ? "Save All" : "Done" }
+        return hasEdits ? "Save & Copy" : "Copy"
+    }
+
+    private var saveActionHelp: String {
+        let isMulti = sessions.count > 1
+        let isPDFDone = isPDFSession && !pdfDocumentHasEdits
+        let hasEdits = anySessionHasEdits
+        if isPDFDone { return "Close the document" }
+        if isMulti { return hasEdits ? "Save all open images and close" : "Close all images" }
+        return hasEdits ? "Save, close and copy the image to your clipboard" : "Copy the image to your clipboard"
+    }
+
+    /// Width of the Annotate/Edit sidebar (kept in sync with `sidebarContent`).
+    private let sidebarWidth: CGFloat = 260
 
     // MARK: - Sidebar Content
 
@@ -704,15 +684,106 @@ struct EditorView: View {
             applyToAllImagesAvailable: applyToAllImagesAvailable,
             applyTemplateToAllImages: applyTemplateToAllImagesBinding
         )
-        .frame(width: 260)
+        .frame(width: sidebarWidth)
         .background(.thickMaterial)
+    }
+
+    // MARK: - Top Action Bar
+
+    @AppStorage("debugSimulateSonomaAppearance") private var simulateSonoma = false
+
+    /// Glass on macOS 26 (unless the Sonoma-appearance debug flag is set) — same
+    /// rule `EditorBottomToolbarView` uses, so both bars share one material.
+    private var topBarUseGlass: Bool {
+        guard #available(macOS 26, *) else { return false }
+        return !simulateSonoma
+    }
+
+    @ViewBuilder
+    private func topBarGlassContainer<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        if #available(macOS 26, *), !simulateSonoma {
+            GlassEffectContainer(spacing: 8) { content() }
+        } else {
+            content()
+        }
+    }
+
+    /// Top controls in three zones (mirrors `EditorBottomToolbarView`): Undo
+    /// (+ PDF page nav) in glass pills on the leading edge — same x-position as
+    /// the bottom bar's pixel-dimensions readout — the glass-pill mode toggle
+    /// centred, and the prominent blue Save/Copy button trailing. Both side zones
+    /// expand equally so the toggle centres over the canvas; living in
+    /// `detailContent` (right of the sidebar) makes the whole bar slide with it.
+    private var topActionBar: some View {
+        topBarGlassContainer {
+            HStack(alignment: .center, spacing: 0) {
+                // Leading — Undo, then PDF page navigator (PDF sessions only),
+                // each in its own glass pill.
+                HStack(spacing: 8) {
+                    if editorMode == .view {
+                        Color.clear
+                            .frame(width: 34, height: 30)
+                    } else {
+                        Button(action: undo) {
+                            Image(systemName: "arrow.uturn.backward")
+                                .frame(width: 34, height: 30)
+                                .contentShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(ToolbarHoverButtonStyle())
+                        .help("Undo")
+                        .keyboardShortcut("z", modifiers: .command)
+                        .disabled(undoStack.isEmpty)
+                        .pillBackground(useGlass: topBarUseGlass)
+                    }
+
+                    if isPDFSession {
+                        pdfPageNavigator
+                            .pillBackground(useGlass: topBarUseGlass)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Centre — mode toggle (draws its own glass pill)
+                EditorModeToggle(editorMode: $editorMode, isPDFSession: isPDFSession)
+
+                // Trailing — Save / Copy (primary)
+                Group {
+                    if #available(macOS 26, *), topBarUseGlass {
+                        Button(action: saveOverwrite) {
+                            Text(saveActionLabel)
+                                .padding(.horizontal, 6)
+                        }
+                        .buttonStyle(.glassProminent)
+                    } else {
+                        Button(action: saveOverwrite) {
+                            Text(saveActionLabel)
+                                .padding(.horizontal, 6)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+                .controlSize(.large)
+                .buttonBorderShape(.capsule)
+                .help(saveActionHelp)
+                .keyboardShortcut("s", modifiers: .command)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+        }
     }
 
     // MARK: - Detail Content
 
     private var detailContent: some View {
         VStack(spacing: 0) {
-            ZStack(alignment: .trailing) {
+            topActionBar
+            // Canvas and thumbnail strip are siblings (not an overlay) so the
+            // strip reserves its own width — the canvas `GeometryReader` then
+            // measures only the visible area, keeping fit-to-window and page
+            // content clear of the strip in every mode.
+            HStack(spacing: 0) {
                 GeometryReader { geo in
                     Group {
                         if isContinuousPDF, let doc = pdfDocument {
@@ -742,6 +813,7 @@ struct EditorView: View {
                                     activeSearchHighlight: activeSearchHighlightForPage,
                                     onOpenPDFURL: openPDFLinkURL,
                                     onGoToPDFDestination: goToPDFDestination,
+                                    onFlipPDFPage: { goToAdjacentPDFPage($0) },
                                     shadowIntensity: 0,
                                     showBorderOutline: selectedWallpaper == nil,
                                     annotations: $annotations,
@@ -774,12 +846,31 @@ struct EditorView: View {
                         updateFitScale(viewSize: newSize)
                     }
                 }
+                // Find bar overlays the canvas (not the strip) so it stays
+                // centred over the page content.
+                .overlay(alignment: .top) {
+                    if isFindBarVisible {
+                        PDFFindBar(
+                            query: $findQuery,
+                            currentMatch: currentMatchIndex,
+                            totalMatches: findMatches.count,
+                            focusToken: findFocusToken,
+                            onNext: findNext,
+                            onPrevious: findPrevious,
+                            onClose: closeFindBar
+                        )
+                        .padding(.top, 12)
+                        .onChange(of: findQuery) { _, _ in runSearch() }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+                .animation(.easeInOut(duration: 0.15), value: isFindBarVisible)
 
                 if sessions.count > 1 {
                     ThumbnailStripView(
                         sessions: sessions,
-                        activeID: activeSessionID,
-                        onSelect: { switchToSession($0) },
+                        activeID: thumbnailActiveID,
+                        onSelect: { selectPageSession($0) },
                         onRemove: { removeSession($0) },
                         onMove: { from, to in
                             sessions.move(fromOffsets: IndexSet(integer: from),
@@ -789,27 +880,11 @@ struct EditorView: View {
                         activePageIndex: activeSession?.pdfPageSource?.pageIndex,
                         onSelectOutline: { selectOutlineNode($0) }
                     )
+                    .padding(.leading, 8)
                     .padding(.trailing, 12)
                     .padding(.vertical, 12)
                 }
             }
-            .overlay(alignment: .top) {
-                if isFindBarVisible {
-                    PDFFindBar(
-                        query: $findQuery,
-                        currentMatch: currentMatchIndex,
-                        totalMatches: findMatches.count,
-                        focusToken: findFocusToken,
-                        onNext: findNext,
-                        onPrevious: findPrevious,
-                        onClose: closeFindBar
-                    )
-                    .padding(.top, 12)
-                    .onChange(of: findQuery) { _, _ in runSearch() }
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
-            .animation(.easeInOut(duration: 0.15), value: isFindBarVisible)
 
             EditorBottomToolbarView(
                 imagePixelSize: imagePixelSize,
@@ -822,7 +897,6 @@ struct EditorView: View {
                 onTrash: { showTrashAlert = true },
                 onCancel: cancelEdits,
                 onSaveAs: saveAs,
-                onPrint: printImage,
                 annotationsCount: annotations.count,
                 displayZoomPercent: Int(displayZoomPercent),
                 onZoomOut: zoomOut,
@@ -834,6 +908,7 @@ struct EditorView: View {
             .offset(y: -3)
         }
         .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
+        .ignoresSafeArea(.container, edges: .top)
     }
 
     // MARK: - Zoom
@@ -2300,24 +2375,31 @@ struct EditorView: View {
 
         let scaleFactor = (fitScale * newZoom) / oldScale
 
+        // Keep the content point under the cursor pinned across the zoom step.
+        // The document view is FLIPPED (top-left origin, y-down), so do all the
+        // math in its own coordinate space — never mix in window coords, which
+        // are y-up. `convert(_:from: nil)` maps the cursor straight into doc
+        // space (handling both the flip and the current scroll), and
+        // `documentVisibleRect` is already in that same space. The previous
+        // version combined a y-up cursor offset with a y-down scroll origin,
+        // inverting the vertical anchor so content drifted out of view on pinch.
         let windowPoint = magnifyState.lastLocationInWindow
-        let scrollOrigin = scrollView.documentVisibleRect.origin
-        let scrollViewWindowOrigin = scrollView.convert(NSPoint.zero, to: nil)
+        let visibleRect = scrollView.documentVisibleRect
+        var newOrigin = visibleRect.origin
 
-        let cursorInClip = NSPoint(
-            x: windowPoint.x - scrollViewWindowOrigin.x,
-            y: windowPoint.y - scrollViewWindowOrigin.y
-        )
-
-        let contentPoint = NSPoint(
-            x: scrollOrigin.x + cursorInClip.x,
-            y: scrollOrigin.y + cursorInClip.y
-        )
-
-        let newOrigin = NSPoint(
-            x: contentPoint.x * scaleFactor - cursorInClip.x,
-            y: contentPoint.y * scaleFactor - cursorInClip.y
-        )
+        if let docView = scrollView.documentView {
+            // Content point currently under the cursor (current scale).
+            let cursorInDoc = docView.convert(windowPoint, from: nil)
+            // Cursor's pixel offset from the visible top-left — a screen-stable
+            // quantity that must remain the same after the content scales about
+            // the document origin.
+            let offsetX = cursorInDoc.x - visibleRect.origin.x
+            let offsetY = cursorInDoc.y - visibleRect.origin.y
+            newOrigin = NSPoint(
+                x: cursorInDoc.x * scaleFactor - offsetX,
+                y: cursorInDoc.y * scaleFactor - offsetY
+            )
+        }
 
         magnifyState.pendingScrollOrigin = newOrigin
         zoomLevel = newZoom
@@ -2477,11 +2559,8 @@ struct EditorView: View {
         let total = pdfDocument?.pageCount ?? activePDFGroupSessions.count
         let current = isContinuousPDF ? continuousVisiblePage + 1 : (currentPDFPageNumber ?? 1)
         HStack(spacing: 4) {
-            Button { goToAdjacentPDFPage(-1) } label: {
-                Image(systemName: "chevron.left")
-            }
-            .help("Previous Page")
-            .disabled(current <= 1)
+            pdfNavIconButton("chevron.left", help: "Previous Page") { goToAdjacentPDFPage(-1) }
+                .disabled(current <= 1)
 
             TextField("", value: Binding(
                 get: { current },
@@ -2495,40 +2574,77 @@ struct EditorView: View {
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
 
-            Button { goToAdjacentPDFPage(1) } label: {
-                Image(systemName: "chevron.right")
-            }
-            .help("Next Page")
-            .disabled(current >= total)
+            pdfNavIconButton("chevron.right", help: "Next Page") { goToAdjacentPDFPage(1) }
+                .disabled(current >= total)
 
             if editorMode == .view {
                 Divider().frame(height: 14)
-                Button { toggleContinuousScroll() } label: {
-                    Image(systemName: pdfContinuousScroll ? "rectangle.stack.fill" : "rectangle.stack")
-                }
-                .help(pdfContinuousScroll ? "Single Page View" : "Continuous Scroll")
+                pdfNavIconButton(
+                    pdfContinuousScroll ? "rectangle.stack.fill" : "rectangle.stack",
+                    help: pdfContinuousScroll ? "Single Page View" : "Continuous Scroll"
+                ) { toggleContinuousScroll() }
             }
 
             Divider().frame(height: 14)
 
-            Button { rotatePDFPage(deltaSteps: 3) } label: {
-                Image(systemName: "rotate.left")
-            }
-            .help("Rotate Left")
-            Button { rotatePDFPage(deltaSteps: 1) } label: {
-                Image(systemName: "rotate.right")
-            }
-            .help("Rotate Right")
+            pdfNavIconButton("rotate.left", help: "Rotate Left") { rotatePDFPage(deltaSteps: 3) }
+            pdfNavIconButton("rotate.right", help: "Rotate Right") { rotatePDFPage(deltaSteps: 1) }
         }
     }
 
-    /// Toggles the continuous (all-pages) reading view, entering at the page the
-    /// single-page view was showing.
+    /// One icon button in the PDF page navigator. The hover highlight is sized to
+    /// a fixed glyph-hugging frame (matching the bottom toolbar's button style)
+    /// rather than the oversized default toolbar-button background.
+    @ViewBuilder
+    private func pdfNavIconButton(
+        _ systemName: String,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .frame(width: 28, height: 28)
+                .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(ToolbarHoverButtonStyle())
+        .help(help)
+    }
+
+    /// Toggles the continuous (all-pages) reading view. Entering, it starts
+    /// scrolled to the single-page view's page; leaving, it switches the
+    /// single-page session to whichever page the reader was last looking at, so
+    /// the two views stay in sync either way.
     private func toggleContinuousScroll() {
-        if !pdfContinuousScroll {
+        if pdfContinuousScroll {
+            if let target = sessions.first(where: { $0.pdfPageSource?.pageIndex == continuousVisiblePage }) {
+                switchToSession(target.id)
+            }
+        } else {
             continuousVisiblePage = activeSession?.pdfPageSource?.pageIndex ?? 0
         }
         pdfContinuousScroll.toggle()
+    }
+
+    /// Thumbnail / strip selection. In continuous mode every page is already on
+    /// screen, so switching the single-page session would be invisible — instead
+    /// scroll the stacked view to the chosen page. Otherwise switch sessions.
+    private func selectPageSession(_ id: UUID) {
+        if isContinuousPDF,
+           let idx = sessions.first(where: { $0.id == id })?.pdfPageSource?.pageIndex {
+            continuousScrollTarget = idx
+            return
+        }
+        switchToSession(id)
+    }
+
+    /// Which thumbnail the strip highlights: in continuous mode it follows the
+    /// page nearest the viewport centre (so it tracks scrolling and clicks);
+    /// otherwise the active single-page session.
+    private var thumbnailActiveID: UUID? {
+        if isContinuousPDF {
+            return sessions.first(where: { $0.pdfPageSource?.pageIndex == continuousVisiblePage })?.id
+        }
+        return activeSessionID
     }
 
     // MARK: - In-Document Find (PDF)
@@ -2658,6 +2774,8 @@ struct EditorView: View {
     /// window) to the matching editor action.
     private func handleMenuAction(_ action: String) {
         switch action {
+        case "saveAs":       saveAs()
+        case "print":        printImage()
         case "find":         showFindBar()
         case "findNext":     findNext()
         case "findPrevious": findPrevious()

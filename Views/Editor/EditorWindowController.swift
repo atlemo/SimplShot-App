@@ -126,12 +126,11 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
 
-        // An NSToolbar triggers the larger corner radius macOS Tahoe uses for
-        // windows with toolbars (our actual toolbar is the SwiftUI glass pills).
-        let toolbar = NSToolbar(identifier: "EditorToolbar")
-        // showsBaselineSeparator removed in macOS 15+
-        window.toolbar = toolbar
-        window.toolbarStyle = .unified
+        // No NSToolbar: the top controls (mode toggle, Undo, Save…) live in the
+        // content as EditorView's top action bar, so they sit over the canvas —
+        // right of the sidebar — and slide with it, exactly like the bottom
+        // toolbar. A window toolbar spans the full window width, which floats its
+        // items above the sidebar and can't follow the content inset.
 
         // Allow the sidebar to blend with whatever is behind the window.
         window.isOpaque = false
@@ -232,9 +231,8 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
 
-        let toolbar = NSToolbar(identifier: "EditorToolbar")
-        window.toolbar = toolbar
-        window.toolbarStyle = .unified
+        // No NSToolbar — the top controls live in the content (see the multi-image
+        // openEditor above) so they follow the sidebar like the bottom toolbar.
 
         window.isOpaque = false
         window.backgroundColor = .clear

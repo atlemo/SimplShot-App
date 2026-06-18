@@ -44,6 +44,9 @@ struct EditorCanvasView: View {
     /// Link follow handlers for the active PDF page.
     var onOpenPDFURL: ((URL) -> Void)? = nil
     var onGoToPDFDestination: ((PDFDestination) -> Void)? = nil
+    /// In single-page View mode, a wheel gesture past the page's scroll extent
+    /// flips to the adjacent page (+1 next / −1 previous).
+    var onFlipPDFPage: ((Int) -> Void)? = nil
     var shadowIntensity: Double = 0 // drop shadow opacity (0 = none, 1 = full)
     var showBorderOutline: Bool = false
 
@@ -145,7 +148,9 @@ struct EditorCanvasView: View {
                                 searchHighlights: searchHighlights,
                                 activeSearchHighlight: activeSearchHighlight,
                                 onOpenURL: onOpenPDFURL,
-                                onGoToDestination: onGoToPDFDestination)
+                                onGoToDestination: onGoToPDFDestination,
+                                paginatedScroll: editorMode == .view,
+                                onFlipPage: onFlipPDFPage)
                     .frame(width: canvasWidth, height: canvasHeight)
                     .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
                     .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 3)
@@ -1055,6 +1060,11 @@ private struct PDFPageView: NSViewRepresentable {
     /// Link follow handlers (external URL / internal go-to destination).
     var onOpenURL: ((URL) -> Void)? = nil
     var onGoToDestination: ((PDFDestination) -> Void)? = nil
+    /// When true (single-page View mode), wheel scrolling past the page's
+    /// scroll extent flips pages rather than doing nothing.
+    var paginatedScroll: Bool = false
+    /// Flip to the adjacent page (+1 next / −1 previous).
+    var onFlipPage: ((Int) -> Void)? = nil
 
     func makeNSView(context: Context) -> _PDFPageNSView {
         let v = _PDFPageNSView()
@@ -1065,6 +1075,8 @@ private struct PDFPageView: NSViewRepresentable {
         v.activeSearchHighlight = activeSearchHighlight
         v.onOpenURL = onOpenURL
         v.onGoToDestination = onGoToDestination
+        v.paginatedScroll = paginatedScroll
+        v.onFlipPage = onFlipPage
         return v
     }
 
@@ -1082,6 +1094,8 @@ private struct PDFPageView: NSViewRepresentable {
         v.activeSearchHighlight = activeSearchHighlight
         v.onOpenURL = onOpenURL
         v.onGoToDestination = onGoToDestination
+        v.paginatedScroll = paginatedScroll
+        v.onFlipPage = onFlipPage
         v.needsDisplay = true
     }
 }
@@ -1125,6 +1139,15 @@ final class _PDFPageNSView: NSView {
     var onOpenURL: ((URL) -> Void)?
     var onGoToDestination: ((PDFDestination) -> Void)?
 
+    /// Single-page View mode: when the page fits the viewport, wheel travel
+    /// flips pages instead of doing nothing.
+    var paginatedScroll: Bool = false
+    var onFlipPage: ((Int) -> Void)?
+    /// Accumulated wheel travel toward the next flip, and a per-gesture latch so
+    /// one trackpad swipe flips at most one page.
+    private var pageFlipAccumulator: CGFloat = 0
+    private var pageFlipArmed = true
+
     /// Link under the cursor at mouse-down — a single click (no drag) follows it.
     private var mouseDownLink: PDFAnnotation?
     /// Whether the current mouse sequence dragged (→ a text selection, not a click).
@@ -1150,29 +1173,38 @@ final class _PDFPageNSView: NSView {
         ctx.fill(bounds)
 
         // PDFPage.draw uses CG's default bottom-left origin. Because this
-        // view is flipped (isFlipped = true), we need to undo the flip
-        // before calling draw, then restore.
+        // view is flipped (isFlipped = true), we undo the flip first; everything
+        // below then works in y-up content space (0,0 … bounds.size).
         ctx.translateBy(x: 0, y: bounds.height)
         ctx.scaleBy(x: 1, y: -1)
 
-        // Scale from PDF points to the view's current bounds
+        // Render the page filling the view. Kept on PDFKit's own draw (with a
+        // plain fit scale) so the visible page stays byte-identical to the
+        // raster/thumbnail path. `page.draw` internally maps the media-box origin
+        // and the page's /Rotate to the context — so the page itself is always
+        // positioned correctly here.
+        ctx.saveGState()
         let sx = bounds.width / pdfPointSize.width
         let sy = bounds.height / pdfPointSize.height
         ctx.scaleBy(x: sx, y: sy)
-
         page.draw(with: .mediaBox, to: ctx)
+        ctx.restoreGState()
 
-        // Highlight, in the same page-point space so rects line up with the
-        // glyphs: search matches underneath, then the user's text selection on
-        // top. Each visual line is filled separately (clipped to the page) so a
-        // highlight tracks the text line-by-line.
+        // Highlights must use the SAME transform CoreGraphics uses to draw the
+        // page — NOT the plain fit scale above. `selectionsByLine().bounds` are
+        // in PDF page space (default user space), so a non-zero media-box origin
+        // or a /Rotate would shift/rotate them off the glyphs if filled under the
+        // fit scale (which ignores both). `getDrawingTransform` reproduces
+        // `page.draw`'s placement exactly, so each line lands on its text.
+        // Order: search matches underneath, the user's selection on top.
+        let dt = pageDrawingTransform()
         let pageRect = page.bounds(for: .mediaBox)
         func fillSelection(_ sel: PDFSelection, _ color: CGColor) {
             ctx.setFillColor(color)
             for line in sel.selectionsByLine() {
                 let r = line.bounds(for: page).intersection(pageRect)
                 guard !r.isNull, r.width > 0, r.height > 0 else { continue }
-                ctx.fill(r)
+                ctx.fill(r.applying(dt))
             }
         }
         for match in searchHighlights {
@@ -1188,20 +1220,47 @@ final class _PDFPageNSView: NSView {
         ctx.restoreGState()
     }
 
+    /// The transform CoreGraphics uses to draw this page's media box into the
+    /// view's y-up content space (0,0 … bounds.size). It bakes in the page's
+    /// `/Rotate` and a non-zero media-box origin — exactly what `page.draw`
+    /// applies internally — so highlights and the mouse→page-space mapping track
+    /// the rendered glyphs instead of a naive scale of the raw page bounds.
+    private func pageDrawingTransform() -> CGAffineTransform {
+        guard bounds.width > 0, bounds.height > 0 else { return .identity }
+        if let cgPage = page?.pageRef {
+            return cgPage.getDrawingTransform(.mediaBox,
+                                              rect: CGRect(origin: .zero, size: bounds.size),
+                                              rotate: 0,
+                                              preserveAspectRatio: false)
+        }
+        // Fallback: plain fit scale (correct for unrotated, zero-origin pages).
+        guard pdfPointSize.width > 0, pdfPointSize.height > 0 else { return .identity }
+        return CGAffineTransform(scaleX: bounds.width / pdfPointSize.width,
+                                 y: bounds.height / pdfPointSize.height)
+    }
+
     // MARK: - Text Selection
 
     /// Converts a mouse event location into PDF page space (points, bottom-left
-    /// origin) for the current bounds — the space PDFKit's selection APIs use.
+    /// origin) — the space PDFKit's selection and annotation-hit APIs use.
     ///
-    /// Correct for unrotated pages, which is the only case with a real text
-    /// layer; rotated pages here are scanned bitmaps with nothing to select.
+    /// Inverts `pageDrawingTransform()` so the mapping accounts for a non-zero
+    /// media-box origin and the page's /Rotate, matching exactly where the page
+    /// renders. Without this, a click lands on different page-space coordinates
+    /// than the glyph under the cursor and the selection appears off-target.
     private func pagePoint(for event: NSEvent) -> CGPoint {
         let v = convert(event.locationInWindow, from: nil) // flipped: top-left origin
         guard bounds.width > 0, bounds.height > 0 else { return .zero }
-        let nx = v.x / bounds.width
-        let ny = v.y / bounds.height
-        return CGPoint(x: nx * pdfPointSize.width,
-                       y: (1 - ny) * pdfPointSize.height)
+        // Into y-up content space, then invert the page-drawing transform.
+        let contentPoint = CGPoint(x: v.x, y: bounds.height - v.y)
+        let dt = pageDrawingTransform()
+        guard dt.a * dt.d - dt.b * dt.c != 0 else { // non-invertible → fallback
+            let nx = v.x / bounds.width
+            let ny = v.y / bounds.height
+            return CGPoint(x: nx * pdfPointSize.width,
+                           y: (1 - ny) * pdfPointSize.height)
+        }
+        return contentPoint.applying(dt.inverted())
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -1253,6 +1312,49 @@ final class _PDFPageNSView: NSView {
             needsDisplay = true
         }
         mouseDownLink = nil
+    }
+
+    /// Wheel scrolling. The page sits on top of the surrounding scroll view, so
+    /// without this the cursor being over the page would swallow the gesture.
+    ///
+    /// - Normal (Annotate/Edit, or a zoomed-in page that still has room to
+    ///   scroll): forward to the enclosing scroll view so it pans/scrolls.
+    /// - Single-page View mode with the page fully fitting the viewport
+    ///   (`paginatedScroll`): there's nothing to pan, so wheel travel flips to
+    ///   the adjacent page — like a paged document viewer.
+    override func scrollWheel(with event: NSEvent) {
+        guard let scrollView = enclosingScrollView else {
+            super.scrollWheel(with: event)
+            return
+        }
+
+        // Pan whenever we're not paginating, or the page still overflows the
+        // viewport (zoomed in) and can scroll further.
+        let overflow = (scrollView.documentView?.bounds.height ?? 0)
+            > scrollView.contentView.bounds.height + 1
+        guard paginatedScroll, !overflow else {
+            pageFlipAccumulator = 0
+            scrollView.scrollWheel(with: event)
+            return
+        }
+
+        // The page fits — translate wheel travel into page flips.
+        let precise = event.hasPreciseScrollingDeltas
+        if precise {
+            if event.phase.contains(.began) {
+                pageFlipArmed = true
+                pageFlipAccumulator = 0
+            }
+            if !event.momentumPhase.isEmpty { return } // ignore trackpad inertia
+        }
+
+        pageFlipAccumulator += event.scrollingDeltaY
+        let threshold: CGFloat = precise ? 40 : 1
+        guard pageFlipArmed, abs(pageFlipAccumulator) >= threshold else { return }
+
+        onFlipPage?(pageFlipAccumulator < 0 ? 1 : -1) // scroll down → next page
+        pageFlipAccumulator = 0
+        if precise { pageFlipArmed = false } // one flip per trackpad swipe
     }
 
     // MARK: - Links
