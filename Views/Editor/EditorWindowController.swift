@@ -15,6 +15,16 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
     private var allowsEditMode: Bool = true
     private var setEditorMode: ((EditorMode) -> Void)?
 
+    /// The default positions of the three window-control buttons, captured once
+    /// before we inset them. macOS resets the buttons to these positions on every
+    /// titlebar relayout (resize, focus change, fullscreen exit), so we always
+    /// re-offset from this baseline rather than from their current frame.
+    private var trafficLightBaseline: [CGPoint] = []
+    /// How far to nudge the window controls in from the top-left corner so they
+    /// line up with the in-content top action bar instead of hugging the corner.
+    /// Titlebar coords are y-up, so a downward nudge is negative y.
+    private let trafficLightInset = CGPoint(x: 8, y: -8)
+
     static var currentModeForKeyWindow: EditorMode? {
         keyEditorController?.currentEditorMode
     }
@@ -285,6 +295,29 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
     override func showWindow(_ sender: Any?) {
         super.showWindow(sender)
         bringToFront()
+        positionTrafficLights()
+    }
+
+    /// Inset the window controls (traffic lights) down + right from the default
+    /// top-left corner so they align with the in-content top action bar. There's
+    /// no `NSToolbar` to push them down (the top controls live in the SwiftUI
+    /// content), so we offset the standard buttons by hand and re-apply on every
+    /// titlebar relayout — macOS keeps resetting them to the corner otherwise.
+    private func positionTrafficLights() {
+        guard let window, !window.styleMask.contains(.fullScreen) else { return }
+        let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton]
+            .compactMap { window.standardWindowButton($0) }
+        guard buttons.count == 3 else { return }
+
+        if trafficLightBaseline.count != 3 {
+            // Capture the system's default layout once it's real, then offset from it.
+            guard buttons.allSatisfy({ $0.frame.width > 0 }) else { return }
+            trafficLightBaseline = buttons.map { $0.frame.origin }
+        }
+        for (button, base) in zip(buttons, trafficLightBaseline) {
+            button.setFrameOrigin(CGPoint(x: base.x + trafficLightInset.x,
+                                          y: base.y + trafficLightInset.y))
+        }
     }
 
     /// Force the editor to the front, even when another app was just active
@@ -306,6 +339,12 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
     }
 
     // MARK: - NSWindowDelegate
+
+    // macOS resets the window controls to the top-left corner whenever the
+    // titlebar relays out; re-apply our inset after each of those moments.
+    func windowDidResize(_ notification: Notification) { positionTrafficLights() }
+    func windowDidBecomeKey(_ notification: Notification) { positionTrafficLights() }
+    func windowDidExitFullScreen(_ notification: Notification) { positionTrafficLights() }
 
     func windowWillClose(_ notification: Notification) {
         // Persist the current window size for next time

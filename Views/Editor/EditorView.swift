@@ -632,6 +632,9 @@ struct EditorView: View {
 
     /// Width of the Annotate/Edit sidebar (kept in sync with `sidebarContent`).
     private let sidebarWidth: CGFloat = 260
+    /// Space reserved for the macOS window controls when content extends into a
+    /// transparent full-size title bar and the detail view starts at x=0.
+    private let titlebarLeadingControlInset: CGFloat = 82
 
     // MARK: - Sidebar Content
 
@@ -768,10 +771,22 @@ struct EditorView: View {
                 .keyboardShortcut("s", modifiers: .command)
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .padding(.horizontal, 12)
+            .padding(.leading, topActionBarLeadingPadding)
+            .padding(.trailing, 12)
             .padding(.top, 8)
             .padding(.bottom, 4)
         }
+    }
+
+    private var topActionBarLeadingPadding: CGFloat {
+        let basePadding: CGFloat = 12
+        return detailContentStartsAtWindowLeadingEdge
+            ? basePadding + titlebarLeadingControlInset
+            : basePadding
+    }
+
+    private var detailContentStartsAtWindowLeadingEdge: Bool {
+        editorMode == .view || !showProSidebar
     }
 
     // MARK: - Detail Content
@@ -971,6 +986,23 @@ struct EditorView: View {
         guard fitScale > 0 else { return }
         let trueSizeScale = 1.0 / displayBackingScale
         zoomLevel = min(max(trueSizeScale / fitScale, minZoomLevel), maxZoomLevel)
+        syncZoomToPDFGroup()
+    }
+
+    /// Zoom preset: scale the full image/page to fit the available viewport.
+    /// Unlike the default fit scale for raster screenshots, this command can scale
+    /// up past true size because the user explicitly asked to fill the view.
+    private func zoomToFit() {
+        guard fitScale > 0,
+              imagePixelSize.width > 0,
+              imagePixelSize.height > 0,
+              lastViewSize.width > 0,
+              lastViewSize.height > 0 else { return }
+
+        let availableWidth = max(lastViewSize.width - 42, 100) // 40 chrome + 2 fudge
+        let availableHeight = max(lastViewSize.height - 42, 100)
+        let target = min(availableWidth / imagePixelSize.width, availableHeight / imagePixelSize.height)
+        zoomLevel = min(max(target / fitScale, minZoomLevel), maxZoomLevel)
         syncZoomToPDFGroup()
     }
 
@@ -2590,6 +2622,7 @@ struct EditorView: View {
             pdfNavIconButton("rotate.left", help: "Rotate Left") { rotatePDFPage(deltaSteps: 3) }
             pdfNavIconButton("rotate.right", help: "Rotate Right") { rotatePDFPage(deltaSteps: 1) }
         }
+        .frame(height: 32)
     }
 
     /// One icon button in the PDF page navigator. The hover highlight is sized to
@@ -2784,7 +2817,9 @@ struct EditorView: View {
         case "previousPage": goToAdjacentPDFPage(-1)
         case "actualSize":   actualSize()
         case "fitWidth":     fitToWidth()
-        case "fitPage":      zoomLevel = 1.0; syncZoomToPDFGroup()
+        case "fitPage":      zoomToFit()
+        case "zoomIn":       zoomIn()
+        case "zoomOut":      zoomOut()
         case "rotateLeft":   if isPDFSession { rotatePDFPage(deltaSteps: 3) } else { rotate(deltaSteps: 3) }
         case "rotateRight":  if isPDFSession { rotatePDFPage(deltaSteps: 1) } else { rotate(deltaSteps: 1) }
         default: break

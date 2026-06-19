@@ -41,6 +41,24 @@ struct SimplShotApp: App {
 
             CommandGroup(after: .toolbar) {
                 Divider()
+                Button("Actual Size") {
+                    EditorWindowController.sendActionToKeyWindow("actualSize")
+                }
+                .keyboardShortcut("0", modifiers: .command)
+                Button("Zoom to Fit") {
+                    EditorWindowController.sendActionToKeyWindow("fitPage")
+                }
+                .keyboardShortcut("9", modifiers: .command)
+                Button("Zoom In") {
+                    EditorWindowController.sendActionToKeyWindow("zoomIn")
+                }
+                .keyboardShortcut("+", modifiers: .command)
+                Button("Zoom Out") {
+                    EditorWindowController.sendActionToKeyWindow("zoomOut")
+                }
+                .keyboardShortcut("-", modifiers: .command)
+
+                Divider()
                 editorModeToggle(.annotate, shortcut: "1")
                 editorModeToggle(.edit, shortcut: "2")
                     .disabled(!EditorWindowController.canSetMode(.edit))
@@ -72,7 +90,7 @@ struct SimplShotApp: App {
                 .keyboardShortcut("g", modifiers: [.command, .shift])
             }
 
-            // Go — page navigation, document info, and zoom presets.
+            // Go — page navigation and document info.
             CommandMenu("Go") {
                 Button("Next Page") {
                     EditorWindowController.sendActionToKeyWindow("nextPage")
@@ -99,18 +117,6 @@ struct SimplShotApp: App {
                 }
                 .keyboardShortcut("i", modifiers: .command)
 
-                Divider()
-                Button("Actual Size") {
-                    EditorWindowController.sendActionToKeyWindow("actualSize")
-                }
-                .keyboardShortcut("0", modifiers: .command)
-                Button("Fit Width") {
-                    EditorWindowController.sendActionToKeyWindow("fitWidth")
-                }
-                Button("Fit Page") {
-                    EditorWindowController.sendActionToKeyWindow("fitPage")
-                }
-                .keyboardShortcut("9", modifiers: .command)
             }
         }
     }

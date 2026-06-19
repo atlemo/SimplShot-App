@@ -1220,23 +1220,30 @@ final class _PDFPageNSView: NSView {
         ctx.restoreGState()
     }
 
-    /// The transform CoreGraphics uses to draw this page's media box into the
-    /// view's y-up content space (0,0 … bounds.size). It bakes in the page's
-    /// `/Rotate` and a non-zero media-box origin — exactly what `page.draw`
-    /// applies internally — so highlights and the mouse→page-space mapping track
-    /// the rendered glyphs instead of a naive scale of the raw page bounds.
+    /// The transform that maps this page's user space into the view's y-up
+    /// content space (0,0 … bounds.size) — exactly what the render path
+    /// (`scaleBy(sx, sy)` + `page.draw`) produces. It bakes in the page's
+    /// `/Rotate` and a non-zero media-box origin, so highlights and the
+    /// mouse→page-space mapping track the rendered glyphs at any zoom.
     private func pageDrawingTransform() -> CGAffineTransform {
-        guard bounds.width > 0, bounds.height > 0 else { return .identity }
-        if let cgPage = page?.pageRef {
-            return cgPage.getDrawingTransform(.mediaBox,
-                                              rect: CGRect(origin: .zero, size: bounds.size),
-                                              rotate: 0,
-                                              preserveAspectRatio: false)
-        }
-        // Fallback: plain fit scale (correct for unrotated, zero-origin pages).
-        guard pdfPointSize.width > 0, pdfPointSize.height > 0 else { return .identity }
-        return CGAffineTransform(scaleX: bounds.width / pdfPointSize.width,
-                                 y: bounds.height / pdfPointSize.height)
+        guard bounds.width > 0, bounds.height > 0,
+              pdfPointSize.width > 0, pdfPointSize.height > 0 else { return .identity }
+        // The zoom scale: page point size → the (possibly enlarged) view bounds.
+        // Identical to the `sx`/`sy` the render path applies in `draw`.
+        let scale = CGAffineTransform(scaleX: bounds.width / pdfPointSize.width,
+                                      y: bounds.height / pdfPointSize.height)
+        guard let cgPage = page?.pageRef else { return scale }
+        // `getDrawingTransform` captures the media-box origin and /Rotate, but it
+        // CLAMPS scale at 1.0 for a rect larger than the page (it centres the page
+        // instead of scaling up). Calling it with `rect: bounds` therefore left
+        // highlights/hit-testing at 1× — correct only at 100% zoom, off above it.
+        // So ask it only for the scale-1 normalisation (rect == the page's own
+        // point size, where it's exact) and apply our own zoom `scale` on top.
+        let normalize = cgPage.getDrawingTransform(.mediaBox,
+                                                   rect: CGRect(origin: .zero, size: pdfPointSize),
+                                                   rotate: 0,
+                                                   preserveAspectRatio: false)
+        return normalize.concatenating(scale)
     }
 
     // MARK: - Text Selection
