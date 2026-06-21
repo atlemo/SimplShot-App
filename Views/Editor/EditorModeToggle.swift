@@ -44,7 +44,7 @@ struct EditorModeToggle: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(isSelected ? Color.primary : Color.secondary)
                 .padding(.horizontal, 16)
-                .frame(height: 26)
+                .frame(height: 28)
                 .background {
                     if isSelected {
                         Capsule(style: .continuous)

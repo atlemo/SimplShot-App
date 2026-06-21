@@ -725,11 +725,11 @@ struct EditorView: View {
                 HStack(spacing: 8) {
                     if editorMode == .view {
                         Color.clear
-                            .frame(width: 34, height: 30)
+                            .frame(width: 34, height: 34)
                     } else {
                         Button(action: undo) {
                             Image(systemName: "arrow.uturn.backward")
-                                .frame(width: 34, height: 30)
+                                .frame(width: 34, height: 34)
                                 .contentShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(ToolbarHoverButtonStyle())
@@ -773,8 +773,8 @@ struct EditorView: View {
             }
             .padding(.leading, topActionBarLeadingPadding)
             .padding(.trailing, 12)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
         }
     }
 
@@ -2622,7 +2622,7 @@ struct EditorView: View {
             pdfNavIconButton("rotate.left", help: "Rotate Left") { rotatePDFPage(deltaSteps: 3) }
             pdfNavIconButton("rotate.right", help: "Rotate Right") { rotatePDFPage(deltaSteps: 1) }
         }
-        .frame(height: 32)
+        .frame(height: 34)
     }
 
     /// One icon button in the PDF page navigator. The hover highlight is sized to
@@ -2636,7 +2636,7 @@ struct EditorView: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .frame(width: 28, height: 28)
+                .frame(width: 30, height: 30)
                 .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(ToolbarHoverButtonStyle())
