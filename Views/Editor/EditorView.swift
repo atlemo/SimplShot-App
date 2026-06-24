@@ -102,7 +102,7 @@ struct EditorView: View {
     @State private var imageMetadata: ImageMetadata?
     @State private var imagePixelSize: CGSize = .zero
     /// The display's backing scale factor (e.g. 2.0 on Retina, 3.0 on 3× displays).
-    /// Used to compute "true size" — where 100% shows the image at its logical point dimensions.
+    /// Used in export rendering to scale strokes and other elements to image resolution.
     @State private var displayBackingScale: CGFloat = NSScreen.main?.backingScaleFactor ?? 2.0
     /// nil = no background; non-nil = background enabled with that wallpaper.
     @State private var selectedWallpaper: WallpaperSource? = nil
@@ -322,12 +322,11 @@ struct EditorView: View {
         fitScale * zoomLevel
     }
 
-    /// The zoom percentage relative to "true size" (1:1 with the original window).
-    /// True size is when effectiveScale == 1/backingScale.
+    /// The zoom percentage relative to "true size" (1:1 with the image's logical size).
+    /// True size is when effectiveScale == 1.0 (1 image pixel = 1 logical point).
     private var displayZoomPercent: CGFloat {
-        let trueSizeScale = 1.0 / displayBackingScale
-        guard trueSizeScale > 0 else { return 100 }
-        return effectiveScale / trueSizeScale * 100
+        guard effectiveScale > 0 else { return 100 }
+        return effectiveScale * 100
     }
 
     /// The screenshot content's bounding rect inside the display canvas, in image-pixel space.
@@ -949,21 +948,15 @@ struct EditorView: View {
         // window reference is captured.
         displayBackingScale = (hostingWindow?.screen ?? NSScreen.main)?.backingScaleFactor ?? 2.0
 
-        // "True size" scale: 1 image pixel = 1/backingScale view points.
-        // At this scale the image displays at the same size as the original window.
-        let trueSizeScale = 1.0 / displayBackingScale
-
         let fitToView = min(scaleX, scaleY)
         if isPDFSession {
-            // A PDF page renders as live vector content (re-rasterized sharp at
-            // any zoom), so fit it to the viewport even when that means scaling
-            // *up* past true size — a small page should fill the window like any
-            // PDF viewer, and "Fit" should enlarge it rather than pin it at 100%.
+            // PDFs render as live vector at any scale, so fit them to the viewport
+            // and enlarge if needed (like a PDF viewer).
             fitScale = fitToView
         } else {
-            // Raster screenshots: fit to view, but never scale up beyond true
-            // size — upscaling a bitmap past 1:1 only makes it blurry.
-            fitScale = min(fitToView, trueSizeScale)
+            // Raster images: show at natural 1:1 size, but scale down if too big
+            // to fit in the viewport.
+            fitScale = min(fitToView, 1.0)
         }
     }
 
@@ -981,11 +974,10 @@ struct EditorView: View {
         }
     }
 
-    /// Zoom preset: 1 image pixel == 1/backingScale points (100% / true size).
+    /// Zoom preset: 1 image pixel == 1 logical point (100% / true size).
     private func actualSize() {
         guard fitScale > 0 else { return }
-        let trueSizeScale = 1.0 / displayBackingScale
-        zoomLevel = min(max(trueSizeScale / fitScale, minZoomLevel), maxZoomLevel)
+        zoomLevel = min(max(1.0 / fitScale, minZoomLevel), maxZoomLevel)
         syncZoomToPDFGroup()
     }
 

@@ -23,12 +23,10 @@ struct AnnotationOverlayView: View {
 
     // MARK: - Shape Rendering
 
-    /// Stroke width in view points, matching the exported result: the export
-    /// bakes `strokeWidth × backingScale` into image pixels, which display at
-    /// × `scale`. Using the raw point value here made previews look thicker
-    /// than the saved file at any zoom other than 100%.
+    /// Stroke width in view points, scaled by the zoom level.
+    /// At true size (scale = 1.0), annotation strokes appear at their logical size.
     private var displayStrokeWidth: CGFloat {
-        annotation.style.strokeWidth * displayBackingScale * scale
+        annotation.style.strokeWidth * scale
     }
 
     @ViewBuilder
@@ -111,7 +109,8 @@ struct AnnotationOverlayView: View {
 
         case .rectangle:
             // Export draws the corner at 6 × backingScale image pixels.
-            let rectCorner = 6 * displayBackingScale * scale
+            // For display preview, scale by zoom level.
+            let rectCorner = 6 * scale
             RoundedRectangle(cornerRadius: rectCorner)
                 .fill(annotation.style.fillColor ?? Color.clear)
                 .overlay(RoundedRectangle(cornerRadius: rectCorner).stroke(annotation.style.strokeColor, lineWidth: displayStrokeWidth))
@@ -202,11 +201,12 @@ struct AnnotationOverlayView: View {
                 let fullW = imagePixelSize.width * scale
                 let fullH = imagePixelSize.height * scale
                 // Export blurs at feather × backingScale image pixels.
-                let blurRadius = annotation.style.spotlightFeather * displayBackingScale * scale
+                // For display preview, scale by zoom level.
+                let blurRadius = annotation.style.spotlightFeather * scale
                 SpotlightOverlayShape(
                     cutouts: [rect],
                     canvasSize: CGSize(width: fullW, height: fullH),
-                    cornerRadius: 6 * displayBackingScale * scale,
+                    cornerRadius: 6 * scale,
                     outsetForBlur: blurRadius * 3
                 )
                 .fill(Color.black.opacity(annotation.style.spotlightOpacity), style: FillStyle(eoFill: true))
@@ -308,12 +308,10 @@ struct AnnotationOverlayView: View {
     @ViewBuilder
     private func measurementLabel(start: CGPoint, end: CGPoint) -> some View {
         let pixelDistance = hypot(annotation.endPoint.x - annotation.startPoint.x, annotation.endPoint.y - annotation.startPoint.y)
-        let true1xDistance = max(0, pixelDistance / max(displayBackingScale, 1))
-        let label = "\(Int(true1xDistance.rounded())) px"
+        let label = "\(Int(pixelDistance.rounded())) px"
         let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
-        // Export renders the label at 11 × backingScale image pixels with
-        // 7/4-point padding — mirror that so the pill matches the saved file.
-        let f = displayBackingScale * scale
+        // Scale text and padding by zoom level and stroke width for readability
+        let f = scale * max(1.0, annotation.style.strokeWidth / 2.0)
         Text(label)
             .font(.system(size: 11 * f, weight: .medium, design: .monospaced))
             .foregroundStyle(annotation.style.isLight ? Color.black : Color.white)
@@ -814,13 +812,13 @@ private struct SharedSpotlightOverlay: View {
         }
         let feather = annotations.map(\.style.spotlightFeather).max() ?? 0
         // Export blurs at feather × backingScale image pixels and rounds the
-        // cutout at 6 × backingScale — mirror both so preview matches output.
-        let blurRadius = feather * displayBackingScale * scale
+        // cutout at 6 × backingScale. For display preview, scale by zoom level.
+        let blurRadius = feather * scale
 
         SpotlightOverlayShape(
             cutouts: cutouts,
             canvasSize: CGSize(width: fullW, height: fullH),
-            cornerRadius: 6 * displayBackingScale * scale,
+            cornerRadius: 6 * scale,
             outsetForBlur: blurRadius * 3
         )
         .fill(

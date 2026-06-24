@@ -30,7 +30,7 @@ struct EditorCanvasView: View {
     let image: NSImage
     let imagePixelSize: CGSize  // actual CGImage pixel dimensions
     let scale: CGFloat          // view-points per image-pixel (from parent)
-    let displayBackingScale: CGFloat  // monitor backing scale for true 1x measurements
+    let displayBackingScale: CGFloat  // monitor backing scale (used in export rendering)
     /// The active editor mode. Annotation interaction is gated to `.annotate` only.
     var editorMode: EditorMode = .annotate
     /// When set, the base layer renders the PDF page as vector content instead
@@ -1000,11 +1000,10 @@ private struct WatermarkPreview: View {
         ZStack(alignment: .topLeading) {
             Color.clear
             if let image {
-                let marginH = CGFloat(settings.edgeOffset) * scale * displayBackingScale
-                let marginV = CGFloat(settings.bottomOffset) * scale * displayBackingScale
-                // widthPx is in logical points. At true-size zoom this simplifies to
-                // widthPx × zoomLevel view-points, matching what the slider shows.
-                let targetW = max(1, CGFloat(settings.widthPx) * scale * displayBackingScale)
+                let marginH = CGFloat(settings.edgeOffset) * scale
+                let marginV = CGFloat(settings.bottomOffset) * scale
+                // widthPx is in logical points; scale by zoom level for display.
+                let targetW = max(1, CGFloat(settings.widthPx) * scale)
                 let rawSize = image.size
                 let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
                 let targetH = max(1, targetW / aspect)

@@ -310,9 +310,10 @@ class AnnotationRenderer {
     /// and is 0 for non-bitmap contexts (vector PDF export).
     private func drawAnnotation(_ annotation: Annotation, backingScale: CGFloat, drawingHeight: CGFloat, in context: CGContext) {
         let color = annotation.style.cgStrokeColor
-        // Style values (strokeWidth, fontSize) are in logical points;
-        // multiply by the backing scale to convert to image pixels.
-        let lineWidth = annotation.style.strokeWidth * backingScale
+        // Style values (strokeWidth, fontSize) are in logical points.
+        // At true size (1 image pixel = 1 logical point), stroke width in image pixels
+        // equals stroke width in logical points.
+        let lineWidth = annotation.style.strokeWidth
 
         context.saveGState()
         context.setStrokeColor(color)
@@ -330,6 +331,7 @@ class AnnotationRenderer {
                 to: annotation.endPoint,
                 color: color,
                 strokeIsLight: annotation.style.isLight,
+                strokeWidth: annotation.style.strokeWidth,
                 lineWidth: lineWidth,
                 backingScale: backingScale,
                 in: context
@@ -478,14 +480,15 @@ class AnnotationRenderer {
         context.strokePath()
     }
 
-    private func drawMeasurement(from start: CGPoint, to end: CGPoint, color: CGColor, strokeIsLight: Bool, lineWidth: CGFloat, backingScale: CGFloat, in context: CGContext) {
+    private func drawMeasurement(from start: CGPoint, to end: CGPoint, color: CGColor, strokeIsLight: Bool, strokeWidth: CGFloat, lineWidth: CGFloat, backingScale: CGFloat, in context: CGContext) {
         drawMeasurementLineWithHeads(from: start, to: end, color: color, lineWidth: lineWidth, in: context)
 
         let pixelDistance = hypot(end.x - start.x, end.y - start.y)
-        let true1xDistance = max(0, pixelDistance / max(backingScale, 1))
-        let label = "\(Int(true1xDistance.rounded())) px"
+        let label = "\(Int(pixelDistance.rounded())) px"
 
-        let labelFontSize = max(11 * backingScale, 10)
+        // Scale font size by stroke width for readability, matching the preview.
+        let fontScale = max(1.0, strokeWidth / 2.0)
+        let labelFontSize = 11 * fontScale
         // System monospaced font: matches the live preview and never falls back
         // to Helvetica the way a hardcoded "SFMono-*" PostScript name can.
         let font = NSFont.monospacedSystemFont(ofSize: labelFontSize, weight: .medium)
@@ -496,8 +499,8 @@ class AnnotationRenderer {
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: label, attributes: attrs))
         let bounds = CTLineGetBoundsWithOptions(line, [])
 
-        let hPad = 7 * backingScale
-        let vPad = 4 * backingScale
+        let hPad = 7 * fontScale
+        let vPad = 4 * fontScale
         let bgWidth = bounds.width + hPad * 2
         let bgHeight = bounds.height + vPad * 2
         let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
