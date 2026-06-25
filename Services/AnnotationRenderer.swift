@@ -10,6 +10,24 @@ class AnnotationRenderer {
 
     private lazy var ciContext = CIContext(options: [.useSoftwareRenderer: false])
 
+    /// Multiplier applied to annotation *style* dimensions (stroke width, font
+    /// size, corner radii, spotlight feather) so they stay proportional to the
+    /// image's pixel density. For a 2× (144-DPI) screenshot the editor sets this
+    /// to 2 so a 3pt stroke renders as 6 image pixels — matching how it looks on
+    /// a 1× image of the same logical content. Positions are NOT affected (they
+    /// live in image-pixel space already). Defaults to 1 (no change).
+    /// Set before calling `render`/`drawAnnotationsVector`; never mutated mid-render.
+    var styleScale: CGFloat = 1.0
+
+    /// Shared measurement-label font multiplier so the live preview
+    /// (AnnotationOverlayView) and the exported bitmap size the pill identically.
+    /// Grows gently with stroke width: a default 2pt stroke gives 1.0 (11pt base),
+    /// and each extra stroke point adds 15% — so thick measurements get a slightly
+    /// larger label rather than the font ballooning.
+    static func measurementFontScale(strokeWidth: CGFloat) -> CGFloat {
+        1.0 + max(0, strokeWidth - 2) * 0.15
+    }
+
     enum RenderError: LocalizedError {
         case cannotCreateContext
         case cannotCreateOutputImage
@@ -106,13 +124,12 @@ class AnnotationRenderer {
         //    Context is in flipped/top-left space, so CGImage drawing needs a local unflip.
         if watermark.isEnabled, let path = watermark.imagePath,
            let nsImage = WatermarkImageCache.image(atPath: path) {
-            // Offsets are in logical points (like the sidebar sliders); scale to
-            // image pixels — matching TemplateRenderer and the canvas preview.
-            let marginH = CGFloat(watermark.edgeOffset) * backingScale
-            let marginV = CGFloat(watermark.bottomOffset) * backingScale
-            // widthPx is in logical points; scale to image pixels the same way
-            // strokeWidth and fontSize are scaled elsewhere (× backingScale).
-            let targetW = max(1, CGFloat(watermark.widthPx) * backingScale)
+            // Offsets and width are image-pixel units (matching the canvas
+            // preview's `* scale`); the context is image-pixel space already, so
+            // no backing-scale multiplier — same convention as strokeWidth/fontSize.
+            let marginH = CGFloat(watermark.edgeOffset)
+            let marginV = CGFloat(watermark.bottomOffset)
+            let targetW = max(1, CGFloat(watermark.widthPx))
             let rawSize = nsImage.size
             let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
             let targetH = max(1, targetW / aspect)
@@ -215,11 +232,12 @@ class AnnotationRenderer {
 
         if watermark.isEnabled, let path = watermark.imagePath,
            let nsImage = WatermarkImageCache.image(atPath: path) {
-            // Offsets in logical points × backingScale = drawing-space pixels,
-            // matching TemplateRenderer and the canvas preview.
-            let marginH = CGFloat(watermark.edgeOffset) * backingScale
-            let marginV = CGFloat(watermark.bottomOffset) * backingScale
-            let targetW = max(1, CGFloat(watermark.widthPx) * backingScale)
+            // Image-pixel units, matching the raster path and canvas preview.
+            // The vector context is pre-scaled to image-pixel space (see the
+            // `1/backingScale` above), so no backing-scale multiplier here either.
+            let marginH = CGFloat(watermark.edgeOffset)
+            let marginV = CGFloat(watermark.bottomOffset)
+            let targetW = max(1, CGFloat(watermark.widthPx))
             let rawSize = nsImage.size
             let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
             let targetH = max(1, targetW / aspect)
@@ -310,10 +328,11 @@ class AnnotationRenderer {
     /// and is 0 for non-bitmap contexts (vector PDF export).
     private func drawAnnotation(_ annotation: Annotation, backingScale: CGFloat, drawingHeight: CGFloat, in context: CGContext) {
         let color = annotation.style.cgStrokeColor
-        // Style values (strokeWidth, fontSize) are in logical points.
-        // At true size (1 image pixel = 1 logical point), stroke width in image pixels
-        // equals stroke width in logical points.
-        let lineWidth = annotation.style.strokeWidth
+        // Style values (strokeWidth, fontSize) are interpreted in image-pixel
+        // units and multiplied by `styleScale` for high-DPI images. The live
+        // preview converts the same values to points via `× scale × dpiScaleFactor`,
+        // so preview and export stay in lockstep at any zoom or DPI.
+        let lineWidth = annotation.style.strokeWidth * styleScale
 
         context.saveGState()
         context.setStrokeColor(color)
@@ -333,7 +352,6 @@ class AnnotationRenderer {
                 strokeIsLight: annotation.style.isLight,
                 strokeWidth: annotation.style.strokeWidth,
                 lineWidth: lineWidth,
-                backingScale: backingScale,
                 in: context
             )
         case .freeDraw:
@@ -480,15 +498,17 @@ class AnnotationRenderer {
         context.strokePath()
     }
 
-    private func drawMeasurement(from start: CGPoint, to end: CGPoint, color: CGColor, strokeIsLight: Bool, strokeWidth: CGFloat, lineWidth: CGFloat, backingScale: CGFloat, in context: CGContext) {
+    private func drawMeasurement(from start: CGPoint, to end: CGPoint, color: CGColor, strokeIsLight: Bool, strokeWidth: CGFloat, lineWidth: CGFloat, in context: CGContext) {
         drawMeasurementLineWithHeads(from: start, to: end, color: color, lineWidth: lineWidth, in: context)
 
         let pixelDistance = hypot(end.x - start.x, end.y - start.y)
         let label = "\(Int(pixelDistance.rounded())) px"
 
-        // Scale font size by stroke width for readability, matching the preview.
-        let fontScale = max(1.0, strokeWidth / 2.0)
-        let labelFontSize = 11 * fontScale
+        // Font grows gently with stroke width (so a thick measurement gets a
+        // slightly larger label, not a huge one), then ×styleScale for high-DPI.
+        // Must match AnnotationOverlayView.measurementLabel exactly.
+        let fontScale = Self.measurementFontScale(strokeWidth: strokeWidth)
+        let labelFontSize = 11 * fontScale * styleScale
         // System monospaced font: matches the live preview and never falls back
         // to Helvetica the way a hardcoded "SFMono-*" PostScript name can.
         let font = NSFont.monospacedSystemFont(ofSize: labelFontSize, weight: .medium)
@@ -499,8 +519,8 @@ class AnnotationRenderer {
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: label, attributes: attrs))
         let bounds = CTLineGetBoundsWithOptions(line, [])
 
-        let hPad = 7 * fontScale
-        let vPad = 4 * fontScale
+        let hPad = 7 * fontScale * styleScale
+        let vPad = 4 * fontScale * styleScale
         let bgWidth = bounds.width + hPad * 2
         let bgHeight = bounds.height + vPad * 2
         let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
@@ -538,9 +558,14 @@ class AnnotationRenderer {
             y: end.y - baseOffset * sin(angle)
         )
 
-        context.setLineDash(phase: 0, lengths: [0, lineWidth * 4])
+        // Dashed (not dotted) line — must match AnnotationOverlayView's
+        // `dash: [sw*3, sw*2]`. Butt caps keep the dashes crisp rectangles; the
+        // surrounding drawAnnotation set .round, so restore it after for the heads.
+        context.setLineCap(.butt)
+        context.setLineDash(phase: 0, lengths: [lineWidth * 3, lineWidth * 2])
         drawLine(from: trimmedStart, to: trimmedEnd, in: context)
         context.setLineDash(phase: 0, lengths: [])
+        context.setLineCap(.round)
         drawMeasurementHead(
             baseCenter: end,
             toward: start,
@@ -648,7 +673,9 @@ class AnnotationRenderer {
     }
 
     private func drawRectangle(_ rect: CGRect, fillColor: CGColor?, color: CGColor, backingScale: CGFloat, in context: CGContext) {
-        let cornerRadius = 6 * backingScale
+        // Corner radius in image-pixel units × styleScale (matching the preview's
+        // `6 * scale * dpiScaleFactor`) — same convention as strokeWidth/fontSize.
+        let cornerRadius: CGFloat = 6 * styleScale
         let path = CGPath(roundedRect: rect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
         if let fill = fillColor {
             context.setFillColor(fill)
@@ -755,9 +782,11 @@ class AnnotationRenderer {
         guard let strongestOpacity = annotations.map(\.style.spotlightOpacity).max() else { return }
         let fullRect = CGRect(x: 0, y: 0, width: imageWidth, height: imageHeight)
         let overlayColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: strongestOpacity)
-        let cornerRadius = 6 * backingScale
+        // Corner radius and feather in image-pixel units × styleScale (matching
+        // the preview's `6 * scale * dpiScaleFactor` / `feather * scale * dpiScaleFactor`).
+        let cornerRadius: CGFloat = 6 * styleScale
         let feather = annotations.map(\.style.spotlightFeather).max() ?? 0
-        let featherPx = feather * backingScale
+        let featherPx = feather * styleScale
 
         if featherPx < 1 {
             context.saveGState()
@@ -824,8 +853,10 @@ class AnnotationRenderer {
     private func drawText(_ text: String, at point: CGPoint, style: AnnotationStyle, backingScale: CGFloat, drawingHeight: CGFloat, in context: CGContext) {
         guard !text.isEmpty else { return }
 
-        // fontSize is stored in image-pixel space (like annotation coordinates),
-        // so no backingScale multiplication is needed here.
+        // Text bubbles are NOT scaled by styleScale: their box geometry and the
+        // interactive resize handles live in stored image-pixel space, so the
+        // font size stays in image-pixel units (matching the preview's
+        // `fontSize * scale`). Users size text directly via the font control.
         let fontSize = style.fontSize
         // System font, matching the live overlay/editor (AnnotationOverlayView,
         // GrowingTextField) so the exported bubble wraps and sizes identically.
@@ -977,6 +1008,8 @@ class AnnotationRenderer {
     }
 
     private func drawNumberedStep(_ number: Int, at point: CGPoint, style: AnnotationStyle, backingScale: CGFloat, in context: CGContext) {
+        // Not scaled by styleScale (see drawText) — geometry is font-derived and
+        // the badge is sized directly via the font control.
         let fontSize = style.fontSize
         let radius = fontSize * 0.7
         let color = style.cgStrokeColor

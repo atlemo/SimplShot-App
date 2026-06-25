@@ -31,6 +31,7 @@ struct EditorCanvasView: View {
     let imagePixelSize: CGSize  // actual CGImage pixel dimensions
     let scale: CGFloat          // view-points per image-pixel (from parent)
     let displayBackingScale: CGFloat  // monitor backing scale (used in export rendering)
+    var dpiScaleFactor: CGFloat = 1   // image pixel-density (2 for 144-DPI Retina); thickens annotation dims
     /// The active editor mode. Annotation interaction is gated to `.annotate` only.
     var editorMode: EditorMode = .annotate
     /// When set, the base layer renders the PDF page as vector content instead
@@ -97,6 +98,14 @@ struct EditorCanvasView: View {
     /// Whether the dragged annotation is snapped to the horizontal/vertical center of the image.
     @State private var snapH: Bool = false
     @State private var snapV: Bool = false
+
+    /// Live Shift-key state, tracked via a `.flagsChanged` monitor. Reading
+    /// `NSEvent.modifierFlags` directly inside a DragGesture's `onChanged` can
+    /// return stale flags mid-drag (Option-duplicate works because it's read once
+    /// at drag start; Shift-snap is read every frame), so angle/square locking
+    /// silently stopped engaging. The monitor updates this on every press/release.
+    @State private var isShiftKeyDown: Bool = false
+    @State private var flagsMonitor: Any?
 
     private var canvasWidth: CGFloat { imagePixelSize.width * scale }
     private var canvasHeight: CGFloat { imagePixelSize.height * scale }
@@ -186,6 +195,19 @@ struct EditorCanvasView: View {
             .gesture(annotationGesturesEnabled
                      ? SpatialTapGesture(count: 1).onEnded { handleTap(at: $0.location) }
                      : nil)
+            .onAppear {
+                guard flagsMonitor == nil else { return }
+                flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged]) { event in
+                    isShiftKeyDown = event.modifierFlags.contains(.shift)
+                    return event
+                }
+            }
+            .onDisappear {
+                if let monitor = flagsMonitor {
+                    NSEvent.removeMonitor(monitor)
+                    flagsMonitor = nil
+                }
+            }
 
             // Annotations clipped to image bounds
             ZStack(alignment: .topLeading) {
@@ -199,6 +221,7 @@ struct EditorCanvasView: View {
                     selectedAnnotationID: isDraggingAnnotation ? nil : selectedAnnotationID,
                     scale: scale,
                     displayBackingScale: displayBackingScale,
+                    dpiScaleFactor: dpiScaleFactor,
                     sourceImage: image,
                     imagePixelSize: imagePixelSize
                 )
@@ -209,6 +232,7 @@ struct EditorCanvasView: View {
                         annotation: dragging,
                         scale: scale,
                         displayBackingScale: displayBackingScale,
+                        dpiScaleFactor: dpiScaleFactor,
                         isSelected: false,
                         sourceImage: dragging.tool == .pixelate ? image : nil,
                         imagePixelSize: imagePixelSize
@@ -222,6 +246,7 @@ struct EditorCanvasView: View {
                         annotation: pending,
                         scale: scale,
                         displayBackingScale: displayBackingScale,
+                        dpiScaleFactor: dpiScaleFactor,
                         isSelected: false,
                         sourceImage: pending.tool == .pixelate ? image : nil,
                         imagePixelSize: imagePixelSize
@@ -625,6 +650,9 @@ struct EditorCanvasView: View {
 
     // MARK: - Text Tool
 
+    /// Default badge size (points) for a newly placed numbered step.
+    private static let numberedStepDefaultFontSize: CGFloat = 40
+
     private func placeText(at point: CGPoint) {
         let annotation = Annotation(
             tool: .text,
@@ -645,11 +673,16 @@ struct EditorCanvasView: View {
 
     private func placeNumberedStep(at point: CGPoint) {
         let nextNumber = (annotations.filter { $0.tool == .numberedStep }.map(\.stepNumber).max() ?? 0) + 1
+        // Numbered badges use a dedicated default size, independent of the text
+        // font, and are NOT DPI-scaled (the size shown in the size picker is the
+        // literal stored value).
+        var style = currentStyle
+        style.fontSize = Self.numberedStepDefaultFontSize
         let annotation = Annotation(
             tool: .numberedStep,
             startPoint: point,
             endPoint: point,
-            style: currentStyle,
+            style: style,
             stepNumber: nextNumber
         )
         onCommit()
@@ -971,7 +1004,9 @@ struct EditorCanvasView: View {
     }
 
     private var isShiftDown: Bool {
-        NSEvent.modifierFlags.contains(.shift)
+        // Prefer the live monitor state (reliable mid-drag); fall back to the
+        // static read in case a press happened before the monitor was installed.
+        isShiftKeyDown || NSEvent.modifierFlags.contains(.shift)
     }
 
 }
@@ -1667,6 +1702,10 @@ struct ContinuousPDFView: View {
     /// Reports the page nearest the viewport centre back to the parent so the
     /// page indicator tracks scrolling.
     @Binding var visiblePage: Int
+    /// Zoom factor relative to fit-to-width: 1.0 fills the viewport width, >1
+    /// enlarges pages (enabling horizontal scroll), <1 shrinks them. Driven by
+    /// the editor's zoom controls.
+    var zoom: CGFloat = 1
     var highlights: (PDFPage) -> [PDFSelection] = { _ in [] }
     var activeHighlight: (PDFPage) -> PDFSelection? = { _ in nil }
     var onOpenURL: ((URL) -> Void)? = nil
@@ -1674,16 +1713,26 @@ struct ContinuousPDFView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let pageWidth = max(geo.size.width - 32, 50)
+            // Fit-to-width baseline (zoom == 1), then scaled by the zoom factor.
+            let fitWidth = max(geo.size.width - 32, 50)
+            let pageWidth = max(fitWidth * zoom, 50)
             ScrollViewReader { proxy in
-                ScrollView(.vertical) {
+                // Both axes: vertical to scroll the page stack, horizontal so a
+                // page wider than the viewport (zoom > fit) can be panned.
+                ScrollView([.vertical, .horizontal]) {
                     LazyVStack(spacing: 14) {
                         ForEach(0..<document.pageCount, id: \.self) { i in
                             pageRow(i, width: pageWidth).id(i)
                         }
                     }
                     .padding(.vertical, 16)
-                    .frame(maxWidth: .infinity)
+                    // Fill at least the viewport and pin to the top: pages stay
+                    // horizontally centred, but when the stack is shorter than the
+                    // viewport (e.g. a short PDF zoomed out) the slack falls below
+                    // instead of splitting symmetrically above and below. When the
+                    // content is larger, its intrinsic size drives scrolling on
+                    // both axes.
+                    .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .top)
                 }
                 .coordinateSpace(name: "continuousPDF")
                 .onPreferenceChange(ContinuousPageMidKey.self) { mids in

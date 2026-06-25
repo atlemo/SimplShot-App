@@ -100,6 +100,7 @@ struct EditorView: View {
     @State private var rawImage: NSImage?
     @State private var currentDisplayCGImage: CGImage?
     @State private var imageMetadata: ImageMetadata?
+    @State private var dpiScaleFactor: CGFloat = 1.0  // For high-DPI images (1.0 = 72 DPI, 2.0 = 144 DPI, etc.)
     @State private var imagePixelSize: CGSize = .zero
     /// The display's backing scale factor (e.g. 2.0 on Retina, 3.0 on 3× displays).
     /// Used in export rendering to scale strokes and other elements to image resolution.
@@ -322,11 +323,17 @@ struct EditorView: View {
         fitScale * zoomLevel
     }
 
-    /// The zoom percentage relative to "true size" (1:1 with the image's logical size).
-    /// True size is when effectiveScale == 1.0 (1 image pixel = 1 logical point).
+    /// The zoom percentage relative to the image's *natural* size.
+    /// Natural size is when effectiveScale == 1/dpiScaleFactor: a normal 72-DPI
+    /// image shows 1 image pixel per logical point at 100%, while a 144-DPI (2×)
+    /// screenshot shows 2 image pixels per point at 100% (i.e. it opens at half
+    /// its pixel dimensions, the size it was captured to be viewed at).
     private var displayZoomPercent: CGFloat {
+        // Continuous PDF scrolling has its own scale model: zoom 1.0 == fit-to-width,
+        // which reads as 100%. effectiveScale (single-page) doesn't apply there.
+        if isContinuousPDF { return zoomLevel * 100 }
         guard effectiveScale > 0 else { return 100 }
-        return effectiveScale * 100
+        return effectiveScale * dpiScaleFactor * 100
     }
 
     /// The screenshot content's bounding rect inside the display canvas, in image-pixel space.
@@ -806,6 +813,7 @@ struct EditorView: View {
                                 document: doc,
                                 scrollTarget: $continuousScrollTarget,
                                 visiblePage: $continuousVisiblePage,
+                                zoom: zoomLevel,
                                 highlights: { searchHighlights(on: $0) },
                                 activeHighlight: { activeSearchHighlight(on: $0) },
                                 onOpenURL: openPDFLinkURL,
@@ -821,6 +829,7 @@ struct EditorView: View {
                                     imagePixelSize: imagePixelSize,
                                     scale: effectiveScale,
                                     displayBackingScale: displayBackingScale,
+                                    dpiScaleFactor: dpiScaleFactor,
                                     editorMode: editorMode,
                                     pdfPageSource: activeSession?.pdfPageSource,
                                     searchHighlights: searchHighlightsForActivePage,
@@ -954,9 +963,11 @@ struct EditorView: View {
             // and enlarge if needed (like a PDF viewer).
             fitScale = fitToView
         } else {
-            // Raster images: show at natural 1:1 size, but scale down if too big
-            // to fit in the viewport.
-            fitScale = min(fitToView, 1.0)
+            // Raster images: show at natural 1:1 size (accounting for DPI scale),
+            // but scale down if too big to fit in the viewport.
+            // For 2x images (144 DPI), cap at 0.5 so they display at half size (natural).
+            let trueSizeCap = 1.0 / dpiScaleFactor
+            fitScale = min(fitToView, trueSizeCap)
         }
     }
 
@@ -974,10 +985,15 @@ struct EditorView: View {
         }
     }
 
-    /// Zoom preset: 1 image pixel == 1 logical point (100% / true size).
+    /// Zoom preset: natural size (100%). For a normal image this is 1 image
+    /// pixel == 1 logical point; for a 144-DPI (2×) screenshot it is 2 image
+    /// pixels == 1 logical point, matching the size it was captured to be viewed at.
     private func actualSize() {
+        // Continuous PDF: "100%" is the fit-to-width baseline (zoom 1.0).
+        if isContinuousPDF { zoomLevel = 1.0; syncZoomToPDFGroup(); return }
         guard fitScale > 0 else { return }
-        zoomLevel = min(max(1.0 / fitScale, minZoomLevel), maxZoomLevel)
+        let naturalScale = 1.0 / dpiScaleFactor
+        zoomLevel = min(max(naturalScale / fitScale, minZoomLevel), maxZoomLevel)
         syncZoomToPDFGroup()
     }
 
@@ -985,6 +1001,8 @@ struct EditorView: View {
     /// Unlike the default fit scale for raster screenshots, this command can scale
     /// up past true size because the user explicitly asked to fill the view.
     private func zoomToFit() {
+        // Continuous PDF: fitting means fit-to-width (zoom 1.0).
+        if isContinuousPDF { zoomLevel = 1.0; syncZoomToPDFGroup(); return }
         guard fitScale > 0,
               imagePixelSize.width > 0,
               imagePixelSize.height > 0,
@@ -1000,6 +1018,8 @@ struct EditorView: View {
 
     /// Zoom preset: scale so the image width fills the available viewport width.
     private func fitToWidth() {
+        // Continuous PDF: pages already fit the viewport width at zoom 1.0.
+        if isContinuousPDF { zoomLevel = 1.0; syncZoomToPDFGroup(); return }
         guard fitScale > 0, imagePixelSize.width > 0, lastViewSize.width > 0 else { return }
         let availableWidth = max(lastViewSize.width - 42, 100) // 40 chrome + 2 fudge
         let target = availableWidth / imagePixelSize.width
@@ -1075,6 +1095,7 @@ struct EditorView: View {
                     // Cache decoded data on the session so a later switch is instant.
                     session.rawImage = decoded.nsImage
                     session.metadata = metadata
+                    session.dpiScaleFactor = metadata.dpiScaleFactor
                     let (sw, sh) = Self.rotatedDims(width: CGFloat(decoded.cgImage.width),
                                                     height: CGFloat(decoded.cgImage.height),
                                                     steps: session.rotationSteps)
@@ -1433,6 +1454,7 @@ struct EditorView: View {
         // Always populate the originating session so a later switch back is fast.
         originalSession.rawImage = nsImage
         originalSession.metadata = metadata
+        originalSession.dpiScaleFactor = metadata.dpiScaleFactor
         let (sw, sh) = Self.rotatedDims(width: CGFloat(cgImage.width),
                                         height: CGFloat(cgImage.height),
                                         steps: originalSession.rotationSteps)
@@ -1440,8 +1462,12 @@ struct EditorView: View {
 
         if activeSessionID == sessionID {
             // Reflect into @State and trigger the active display pipeline.
+            // dpiScaleFactor must be set before applyDisplayImage so the fit-scale
+            // pass uses it, and before saveActiveSessionState so the @State value
+            // (not a stale default) is the one persisted back to the session.
             rawImage = nsImage
             imageMetadata = metadata
+            dpiScaleFactor = metadata.dpiScaleFactor
             screenshotCropRect = originalSession.screenshotCropRect
             applyDisplayImage(from: nsImage)
             saveActiveSessionState()
@@ -3161,6 +3187,7 @@ struct EditorView: View {
         session.rawImage = rawImage
         session.currentDisplayCGImage = currentDisplayCGImage
         session.metadata = imageMetadata
+        session.dpiScaleFactor = dpiScaleFactor
         session.imagePixelSize = imagePixelSize
         session.screenshotCropRect = screenshotCropRect
         session.annotations = annotations
@@ -3204,6 +3231,7 @@ struct EditorView: View {
         imageMetadata = session.metadata
         imagePixelSize = session.imagePixelSize
         screenshotCropRect = session.screenshotCropRect
+        dpiScaleFactor = session.dpiScaleFactor
         annotations = session.annotations
         selectedAnnotationID = session.selectedAnnotationID
         isCropping = session.isCropping
@@ -3356,6 +3384,7 @@ struct EditorView: View {
     private func copyToClipboardSilent() {
         flushPendingDisplayRender()
         let renderer = AnnotationRenderer()
+        renderer.styleScale = dpiScaleFactor
         guard let outputImage = composedRasterOutput(
             pdfPage: activePDFPage(),
             displayCG: currentCGImage(),
@@ -3470,6 +3499,7 @@ struct EditorView: View {
         guard let cgImage = cg else { return }
 
         let renderer = AnnotationRenderer()
+        renderer.styleScale = session.dpiScaleFactor
         let outputImage = try renderer.render(
             image: cgImage,
             annotations: session.annotations,
@@ -3595,6 +3625,7 @@ struct EditorView: View {
         guard let cgImage = currentCGImage() else { return }
 
         let renderer = AnnotationRenderer()
+        renderer.styleScale = dpiScaleFactor
         // Crop is applied destructively in applyCrop(), so at export time
         // the image is already the cropped region — no crop rect needed.
         let outputImage = try renderer.render(
@@ -3640,6 +3671,8 @@ struct EditorView: View {
         for session in sessions {
             let cg = session.currentDisplayCGImage
                 ?? session.image?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            // Each session may have its own DPI (mixed 1×/2× images in one print job).
+            renderer.styleScale = session.dpiScaleFactor
             let page = session.pdfPageSource.flatMap { $0.document.page(at: $0.pageIndex) }
             guard let outputCG = composedRasterOutput(
                 pdfPage: page,

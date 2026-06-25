@@ -6,6 +6,15 @@ struct AnnotationOverlayView: View {
     let annotation: Annotation
     let scale: CGFloat         // view points per image pixel
     let displayBackingScale: CGFloat // monitor backing scale (e.g. 2.0 on Retina)
+    /// Image pixel-density multiplier (1 for 72-DPI, 2 for 144-DPI Retina, …).
+    /// Applied to style dimensions so strokes/fonts stay proportional to the
+    /// denser pixels — NOT to positions. Mirrors AnnotationRenderer.styleScale.
+    var dpiScaleFactor: CGFloat = 1
+
+    /// View points per image-pixel for *dimensions* (stroke width, font size,
+    /// corner radii, feather). Positions use `scale`; dimensions use this so a
+    /// 2× image renders thicker strokes, matching the export.
+    private var dimScale: CGFloat { scale * dpiScaleFactor }
     let isSelected: Bool
     var suppressSpotlightShape: Bool = false
     /// Source image for pixelate preview (image-pixel space). Optional; falls back to a mosaic pattern.
@@ -26,7 +35,7 @@ struct AnnotationOverlayView: View {
     /// Stroke width in view points, scaled by the zoom level.
     /// At true size (scale = 1.0), annotation strokes appear at their logical size.
     private var displayStrokeWidth: CGFloat {
-        annotation.style.strokeWidth * scale
+        annotation.style.strokeWidth * dimScale
     }
 
     @ViewBuilder
@@ -71,9 +80,9 @@ struct AnnotationOverlayView: View {
                 annotation.style.strokeColor,
                 style: StrokeStyle(
                     lineWidth: displayStrokeWidth,
-                    lineCap: .round,
+                    lineCap: .butt,
                     lineJoin: .round,
-                    dash: [0, displayStrokeWidth * 4]
+                    dash: [displayStrokeWidth * 3, displayStrokeWidth * 2]
                 )
             )
             MeasurementHeadShape(baseCenter: end, toward: start, lineWidth: displayStrokeWidth)
@@ -108,9 +117,9 @@ struct AnnotationOverlayView: View {
             )
 
         case .rectangle:
-            // Export draws the corner at 6 × backingScale image pixels.
-            // For display preview, scale by zoom level.
-            let rectCorner = 6 * scale
+            // Corner radius scales with zoom and image DPI (matches export's
+            // `6 * styleScale`).
+            let rectCorner = 6 * dimScale
             RoundedRectangle(cornerRadius: rectCorner)
                 .fill(annotation.style.fillColor ?? Color.clear)
                 .overlay(RoundedRectangle(cornerRadius: rectCorner).stroke(annotation.style.strokeColor, lineWidth: displayStrokeWidth))
@@ -200,13 +209,13 @@ struct AnnotationOverlayView: View {
             } else {
                 let fullW = imagePixelSize.width * scale
                 let fullH = imagePixelSize.height * scale
-                // Export blurs at feather × backingScale image pixels.
-                // For display preview, scale by zoom level.
-                let blurRadius = annotation.style.spotlightFeather * scale
+                // Feather + corner are style dims → dimScale (matches export's
+                // `feather * styleScale` / `6 * styleScale`); canvas size uses scale.
+                let blurRadius = annotation.style.spotlightFeather * dimScale
                 SpotlightOverlayShape(
                     cutouts: [rect],
                     canvasSize: CGSize(width: fullW, height: fullH),
-                    cornerRadius: 6 * scale,
+                    cornerRadius: 6 * dimScale,
                     outsetForBlur: blurRadius * 3
                 )
                 .fill(Color.black.opacity(annotation.style.spotlightOpacity), style: FillStyle(eoFill: true))
@@ -310,8 +319,9 @@ struct AnnotationOverlayView: View {
         let pixelDistance = hypot(annotation.endPoint.x - annotation.startPoint.x, annotation.endPoint.y - annotation.startPoint.y)
         let label = "\(Int(pixelDistance.rounded())) px"
         let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
-        // Scale text and padding by zoom level and stroke width for readability
-        let f = scale * max(1.0, annotation.style.strokeWidth / 2.0)
+        // Font/pad: gentle growth with stroke width (shared with export), then
+        // × dimScale for zoom + image DPI. Must match AnnotationRenderer.drawMeasurement.
+        let f = dimScale * AnnotationRenderer.measurementFontScale(strokeWidth: annotation.style.strokeWidth)
         Text(label)
             .font(.system(size: 11 * f, weight: .medium, design: .monospaced))
             .foregroundStyle(annotation.style.isLight ? Color.black : Color.white)
@@ -734,6 +744,7 @@ struct CommittedAnnotationsView: Equatable, View {
     let selectedAnnotationID: UUID?
     let scale: CGFloat
     let displayBackingScale: CGFloat
+    var dpiScaleFactor: CGFloat = 1
     let sourceImage: NSImage?
     let imagePixelSize: CGSize
 
@@ -744,6 +755,7 @@ struct CommittedAnnotationsView: Equatable, View {
         && lhs.selectedAnnotationID == rhs.selectedAnnotationID
         && lhs.scale == rhs.scale
         && lhs.displayBackingScale == rhs.displayBackingScale
+        && lhs.dpiScaleFactor == rhs.dpiScaleFactor
         && lhs.sourceImage === rhs.sourceImage
         && lhs.imagePixelSize == rhs.imagePixelSize
     }
@@ -759,6 +771,7 @@ struct CommittedAnnotationsView: Equatable, View {
                 annotation: annotation,
                 scale: scale,
                 displayBackingScale: displayBackingScale,
+                dpiScaleFactor: dpiScaleFactor,
                 isSelected: annotation.id == selectedAnnotationID,
                 suppressSpotlightShape: false,
                 sourceImage: sourceImage,
@@ -772,6 +785,7 @@ struct CommittedAnnotationsView: Equatable, View {
                 annotations: spotlightAnnotations,
                 scale: scale,
                 displayBackingScale: displayBackingScale,
+                dpiScaleFactor: dpiScaleFactor,
                 imagePixelSize: imagePixelSize
             )
             .allowsHitTesting(false)
@@ -782,6 +796,7 @@ struct CommittedAnnotationsView: Equatable, View {
                 annotation: annotation,
                 scale: scale,
                 displayBackingScale: displayBackingScale,
+                dpiScaleFactor: dpiScaleFactor,
                 isSelected: annotation.id == selectedAnnotationID,
                 suppressSpotlightShape: annotation.tool == .spotlight,
                 sourceImage: nil,
@@ -796,7 +811,10 @@ private struct SharedSpotlightOverlay: View {
     let annotations: [Annotation]
     let scale: CGFloat
     let displayBackingScale: CGFloat
+    var dpiScaleFactor: CGFloat = 1
     let imagePixelSize: CGSize
+
+    private var dimScale: CGFloat { scale * dpiScaleFactor }
 
     var body: some View {
         let fullW = imagePixelSize.width * scale
@@ -811,14 +829,14 @@ private struct SharedSpotlightOverlay: View {
             )
         }
         let feather = annotations.map(\.style.spotlightFeather).max() ?? 0
-        // Export blurs at feather × backingScale image pixels and rounds the
-        // cutout at 6 × backingScale. For display preview, scale by zoom level.
-        let blurRadius = feather * scale
+        // Feather + corner are style dims → dimScale (matches export's
+        // `feather * styleScale` / `6 * styleScale`); cutouts/canvas use scale.
+        let blurRadius = feather * dimScale
 
         SpotlightOverlayShape(
             cutouts: cutouts,
             canvasSize: CGSize(width: fullW, height: fullH),
-            cornerRadius: 6 * scale,
+            cornerRadius: 6 * dimScale,
             outsetForBlur: blurRadius * 3
         )
         .fill(

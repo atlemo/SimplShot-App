@@ -11,9 +11,15 @@ struct ImageMetadata: Equatable {
     let fStop: String?
     let iso: String?
     let fileSize: String?
+    let dpi: CGFloat             // Actual detected DPI from the file (72, 144, 216, 300…)
+    let dpiScaleFactor: CGFloat  // Retina scaling decision: 1.0, 2.0, or 3.0 (only for clean 144/216)
 
     var rows: [(label: String, value: String)] {
-        [
+        // Show the true DPI, and flag it as a Retina capture when we're scaling for it.
+        let dpiString = dpiScaleFactor > 1.0 ?
+            "\(Int(dpi)) (\(Int(dpiScaleFactor))×)" :
+            "\(Int(dpi))"
+        return [
             ("File", fileName),
             Self.optionalRow("Date", timestamp),
             Self.optionalRow("Camera", cameraBrand),
@@ -21,7 +27,8 @@ struct ImageMetadata: Equatable {
             Self.optionalRow("Shutter", shutter),
             Self.optionalRow("F-stop", fStop),
             Self.optionalRow("ISO", iso),
-            Self.optionalRow("Size", fileSize)
+            Self.optionalRow("Size", fileSize),
+            ("DPI", dpiString)
         ].compactMap { $0 }
     }
 
@@ -38,6 +45,9 @@ struct ImageMetadata: Equatable {
             ?? stringValue(tiff[kCGImagePropertyTIFFDateTime])
             ?? formatDate(resourceValues?.creationDate ?? resourceValues?.contentModificationDate)
 
+        let dpi = extractDPI(from: properties)
+        let dpiScaleFactor = retinaScaleFactor(forDPI: dpi)
+
         return ImageMetadata(
             fileName: url.lastPathComponent,
             timestamp: timestamp,
@@ -46,7 +56,9 @@ struct ImageMetadata: Equatable {
             shutter: shutterString(from: exif[kCGImagePropertyExifExposureTime]),
             fStop: fStopString(from: exif[kCGImagePropertyExifFNumber]),
             iso: isoString(from: exif[kCGImagePropertyExifISOSpeedRatings]),
-            fileSize: fileSizeString(from: resourceValues?.fileSize)
+            fileSize: fileSizeString(from: resourceValues?.fileSize),
+            dpi: dpi,
+            dpiScaleFactor: dpiScaleFactor
         )
     }
 
@@ -116,6 +128,53 @@ struct ImageMetadata: Equatable {
         guard let bytes else { return nil }
         return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
+
+    /// Maps a file's DPI to the Retina display-scale we should honour.
+    ///
+    /// Retina screenshots are captured at an *integer* multiple of the 72-DPI
+    /// base: 144 DPI (2×) or 216 DPI (3×). Only those should display at reduced
+    /// "natural" size. Arbitrary densities — a 96-DPI Windows PNG, a 300-DPI
+    /// document scan, a 150-DPI export — are genuine high-resolution content,
+    /// NOT a doubled logical size, so they stay at 1.0 (shown at their true pixel
+    /// size). We therefore only treat the image as high-DPI when dpi/72 lands
+    /// within a tight tolerance of 2 or 3.
+    static func retinaScaleFactor(forDPI dpi: CGFloat) -> CGFloat {
+        let rawScale = dpi / 72.0
+        let nearest = rawScale.rounded()
+        guard (nearest == 2 || nearest == 3),
+              abs(rawScale - nearest) < 0.02 else {
+            return 1.0
+        }
+        return nearest
+    }
+
+    private static func extractDPI(from properties: [CFString: Any]) -> CGFloat {
+        // Try TIFF X resolution (most common for screenshots)
+        let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any] ?? [:]
+        if let xResolution = numberValue(tiff[kCGImagePropertyTIFFXResolution]),
+           xResolution > 0 {
+            return CGFloat(xResolution)
+        }
+
+        // Try TIFF Y resolution
+        if let yResolution = numberValue(tiff[kCGImagePropertyTIFFYResolution]),
+           yResolution > 0 {
+            return CGFloat(yResolution)
+        }
+
+        // Try top-level DPI properties
+        if let dpi = numberValue(properties[kCGImagePropertyDPIWidth]),
+           dpi > 0 {
+            return CGFloat(dpi)
+        }
+        if let dpi = numberValue(properties[kCGImagePropertyDPIHeight]),
+           dpi > 0 {
+            return CGFloat(dpi)
+        }
+
+        // Default to 72 DPI (standard macOS)
+        return 72.0
+    }
 }
 
 /// Encapsulates all per-image editing state so multiple images can coexist
@@ -137,6 +196,15 @@ class ImageSession: Identifiable, ObservableObject {
     var imagePixelSize: CGSize = .zero
     var screenshotCropRect: CGRect = .zero
     var metadata: ImageMetadata?
+
+    /// DPI scale factor for high-DPI images (1.0 for 72 DPI, 2.0 for 144 DPI, etc.)
+    /// Used to cap fitScale so 2x screenshots display at natural size.
+    var dpiScaleFactor: CGFloat = 1.0 {
+        didSet {
+            // Clamp to reasonable values (1x to 3x)
+            dpiScaleFactor = max(1.0, min(3.0, dpiScaleFactor))
+        }
+    }
 
     // Annotations
     var annotations: [Annotation] = []

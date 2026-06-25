@@ -65,9 +65,11 @@ class ScreenshotService {
         let filename = "\(sanitizedName)_\(width)x\(height)_\(timestamp)\(indexSuffix).\(format.fileExtension)"
         let filePath = saveURL.appendingPathComponent(filename)
 
-        // Write using CGImageDestination — this writes the raw pixel data
-        // at 72 DPI (matching macOS native screenshot behaviour) so the
-        // reported image dimensions equal the actual pixel count.
+        // Tag the file with the capture's true DPI: 72 × backingScale (so 144 on
+        // a 2× Retina display, 216 on 3×) — exactly what macOS's own screenshot
+        // tool writes. Pixel dimensions are unchanged; this lets the editor detect
+        // the capture as Retina and open it at natural size instead of 2×/3×.
+        let captureDPI = 72.0 * Double(backingScale)
         #if !APPSTORE
         // WebP encoding requires the swift-webp library; CGImageDestination
         // does not support WebP encoding on macOS.
@@ -80,8 +82,8 @@ class ScreenshotService {
 
         let utType: CFString
         var properties: [CFString: Any] = [
-            kCGImagePropertyDPIWidth: 72.0,
-            kCGImagePropertyDPIHeight: 72.0,
+            kCGImagePropertyDPIWidth: captureDPI,
+            kCGImagePropertyDPIHeight: captureDPI,
         ]
 
         switch format {

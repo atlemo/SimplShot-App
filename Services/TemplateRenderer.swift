@@ -643,9 +643,12 @@ class TemplateRenderer {
               let nsImage = WatermarkImageCache.image(atPath: path)
         else { return }
 
-        let marginH = CGFloat(watermark.edgeOffset) * backingScale
-        let marginV = CGFloat(watermark.bottomOffset) * backingScale
-        let targetW = max(1, CGFloat(watermark.widthPx) * backingScale)
+        // Watermark dimensions are image-pixel units, consistent with the editor
+        // preview (EditorCanvasView `* scale`) and AnnotationRenderer export, so
+        // a given widthPx renders at the same relative size in every path.
+        let marginH = CGFloat(watermark.edgeOffset)
+        let marginV = CGFloat(watermark.bottomOffset)
+        let targetW = max(1, CGFloat(watermark.widthPx))
         let rawSize = nsImage.size
         let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
         let targetH = max(1, targetW / aspect)
