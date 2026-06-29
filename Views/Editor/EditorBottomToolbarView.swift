@@ -138,6 +138,7 @@ struct EditorBottomToolbarView: View {
             Button(action: onTrash) {
                 Label("Delete", systemImage: "trash")
                     .labelStyle(.iconOnly)
+                    .foregroundStyle(.red)
                     .frame(width: 36, height: pillHeight)
                     .contentShape(RoundedRectangle(cornerRadius: 8))
             }

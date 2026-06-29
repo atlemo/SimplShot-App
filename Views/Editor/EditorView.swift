@@ -166,6 +166,7 @@ struct EditorView: View {
     @State private var shadowIntensity: Double = 1.0
     @State private var screenshotAlignment: CanvasAlignment = .middleCenter
     @State private var watermarkSettings: WatermarkSettings = WatermarkSettings()
+    @FocusState private var isCopyButtonFocused: Bool
 
     init(
         imageURL: URL,
@@ -763,12 +764,14 @@ struct EditorView: View {
                                 .padding(.horizontal, 6)
                         }
                         .buttonStyle(.glassProminent)
+                        .focused($isCopyButtonFocused)
                     } else {
                         Button(action: saveOverwrite) {
                             Text(saveActionLabel)
                                 .padding(.horizontal, 6)
                         }
                         .buttonStyle(.borderedProminent)
+                        .focused($isCopyButtonFocused)
                     }
                 }
                 .controlSize(.large)
@@ -777,6 +780,7 @@ struct EditorView: View {
                 .keyboardShortcut("s", modifiers: .command)
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
+            .defaultFocus($isCopyButtonFocused, true)
             .padding(.leading, topActionBarLeadingPadding)
             .padding(.trailing, 12)
             .padding(.top, 10)
