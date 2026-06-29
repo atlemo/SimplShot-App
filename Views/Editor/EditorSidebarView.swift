@@ -22,6 +22,10 @@ struct EditorSidebarView: View {
     @Binding var annotations: [Annotation]
     @Binding var isCropping: Bool
     @Binding var cropAspectPreset: CropAspectPreset
+    @Binding var straightenDialAngle: Double
+    @Binding var isAdjustingCrop: Bool
+    /// True for PDF sessions — straighten is offered for raster images only.
+    var isPDFSession: Bool = false
 
     @Binding var selectedWallpaper: WallpaperSource?
     @Binding var padding: Int
@@ -170,6 +174,9 @@ struct EditorSidebarView: View {
                     metadata: imageMetadata,
                     isCropping: isCropping,
                     cropAspectPreset: $cropAspectPreset,
+                    straightenDialAngle: $straightenDialAngle,
+                    isAdjustingCrop: $isAdjustingCrop,
+                    straightenAvailable: selectedWallpaper == nil && !isPDFSession,
                     imagePixelSize: imagePixelSize,
                     resizeDisabled: selectedWallpaper != nil,
                     onEnterCrop: onEnterCrop,

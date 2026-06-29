@@ -7,6 +7,12 @@ struct WhatsNewEntry {
 
 /// Hardcoded changelog — add new entries at the top before each release.
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.6.9", items: [
+        "Straighten tool — while cropping, drag the new Straighten slider to level a tilted screenshot in 1° steps. The crop tightens automatically so you never get blank corners, and an alignment grid appears while you adjust to help you line things up.",
+        "Redesigned Edit mode — photo adjustments are now organised into tidy, collapsible Light, Color and Detail sections (inspired by Apple Photos), so the panel is much easier to scan.",
+        "New Tint control under Color, alongside Temperature, for finer colour correction.",
+        "Crop, Rotate and Resize now sit together in Edit mode for a clearer, more consistent editing workflow.",
+    ]),
     WhatsNewEntry(version: "1.6.8", items: [
         "Apply one look to every open image at once — switch on “Apply to all images” in the editor sidebar to share the same background, padding, corner radius, shadow and alignment across all your open screenshots. If some images are already styled differently, SimplShot asks before replacing them.",
         "PDFs now open zoomed to fit the window — the page fills the available space instead of opening small, and the Fit button scales it up to fit, not just down.",

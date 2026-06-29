@@ -233,6 +233,8 @@ struct EditorSnapshot {
     let photoAdjustments: PhotoAdjustments
     /// Rotation (in 90° CW steps, modulo 4) at the time of the snapshot.
     let rotationSteps: Int
+    /// Fine straighten angle (degrees) at the time of the snapshot.
+    let straightenAngle: Double
 
     init(
         annotations: [Annotation],
@@ -243,7 +245,8 @@ struct EditorSnapshot {
         cropRect: CGRect? = nil,
         screenshotCropRect: CGRect? = nil,
         photoAdjustments: PhotoAdjustments = .default,
-        rotationSteps: Int = 0
+        rotationSteps: Int = 0,
+        straightenAngle: Double = 0
     ) {
         self.annotations = annotations
         self.image = image
@@ -254,5 +257,6 @@ struct EditorSnapshot {
         self.screenshotCropRect = screenshotCropRect
         self.photoAdjustments = photoAdjustments
         self.rotationSteps = rotationSteps
+        self.straightenAngle = straightenAngle
     }
 }

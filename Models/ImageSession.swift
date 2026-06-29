@@ -238,6 +238,13 @@ class ImageSession: Identifiable, ObservableObject {
     /// the rotated-raw coordinate space, so they remain consistent across rotations.
     var rotationSteps: Int = 0
 
+    /// Fine straighten angle in degrees (−45…45), applied after `rotationSteps`
+    /// and before crop in the display pipeline. Non-destructive: the pipeline
+    /// always re-derives from the raw image, so it composes losslessly with the
+    /// 90° rotation. screenshotCropRect and annotations live in the resulting
+    /// straightened coordinate space.
+    var straightenAngle: Double = 0
+
     // Undo
     var undoStack: [EditorSnapshot] = []
 

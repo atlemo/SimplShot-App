@@ -62,11 +62,19 @@ struct EditorCanvasView: View {
     var cropBoundsRect: CGRect? = nil
     /// Locks the crop region to a fixed width/height ratio when non-nil.
     var cropAspectRatio: CGFloat? = nil
+    /// Fine straighten angle (degrees) previewed live during crop mode by
+    /// rotating the image + annotation layer; baked on Apply.
+    var straightenDialAngle: Double = 0
+    /// Whether the straightening grid should be shown (while actively adjusting).
+    var showCropGrid: Bool = false
 
     var watermarkSettings: WatermarkSettings = WatermarkSettings()
 
     /// Called when the user finishes creating or modifying an annotation (for undo).
     var onCommit: () -> Void = {}
+    /// Called when the user begins / ends a crop handle drag, so the grid shows.
+    var onCropAdjustBegan: () -> Void = {}
+    var onCropAdjustEnded: () -> Void = {}
 
     /// Annotation currently being drawn (not yet committed).
     @State private var pendingAnnotation: Annotation?
@@ -139,6 +147,12 @@ struct EditorCanvasView: View {
         return true
     }
 
+    /// Live straighten angle applied to the image + annotation layers. Only
+    /// non-zero during crop mode (the dial resets on enter/apply/cancel).
+    private var cropStraightenAngle: Double {
+        isCropping ? straightenDialAngle : 0
+    }
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             // Base image + gesture layer combined (so gestures don't block other views)
@@ -208,6 +222,9 @@ struct EditorCanvasView: View {
                     flagsMonitor = nil
                 }
             }
+            // Live straighten preview — rotate the image about the canvas center.
+            // Annotations get the identical rotation below so they stay glued.
+            .rotationEffect(.degrees(cropStraightenAngle), anchor: .center)
 
             // Annotations clipped to image bounds
             ZStack(alignment: .topLeading) {
@@ -257,6 +274,8 @@ struct EditorCanvasView: View {
             .frame(width: canvasWidth, height: canvasHeight)
             .clipped()
             .allowsHitTesting(false)
+            // Match the base image's straighten rotation so annotations stay glued.
+            .rotationEffect(.degrees(cropStraightenAngle), anchor: .center)
 
             // Snap alignment guides shown during drag
             if isDraggingAnnotation {
@@ -310,7 +329,11 @@ struct EditorCanvasView: View {
                     cropRect: $cropRect,
                     scale: scale,
                     cropBoundsRect: cropBoundsRect ?? CGRect(origin: .zero, size: imagePixelSize),
-                    aspectRatio: cropAspectRatio
+                    aspectRatio: cropAspectRatio,
+                    straightenAngle: straightenDialAngle,
+                    showGrid: showCropGrid,
+                    onAdjustBegan: onCropAdjustBegan,
+                    onAdjustEnded: onCropAdjustEnded
                 )
                 .frame(width: canvasWidth, height: canvasHeight, alignment: .topLeading)
             }

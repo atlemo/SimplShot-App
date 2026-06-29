@@ -38,9 +38,32 @@ struct CropOverlayView: View {
     let scale: CGFloat          // view points per image pixel
     let cropBoundsRect: CGRect  // allowed crop area in image pixels
     var aspectRatio: CGFloat? = nil
+    /// Fine straighten angle (degrees). When non-zero the crop is auto-inscribed
+    /// to the largest upright rectangle that fits inside the tilted image, and
+    /// drags clamp to that inscribed region instead of the full image.
+    var straightenAngle: CGFloat = 0
+    /// Whether to show the straightening grid (while actively adjusting).
+    var showGrid: Bool = false
+    /// Called when a handle/move drag begins / ends, so the grid can fade in/out.
+    var onAdjustBegan: () -> Void = {}
+    var onAdjustEnded: () -> Void = {}
 
     /// Snapshot of cropRect when a handle/move drag begins.
     @State private var dragStartRect: CGRect? = nil
+
+    /// The crop region the handles clamp to: the full bounds normally, or the
+    /// largest upright inscribed rectangle when a straighten angle is active.
+    private var effectiveBounds: CGRect {
+        guard straightenAngle != 0 else { return cropBoundsRect }
+        let insc = EditorView.largestInscribedSize(cropBoundsRect.size, degrees: Double(straightenAngle))
+        var w = insc.width, h = insc.height
+        if let ratio = aspectRatio, w > 0, h > 0 {
+            if w / h > ratio { w = h * ratio } else { h = w / ratio }
+        }
+        return CGRect(x: cropBoundsRect.midX - w / 2,
+                      y: cropBoundsRect.midY - h / 2,
+                      width: w, height: h)
+    }
 
     private let handleSize: CGFloat = 10
     private let dimColor = Color.black.opacity(0.45)
@@ -73,6 +96,14 @@ struct CropOverlayView: View {
                 .position(x: viewRect.midX, y: viewRect.midY)
                 .allowsHitTesting(false)
 
+            // Straightening grid — shown only while actively adjusting.
+            if showGrid {
+                CropGridShape(rect: viewRect, divisions: 6)
+                    .stroke(Color.white.opacity(0.55), lineWidth: 0.5)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+
             // Corner handles
             cropHandle(.topLeft, viewRect: viewRect)
             cropHandle(.topRight, viewRect: viewRect)
@@ -90,6 +121,12 @@ struct CropOverlayView: View {
                 cropRect = fitRect(cropRect, to: ratio)
             }
         }
+        .onChange(of: straightenAngle) { _, _ in
+            // Auto-inscribe: snap the crop to the largest upright rect that fits
+            // inside the tilted image, so empty corners never show.
+            cropRect = effectiveBounds
+        }
+        .animation(.easeInOut(duration: 0.15), value: showGrid)
     }
 
     // MARK: - Handle Views
@@ -112,6 +149,7 @@ struct CropOverlayView: View {
                     .onChanged { value in
                         if dragStartRect == nil {
                             dragStartRect = cropRect
+                            onAdjustBegan()
                         }
                         if let startRect = dragStartRect {
                             applyDrag(edge: edge, translation: value.translation, startRect: startRect)
@@ -119,6 +157,7 @@ struct CropOverlayView: View {
                     }
                     .onEnded { _ in
                         dragStartRect = nil
+                        onAdjustEnded()
                     }
             )
     }
@@ -128,6 +167,7 @@ struct CropOverlayView: View {
             .onChanged { value in
                 if dragStartRect == nil {
                     dragStartRect = cropRect
+                    onAdjustBegan()
                 }
                 if let startRect = dragStartRect {
                     applyMove(translation: value.translation, startRect: startRect)
@@ -135,6 +175,7 @@ struct CropOverlayView: View {
             }
             .onEnded { _ in
                 dragStartRect = nil
+                onAdjustEnded()
             }
     }
 
@@ -142,13 +183,14 @@ struct CropOverlayView: View {
 
     /// Repositions the whole crop region, clamped so it stays within bounds.
     private func applyMove(translation: CGSize, startRect: CGRect) {
+        let bounds = effectiveBounds
         let dx = translation.width / scale
         let dy = translation.height / scale
         var rect = startRect
-        rect.origin.x = min(max(startRect.origin.x + dx, cropBoundsRect.minX),
-                            cropBoundsRect.maxX - rect.width)
-        rect.origin.y = min(max(startRect.origin.y + dy, cropBoundsRect.minY),
-                            cropBoundsRect.maxY - rect.height)
+        rect.origin.x = min(max(startRect.origin.x + dx, bounds.minX),
+                            bounds.maxX - rect.width)
+        rect.origin.y = min(max(startRect.origin.y + dy, bounds.minY),
+                            bounds.maxY - rect.height)
         cropRect = rect
     }
 
@@ -252,46 +294,48 @@ struct CropOverlayView: View {
     /// Clamps `rect` into `cropBoundsRect`. When an aspect ratio is active the
     /// rect is scaled down (preserving the ratio) before being nudged inside.
     private func clampToBounds(_ rect: CGRect) -> CGRect {
+        let bounds = effectiveBounds
         var rect = rect
         if let ratio = aspectRatio {
-            if rect.width > cropBoundsRect.width {
-                rect.size.width = cropBoundsRect.width
+            if rect.width > bounds.width {
+                rect.size.width = bounds.width
                 rect.size.height = rect.width / ratio
             }
-            if rect.height > cropBoundsRect.height {
-                rect.size.height = cropBoundsRect.height
+            if rect.height > bounds.height {
+                rect.size.height = bounds.height
                 rect.size.width = rect.height * ratio
             }
-            rect.origin.x = min(max(rect.minX, cropBoundsRect.minX), cropBoundsRect.maxX - rect.width)
-            rect.origin.y = min(max(rect.minY, cropBoundsRect.minY), cropBoundsRect.maxY - rect.height)
+            rect.origin.x = min(max(rect.minX, bounds.minX), bounds.maxX - rect.width)
+            rect.origin.y = min(max(rect.minY, bounds.minY), bounds.maxY - rect.height)
         } else {
-            rect.origin.x = max(rect.minX, cropBoundsRect.minX)
-            rect.origin.y = max(rect.minY, cropBoundsRect.minY)
-            rect.size.width = min(rect.width, cropBoundsRect.maxX - rect.origin.x)
-            rect.size.height = min(rect.height, cropBoundsRect.maxY - rect.origin.y)
+            rect.origin.x = max(rect.minX, bounds.minX)
+            rect.origin.y = max(rect.minY, bounds.minY)
+            rect.size.width = min(rect.width, bounds.maxX - rect.origin.x)
+            rect.size.height = min(rect.height, bounds.maxY - rect.origin.y)
         }
         return rect
     }
 
     /// Reshapes `rect` to `ratio`, keeping its center and fitting within bounds.
     private func fitRect(_ rect: CGRect, to ratio: CGFloat) -> CGRect {
+        let bounds = effectiveBounds
         var w = rect.width
         var h = w / ratio
         if h > rect.height {
             h = rect.height
             w = h * ratio
         }
-        if w > cropBoundsRect.width {
-            w = cropBoundsRect.width
+        if w > bounds.width {
+            w = bounds.width
             h = w / ratio
         }
-        if h > cropBoundsRect.height {
-            h = cropBoundsRect.height
+        if h > bounds.height {
+            h = bounds.height
             w = h * ratio
         }
         var fitted = CGRect(x: rect.midX - w / 2, y: rect.midY - h / 2, width: w, height: h)
-        fitted.origin.x = min(max(fitted.minX, cropBoundsRect.minX), cropBoundsRect.maxX - w)
-        fitted.origin.y = min(max(fitted.minY, cropBoundsRect.minY), cropBoundsRect.maxY - h)
+        fitted.origin.x = min(max(fitted.minX, bounds.minX), bounds.maxX - w)
+        fitted.origin.y = min(max(fitted.minY, bounds.minY), bounds.maxY - h)
         return fitted
     }
 
@@ -365,6 +409,30 @@ private struct CropDimOverlay: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path(rect)
         path.addRect(cropRect)
+        return path
+    }
+}
+
+// MARK: - Straightening Grid
+
+/// Evenly-spaced grid drawn inside `rect`. `divisions` is the number of cells per
+/// axis (so `divisions - 1` interior lines each way) — denser than rule-of-thirds
+/// to give a clear reference for leveling edges while straightening.
+private struct CropGridShape: Shape {
+    let rect: CGRect
+    let divisions: Int
+
+    func path(in _: CGRect) -> Path {
+        var path = Path()
+        guard divisions > 1, rect.width > 0, rect.height > 0 else { return path }
+        for i in 1..<divisions {
+            let fx = rect.minX + rect.width * CGFloat(i) / CGFloat(divisions)
+            path.move(to: CGPoint(x: fx, y: rect.minY))
+            path.addLine(to: CGPoint(x: fx, y: rect.maxY))
+            let fy = rect.minY + rect.height * CGFloat(i) / CGFloat(divisions)
+            path.move(to: CGPoint(x: rect.minX, y: fy))
+            path.addLine(to: CGPoint(x: rect.maxX, y: fy))
+        }
         return path
     }
 }

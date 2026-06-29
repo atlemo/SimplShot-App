@@ -134,6 +134,12 @@ struct EditorView: View {
     /// Pre-crop undo snapshot, captured at the start of enterCropMode() so that
     /// applyCrop() can push the correct pre-crop state rather than the expanded-image state.
     @State private var preCropSnapshot: EditorSnapshot? = nil
+    /// Additional fine straighten angle (degrees) being dragged this crop session.
+    /// Reset to 0 on entering crop mode; baked into `straightenAngle` on Apply.
+    @State private var straightenDialAngle: Double = 0
+    /// True while the user is actively dragging a crop handle or the straighten
+    /// slider — drives the straightening grid's visibility.
+    @State private var isAdjustingCrop: Bool = false
 
     // Zoom state
     @State private var zoomLevel: CGFloat = 1.0  // 1.0 = fit to view
@@ -157,6 +163,10 @@ struct EditorView: View {
     /// Applied at the top of the display pipeline; screenshotCropRect and
     /// annotations live in the rotated-raw coordinate space.
     @State private var rotationSteps: Int = 0
+    /// Fine straighten angle (degrees) applied after `rotationSteps` and before
+    /// crop in the display pipeline. screenshotCropRect and annotations live in
+    /// the resulting straightened coordinate space.
+    @State private var straightenAngle: Double = 0
     /// Shared Core Image context for photo adjustments. Created once, reused every frame.
     @State private var ciContext: CIContext = CIContext()
 
@@ -657,6 +667,9 @@ struct EditorView: View {
             annotations: $annotations,
             isCropping: $isCropping,
             cropAspectPreset: $cropAspectPreset,
+            straightenDialAngle: $straightenDialAngle,
+            isAdjustingCrop: $isAdjustingCrop,
+            isPDFSession: isPDFSession,
             selectedWallpaper: $selectedWallpaper,
             padding: $editorPadding,
             cornerRadius: $editorCornerRadius,
@@ -851,8 +864,12 @@ struct EditorView: View {
                                     isCropping: $isCropping,
                                     cropBoundsRect: screenshotBoundsInDisplay,
                                     cropAspectRatio: cropAspectPreset.ratio,
+                                    straightenDialAngle: straightenDialAngle,
+                                    showCropGrid: isAdjustingCrop,
                                     watermarkSettings: watermarkSettings,
-                                    onCommit: pushUndo
+                                    onCommit: pushUndo,
+                                    onCropAdjustBegan: { isAdjustingCrop = true },
+                                    onCropAdjustEnded: { isAdjustingCrop = false }
                                 )
                                 .padding(20)
                                 .background(ScrollViewAccessor { nsScrollView = $0 })
@@ -1352,8 +1369,14 @@ struct EditorView: View {
         else { return }
 
         // Apply this session's rotation up front (same model as applyDisplayImage).
-        let cgSource = Self.rotateCGImage90(cgSourceOriginal, steps: session.rotationSteps, ciContext: ciContext)
+        var cgSource = Self.rotateCGImage90(cgSourceOriginal, steps: session.rotationSteps, ciContext: ciContext)
             ?? cgSourceOriginal
+
+        // Apply fine straighten after the 90° rotation, before crop.
+        if session.straightenAngle != 0,
+           let straightened = Self.rotateCGImageArbitrary(cgSource, degrees: session.straightenAngle, ciContext: ciContext) {
+            cgSource = straightened
+        }
 
         var croppedCG = cgSource
         if !session.screenshotCropRect.isEmpty {
@@ -1506,6 +1529,7 @@ struct EditorView: View {
     /// thread so the background pass touches no @State.
     private struct DisplayRenderSpec {
         var rotationSteps: Int
+        var straightenAngle: Double
         var screenshotCropRect: CGRect
         var photoAdjustments: PhotoAdjustments
         var wallpaper: WallpaperSource?
@@ -1520,6 +1544,7 @@ struct EditorView: View {
     private func displayRenderSpec() -> DisplayRenderSpec {
         DisplayRenderSpec(
             rotationSteps: rotationSteps,
+            straightenAngle: straightenAngle,
             screenshotCropRect: screenshotCropRect,
             photoAdjustments: photoAdjustments,
             wallpaper: isPDFSession ? nil : selectedWallpaper,
@@ -1633,8 +1658,16 @@ struct EditorView: View {
         // Apply rotation FIRST so all subsequent geometry (crop, adjustments,
         // template) operates in the rotated coordinate space. screenshotCropRect
         // and annotations are also stored in this rotated-raw coord space.
-        let cgSource = rotateCGImage90(cgSourceOriginal, steps: spec.rotationSteps, ciContext: ciContext)
+        var cgSource = rotateCGImage90(cgSourceOriginal, steps: spec.rotationSteps, ciContext: ciContext)
             ?? cgSourceOriginal
+
+        // Apply fine straighten after the 90° rotation, before crop. Expands the
+        // canvas to the rotated bounding box (transparent corners), which the
+        // auto-inscribed crop always excludes.
+        if spec.straightenAngle != 0,
+           let straightened = rotateCGImageArbitrary(cgSource, degrees: spec.straightenAngle, ciContext: ciContext) {
+            cgSource = straightened
+        }
 
         // Apply non-destructive crop to the (rotated) raw screenshot before compositing.
         var croppedCG = cgSource
@@ -1712,6 +1745,18 @@ struct EditorView: View {
 
     private func applyCrop() {
         flushPendingDisplayRender()
+
+        // Fine straighten is applied here (no-wallpaper only — see the gating on
+        // the sidebar slider). It composes the dial angle onto the cumulative
+        // `straightenAngle`, recomputes `screenshotCropRect` in the new
+        // straightened-from-raw space, and rotates annotations about the display
+        // center so they stay glued. Handled separately and returns early.
+        if straightenDialAngle != 0, selectedWallpaper == nil,
+           let rawImg = rawImage,
+           let rawCG = rawImg.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            applyStraightenCrop(rawCG: rawCG, rawImg: rawImg)
+            return
+        }
 
         // Compute the gradient offset so we can convert display-space cropRect
         // back to raw screenshot pixel space.
@@ -1805,6 +1850,87 @@ struct EditorView: View {
         currentTool = .select
     }
 
+    /// Bakes the fine straighten (`straightenDialAngle`) together with the crop
+    /// rectangle. No-wallpaper path only, so the displayed image equals the
+    /// screenshot and there is no gradient offset to account for.
+    ///
+    /// Coordinate model (all sizes in image pixels):
+    /// - `D`        — current displayed (cropped) screenshot = `imagePixelSize`.
+    /// - `D0`       — raw image after the 90° rotation (opaque base).
+    /// - `O_old`    — full straightened image at the *old* angle = bbox(D0, old).
+    /// - `O_new`    — full straightened image at the *new* angle = bbox(D0, new).
+    /// - `C`        — old `screenshotCropRect` (region of `O_old` shown as `D`).
+    /// The visible crop maps to `O_new` by a pure translation `c' − D.center`,
+    /// where `c'` is the rotated image of `C`'s center.
+    private func applyStraightenCrop(rawCG: CGImage, rawImg: NSImage) {
+        let dial = straightenDialAngle
+        let newAngle = straightenAngle + dial
+
+        let D = imagePixelSize
+        let dCenter = CGPoint(x: D.width / 2, y: D.height / 2)
+
+        let (d0w, d0h) = Self.rotatedDims(width: CGFloat(rawCG.width),
+                                          height: CGFloat(rawCG.height),
+                                          steps: rotationSteps)
+        let d0 = CGSize(width: d0w, height: d0h)
+        let oOld = Self.rotatedBoundingBoxSize(d0, degrees: straightenAngle)
+        let oNew = Self.rotatedBoundingBoxSize(d0, degrees: newAngle)
+
+        let cRect = screenshotCropRect.isEmpty
+            ? CGRect(origin: .zero, size: oOld)
+            : screenshotCropRect
+        let cCenter = CGPoint(x: cRect.midX, y: cRect.midY)
+
+        // c' = rotate(C.center − O_old.center, dial) + O_new.center
+        let rotatedOffset = Self.rotatePointAboutCenter(
+            CGPoint(x: cCenter.x - oOld.width / 2, y: cCenter.y - oOld.height / 2),
+            degrees: dial, center: .zero)
+        let cPrime = CGPoint(x: rotatedOffset.x + oNew.width / 2,
+                             y: rotatedOffset.y + oNew.height / 2)
+
+        // New crop in O_new space = the user's cropRect translated by (c' − D.center).
+        let shift = CGPoint(x: cPrime.x - dCenter.x, y: cPrime.y - dCenter.y)
+        var newCrop = cropRect.offsetBy(dx: shift.x, dy: shift.y)
+        // Clamp into the new straightened image bounds.
+        let oNewBounds = CGRect(origin: .zero, size: oNew)
+        newCrop = newCrop.intersection(oNewBounds)
+        guard !newCrop.isEmpty else { cancelCrop(); return }
+
+        // Push pre-straighten state for undo (captured in enterCropMode).
+        if let snapshot = preCropSnapshot {
+            undoStack.append(snapshot)
+            preCropSnapshot = nil
+        } else {
+            pushUndo()
+        }
+
+        // Rotate each annotation about the display center by the dial angle, then
+        // translate into the new crop's origin: a' = rotate(a) − cropRect.origin.
+        let cropOrigin = cropRect.origin
+        annotations = annotations.map { ann in
+            var a = ann
+            let remap: (CGPoint) -> CGPoint = { p in
+                let r = Self.rotatePointAboutCenter(p, degrees: dial, center: dCenter)
+                return CGPoint(x: r.x - cropOrigin.x, y: r.y - cropOrigin.y)
+            }
+            a.startPoint = remap(ann.startPoint)
+            a.endPoint = remap(ann.endPoint)
+            if !ann.points.isEmpty { a.points = ann.points.map(remap) }
+            return a
+        }
+        selectedAnnotationID = nil
+
+        straightenAngle = newAngle
+        screenshotCropRect = newCrop
+        applyDisplayImage(from: rawImg)
+        saveActiveSessionState()
+
+        straightenDialAngle = 0
+        isAdjustingCrop = false
+        isCropping = false
+        currentTool = .select
+    }
+
     /// Expands the display to the full uncropped image and positions the crop rect
     /// over the previously-cropped region so the user can readjust from the original.
     private func enterCropMode() {
@@ -1812,6 +1938,9 @@ struct EditorView: View {
 
         // Each crop session starts unconstrained.
         cropAspectPreset = .free
+        // Fine straighten is adjusted fresh each crop session.
+        straightenDialAngle = 0
+        isAdjustingCrop = false
         guard let rawImg = rawImage,
               let cg = rawImg.cgImage(forProposedRect: nil, context: nil, hints: nil)
         else {
@@ -1830,7 +1959,8 @@ struct EditorView: View {
             cropRect: cropRect,
             screenshotCropRect: screenshotCropRect,
             photoAdjustments: photoAdjustments,
-            rotationSteps: rotationSteps
+            rotationSteps: rotationSteps,
+            straightenAngle: straightenAngle
         )
 
         // Remember the current crop so cancel can restore it.
@@ -1897,6 +2027,10 @@ struct EditorView: View {
 
     private func cancelCrop() {
         flushPendingDisplayRender()
+
+        // Discard any in-progress straighten — nothing is committed on cancel.
+        straightenDialAngle = 0
+        isAdjustingCrop = false
 
         if selectedWallpaper == nil, screenshotCropRect == preCropScreenshotCropRect {
             cropRect = CGRect(origin: .zero, size: imagePixelSize)
@@ -3097,6 +3231,71 @@ struct EditorView: View {
         }
     }
 
+    // MARK: - Fine straighten geometry
+
+    /// Rotates a CGImage by an arbitrary angle (degrees), expanding the canvas to
+    /// the rotated bounding box (transparent corners). Positive degrees rotate the
+    /// content **clockwise** to match SwiftUI's `rotationEffect` (CoreImage is
+    /// CCW-positive, hence the negated angle). Used for fine straighten after the
+    /// 90° rotation and before crop.
+    static func rotateCGImageArbitrary(_ image: CGImage, degrees: Double, ciContext: CIContext) -> CGImage? {
+        guard degrees != 0 else { return image }
+        let radians = CGFloat(-degrees * .pi / 180)
+        let ci = CIImage(cgImage: image)
+        let rotated = ci.transformed(by: CGAffineTransform(rotationAngle: radians))
+        let shifted = rotated.transformed(
+            by: CGAffineTransform(translationX: -rotated.extent.minX, y: -rotated.extent.minY))
+        return ciContext.createCGImage(shifted, from: CGRect(origin: .zero, size: rotated.extent.size))
+    }
+
+    /// Rotates `p` about `center` by `degrees`. Positive = clockwise in the
+    /// top-left-origin (y-down) image-pixel space, matching `rotationEffect` and
+    /// `rotateCGImageArbitrary` so annotations stay glued to the image.
+    static func rotatePointAboutCenter(_ p: CGPoint, degrees: Double, center c: CGPoint) -> CGPoint {
+        let r = degrees * .pi / 180
+        let cosT = cos(r), sinT = sin(r)
+        let dx = p.x - c.x, dy = p.y - c.y
+        return CGPoint(x: c.x + dx * cosT - dy * sinT,
+                       y: c.y + dx * sinT + dy * cosT)
+    }
+
+    /// Axis-aligned bounding-box size of `size` rotated by `degrees`.
+    static func rotatedBoundingBoxSize(_ size: CGSize, degrees: Double) -> CGSize {
+        let r = abs(degrees) * .pi / 180
+        let c = abs(cos(r)), s = abs(sin(r))
+        return CGSize(width: size.width * c + size.height * s,
+                      height: size.width * s + size.height * c)
+    }
+
+    /// Largest upright (axis-aligned) rectangle that fits inside `size` rotated by
+    /// `degrees` — the classic "rotatedRectWithMaxArea". Used to auto-inscribe the
+    /// crop so the tilted image never shows empty corners.
+    static func largestInscribedSize(_ size: CGSize, degrees: Double) -> CGSize {
+        let w = size.width, h = size.height
+        guard w > 0, h > 0 else { return .zero }
+        let ang = abs(degrees).truncatingRemainder(dividingBy: 180) * .pi / 180
+        let sinA = abs(sin(ang)), cosA = abs(cos(ang))
+        let widthIsLonger = w >= h
+        let longSide = widthIsLonger ? w : h
+        let shortSide = widthIsLonger ? h : w
+        let wr: CGFloat, hr: CGFloat
+        if shortSide <= 2 * sinA * cosA * longSide || abs(sinA - cosA) < 1e-10 {
+            let x = 0.5 * shortSide
+            if widthIsLonger {
+                wr = sinA == 0 ? w : x / sinA
+                hr = cosA == 0 ? h : x / cosA
+            } else {
+                wr = cosA == 0 ? w : x / cosA
+                hr = sinA == 0 ? h : x / sinA
+            }
+        } else {
+            let cos2a = cosA * cosA - sinA * sinA
+            wr = (w * cosA - h * sinA) / cos2a
+            hr = (h * cosA - w * sinA) / cos2a
+        }
+        return CGSize(width: max(0, wr), height: max(0, hr))
+    }
+
     // MARK: - Undo
 
     /// Maximum undo depth. Snapshots retain full-resolution bitmaps (`image`,
@@ -3117,7 +3316,8 @@ struct EditorView: View {
             cropRect: cropRect,
             screenshotCropRect: screenshotCropRect,
             photoAdjustments: photoAdjustments,
-            rotationSteps: rotationSteps
+            rotationSteps: rotationSteps,
+            straightenAngle: straightenAngle
         ))
     }
 
@@ -3145,6 +3345,7 @@ struct EditorView: View {
         selectedAnnotationID = nil
         // Restore rotation BEFORE photoAdjustments so the re-render uses the right orientation.
         rotationSteps = snapshot.rotationSteps
+        straightenAngle = snapshot.straightenAngle
         // Restore photo adjustments — triggers onChange which re-renders the display image.
         photoAdjustments = snapshot.photoAdjustments
     }
@@ -3211,6 +3412,7 @@ struct EditorView: View {
         session.watermarkSettings = watermarkSettings
         session.photoAdjustments = photoAdjustments
         session.rotationSteps = rotationSteps
+        session.straightenAngle = straightenAngle
         session.undoStack = undoStack
         session.templateRenderer = templateRenderer
         session.generateThumbnail()
@@ -3253,6 +3455,7 @@ struct EditorView: View {
         watermarkSettings = session.watermarkSettings
         photoAdjustments = session.photoAdjustments
         rotationSteps = session.rotationSteps
+        straightenAngle = session.straightenAngle
         // Note: editorMode is intentionally NOT restored per-session — the active mode
         // is global to the editor window, not tied to the image being viewed.
         undoStack = session.undoStack

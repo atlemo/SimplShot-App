@@ -13,6 +13,14 @@ struct PhotoEditSidebarSection: View {
     var metadata: ImageMetadata?
     var isCropping: Bool
     @Binding var cropAspectPreset: CropAspectPreset
+    /// Additional fine straighten angle (degrees) for the current crop session.
+    @Binding var straightenDialAngle: Double
+    /// True while the user drags the straighten slider — drives the grid overlay.
+    @Binding var isAdjustingCrop: Bool
+    /// Straighten is only offered for plain raster images (no background template,
+    /// not a PDF), where the displayed image equals the screenshot and the
+    /// rotate/inscribe math stays exact.
+    var straightenAvailable: Bool = true
     var imagePixelSize: CGSize
     /// True while a background template is active. Resize works on the raw
     /// screenshot, but the W/H fields show the templated canvas (screenshot +
@@ -107,6 +115,10 @@ struct PhotoEditSidebarSection: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            if straightenAvailable {
+                straightenControl
+            }
+
             HStack(spacing: 8) {
                 Button(action: onApplyCrop) {
                     Label("Apply", systemImage: "checkmark")
@@ -128,6 +140,25 @@ struct PhotoEditSidebarSection: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+    }
+
+    /// Fine straighten slider (−45°…+45°, 1° steps) shown inside the active crop
+    /// section. Uses the same `AdjustmentSlider` style as the Light/Color/Detail
+    /// rows (orange fill + thumb, value inline, double-click to reset to 0°) and
+    /// toggles `isAdjustingCrop` so the straightening grid appears while scrubbing.
+    private var straightenControl: some View {
+        AdjustmentSlider(
+            label: "Straighten",
+            value: Binding(
+                get: { Float(straightenDialAngle) },
+                set: { straightenDialAngle = Double($0) }
+            ),
+            range: -45...45,
+            zeroPoint: 0,
+            step: 1,
+            display: { "\(Int($0.rounded()))°" },
+            onEditingChanged: { isAdjustingCrop = $0 }
+        )
     }
 
     // MARK: - Adjustment sections
@@ -494,6 +525,8 @@ private struct AdjustmentSlider: View {
     let zeroPoint: Float
     var step: Float? = nil
     let display: (Float) -> String
+    /// Called with `true` when scrubbing begins and `false` when it ends.
+    var onEditingChanged: (Bool) -> Void = { _ in }
 
     @State private var isDragging = false
     @State private var isHovering = false
@@ -554,10 +587,10 @@ private struct AdjustmentSlider: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { g in
-                        isDragging = true
+                        if !isDragging { isDragging = true; onEditingChanged(true) }
                         setValue(atX: g.location.x, width: w)
                     }
-                    .onEnded { _ in isDragging = false }
+                    .onEnded { _ in isDragging = false; onEditingChanged(false) }
             )
             .onTapGesture(count: 2) {
                 withAnimation(.easeOut(duration: 0.12)) { value = zeroPoint }
