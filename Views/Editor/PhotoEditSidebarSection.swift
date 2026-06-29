@@ -3,6 +3,11 @@ import SwiftUI
 /// The sidebar content shown when the editor is in Edit mode.
 /// Provides sliders for non-destructive Core Image photo adjustments
 /// and a crop shortcut that delegates to the existing crop flow.
+///
+/// Layout is modelled on Apple Photos' adjustment inspector: collapsible
+/// sections (Light / Color / Detail / …) of `AdjustmentSlider` rows — a
+/// full-width bar with the label and value inset, a centre-origin fill and a
+/// thin thumb. All colours are semantic so the panel tracks light/dark mode.
 struct PhotoEditSidebarSection: View {
     @Binding var adjustments: PhotoAdjustments
     var metadata: ImageMetadata?
@@ -30,6 +35,15 @@ struct PhotoEditSidebarSection: View {
     private enum ResizeFocus: Hashable { case width, height }
     @FocusState private var resizeFocused: ResizeFocus?
 
+    // Collapsible-section state, persisted across launches as a comma list of
+    // the *collapsed* sections (empty string ⇒ everything expanded).
+    private enum EditSection: String, CaseIterable {
+        case light, color, detail, transform, crop, resize, metadata
+    }
+    // Default-collapsed: Metadata (read-only, rarely needed mid-edit). Stored as
+    // a comma list of the *collapsed* sections; user toggles persist over this.
+    @AppStorage("simplshot.editPanel.collapsedSections") private var collapsedRaw: String = "metadata"
+
     // MARK: - Body
 
     var body: some View {
@@ -42,10 +56,21 @@ struct PhotoEditSidebarSection: View {
                         // the adjustment sliders are hidden and replaced with Apply/Cancel.
                         activeCropSection
                     } else {
-                        adjustmentsSection
+                        lightSection
+                        groupDivider
+                        colorSection
+                        groupDivider
+                        detailSection
+                        if !adjustments.isDefault {
+                            resetAllRow
+                        }
+                        groupDivider
                         transformSection
+                        groupDivider
                         cropSection
+                        groupDivider
                         resizeSection
+                        groupDivider
                         metadataSection
                     }
                 }
@@ -60,7 +85,9 @@ struct PhotoEditSidebarSection: View {
 
     private var activeCropSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Crop")
+            Text("Crop")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
             Text("Drag the handles to resize, or drag inside to reposition.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
@@ -103,96 +130,102 @@ struct PhotoEditSidebarSection: View {
         .padding(.vertical, 12)
     }
 
-    // MARK: - Adjustments section
+    // MARK: - Adjustment sections
 
-    private var adjustmentsSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Adjustments")
+    private var lightSectionDefault: Bool {
+        adjustments.exposure == 0 && adjustments.brightness == 0 &&
+        adjustments.contrast == 1 && adjustments.highlights == 1 &&
+        adjustments.shadows == 0
+    }
 
-            adjustmentRow(
-                label: "Exposure",
-                systemImage: "sun.max",
-                value: $adjustments.exposure,
-                range: -2...2,
-                zeroPoint: 0,
-                format: "%.2f EV"
-            )
-            adjustmentRow(
-                label: "Brightness",
-                systemImage: "brightness",
-                value: $adjustments.brightness,
-                range: -1...1,
-                zeroPoint: 0,
-                format: "%.2f"
-            )
-            adjustmentRow(
-                label: "Contrast",
-                systemImage: "circle.lefthalf.filled",
-                value: $adjustments.contrast,
-                range: 0.25...4.0,
-                zeroPoint: 1,
-                format: "%.2f"
-            )
-            adjustmentRow(
-                label: "Saturation",
-                systemImage: "drop.halffull",
-                value: $adjustments.saturation,
-                range: 0...2,
-                zeroPoint: 1,
-                format: "%.2f"
-            )
-            adjustmentRow(
-                label: "Highlights",
-                systemImage: "sun.max.fill",
-                value: $adjustments.highlights,
-                range: 0...2,
-                zeroPoint: 1,
-                format: "%.2f"
-            )
-            adjustmentRow(
-                label: "Shadows",
-                systemImage: "circle.bottomhalf.filled",
-                value: $adjustments.shadows,
-                range: 0...1,
-                zeroPoint: 0,
-                format: "%.2f"
-            )
-            temperatureRow
-            adjustmentRow(
-                label: "Sharpness",
-                systemImage: "triangle",
-                value: $adjustments.sharpness,
-                range: 0...2,
-                zeroPoint: 0,
-                format: "%.2f"
-            )
-            adjustmentRow(
-                label: "Noise",
-                systemImage: "waveform.path.ecg",
-                value: $adjustments.noise,
-                range: 0...1,
-                zeroPoint: 0,
-                format: "%.2f"
-            )
-
-            Button(action: { adjustments = .default }) {
-                Label("Reset All", systemImage: "arrow.counterclockwise")
-                    .font(.system(size: 12))
-                    .frame(maxWidth: .infinity)
+    private var lightSection: some View {
+        collapsibleSection(
+            .light, title: "Light", icon: "sun.max.fill",
+            trailingReset: lightSectionDefault ? nil : {
+                adjustments.exposure = 0; adjustments.brightness = 0
+                adjustments.contrast = 1; adjustments.highlights = 1
+                adjustments.shadows = 0
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(adjustments.isDefault)
+        ) {
+            VStack(spacing: 8) {
+                AdjustmentSlider(label: "Exposure", value: $adjustments.exposure,
+                                 range: -2...2, zeroPoint: 0) { String(format: "%.2f", $0) }
+                AdjustmentSlider(label: "Brightness", value: $adjustments.brightness,
+                                 range: -1...1, zeroPoint: 0) { String(format: "%.2f", $0) }
+                AdjustmentSlider(label: "Contrast", value: $adjustments.contrast,
+                                 range: 0.25...4, zeroPoint: 1) { String(format: "%.2f", $0 - 1) }
+                AdjustmentSlider(label: "Highlights", value: $adjustments.highlights,
+                                 range: 0...2, zeroPoint: 1) { String(format: "%.2f", $0 - 1) }
+                AdjustmentSlider(label: "Shadows", value: $adjustments.shadows,
+                                 range: 0...1, zeroPoint: 0) { String(format: "%.2f", $0) }
+            }
         }
+    }
+
+    private var colorSectionDefault: Bool {
+        adjustments.saturation == 1 && adjustments.temperature == 6500 && adjustments.tint == 0
+    }
+
+    private var colorSection: some View {
+        collapsibleSection(
+            .color, title: "Color", icon: "drop.fill",
+            trailingReset: colorSectionDefault ? nil : {
+                adjustments.saturation = 1; adjustments.temperature = 6500; adjustments.tint = 0
+            }
+        ) {
+            VStack(spacing: 8) {
+                AdjustmentSlider(label: "Saturation", value: $adjustments.saturation,
+                                 range: 0...2, zeroPoint: 1) { String(format: "%.2f", $0 - 1) }
+                AdjustmentSlider(label: "Temperature", value: $adjustments.temperature,
+                                 range: 2000...10000, zeroPoint: 6500, step: 100) { v in
+                    let d = Int((v - 6500).rounded())
+                    return d == 0 ? "0" : String(format: "%+d", d)
+                }
+                AdjustmentSlider(label: "Tint", value: $adjustments.tint,
+                                 range: -100...100, zeroPoint: 0, step: 1) { v in
+                    let d = Int(v.rounded())
+                    return d == 0 ? "0" : String(format: "%+d", d)
+                }
+            }
+        }
+    }
+
+    private var detailSectionDefault: Bool {
+        adjustments.sharpness == 0 && adjustments.noise == 0
+    }
+
+    private var detailSection: some View {
+        collapsibleSection(
+            .detail, title: "Detail", icon: "wand.and.stars",
+            trailingReset: detailSectionDefault ? nil : {
+                adjustments.sharpness = 0; adjustments.noise = 0
+            }
+        ) {
+            VStack(spacing: 8) {
+                AdjustmentSlider(label: "Sharpness", value: $adjustments.sharpness,
+                                 range: 0...2, zeroPoint: 0) { String(format: "%.2f", $0) }
+                AdjustmentSlider(label: "Noise", value: $adjustments.noise,
+                                 range: 0...1, zeroPoint: 0) { String(format: "%.2f", $0) }
+            }
+        }
+    }
+
+    private var resetAllRow: some View {
+        Button(action: { adjustments = .default }) {
+            Label("Reset All Adjustments", systemImage: "arrow.counterclockwise")
+                .font(.system(size: 12))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.bottom, 12)
     }
 
     // MARK: - Transform section
 
     private var transformSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Transform")
+        collapsibleSection(.transform, title: "Transform", icon: "crop.rotate") {
             HStack(spacing: 8) {
                 Button(action: onRotateLeft) {
                     Label("Left", systemImage: "rotate.left")
@@ -213,15 +246,12 @@ struct PhotoEditSidebarSection: View {
                 .help("Rotate 90° clockwise")
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
     }
 
     // MARK: - Crop section
 
     private var cropSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Crop")
+        collapsibleSection(.crop, title: "Crop", icon: "crop") {
             Button(action: onEnterCrop) {
                 Label("Crop Image", systemImage: "crop")
                     .font(.system(size: 12))
@@ -230,33 +260,28 @@ struct PhotoEditSidebarSection: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
     }
 
     // MARK: - Resize section
 
     private var resizeSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Resize")
+        collapsibleSection(.resize, title: "Resize", icon: "arrow.up.left.and.arrow.down.right") {
+            VStack(alignment: .leading, spacing: 10) {
+                if resizeDisabled {
+                    Text("Remove the background to resize the image.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            if resizeDisabled {
-                Text("Remove the background to resize the image.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            HStack(spacing: 6) {
-                VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
                     HStack(spacing: 6) {
                         Text("W")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
-                            .frame(width: 14, alignment: .trailing)
                         TextField("", text: $resizeWidthStr)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 64)
+                            .frame(maxWidth: .infinity)
                             .focused($resizeFocused, equals: .width)
                             .onChange(of: resizeWidthStr) { _, _ in
                                 guard resizeFocused == .width, lockAspectRatio else { return }
@@ -265,18 +290,33 @@ struct PhotoEditSidebarSection: View {
                                 }
                             }
                             .onSubmit { commitResize() }
-                        Text("px")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
                     }
+
+                    Button {
+                        lockAspectRatio.toggle()
+                        if lockAspectRatio {
+                            // Recalculate aspect ratio from current field values
+                            if let w = Int(resizeWidthStr), let h = Int(resizeHeightStr), w > 0, h > 0 {
+                                resizeAspectRatio = Double(w) / Double(h)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: lockAspectRatio ? "lock.fill" : "lock.open")
+                            .font(.system(size: 12))
+                            .foregroundStyle(lockAspectRatio ? Color.simplShotOrange : .secondary)
+                            .frame(width: 22, height: 22)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio")
+
                     HStack(spacing: 6) {
                         Text("H")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
-                            .frame(width: 14, alignment: .trailing)
                         TextField("", text: $resizeHeightStr)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 64)
+                            .frame(maxWidth: .infinity)
                             .focused($resizeFocused, equals: .height)
                             .onChange(of: resizeHeightStr) { _, _ in
                                 guard resizeFocused == .height, lockAspectRatio else { return }
@@ -285,42 +325,20 @@ struct PhotoEditSidebarSection: View {
                                 }
                             }
                             .onSubmit { commitResize() }
-                        Text("px")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
                     }
                 }
 
-                Button {
-                    lockAspectRatio.toggle()
-                    if lockAspectRatio {
-                        // Recalculate aspect ratio from current field values
-                        if let w = Int(resizeWidthStr), let h = Int(resizeHeightStr), w > 0, h > 0 {
-                            resizeAspectRatio = Double(w) / Double(h)
-                        }
-                    }
-                } label: {
-                    Image(systemName: lockAspectRatio ? "lock.fill" : "lock.open")
-                        .font(.system(size: 12))
-                        .foregroundStyle(lockAspectRatio ? Color.accentColor : .secondary)
-                        .frame(width: 24, height: 24)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(lockAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio")
+                Button("Resize", action: commitResize)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity)
+                    .disabled({
+                        guard let w = Int(resizeWidthStr), let h = Int(resizeHeightStr), w > 0, h > 0 else { return true }
+                        return w == Int(imagePixelSize.width) && h == Int(imagePixelSize.height)
+                    }())
             }
-
-            Button("Resize", action: commitResize)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled({
-                    guard let w = Int(resizeWidthStr), let h = Int(resizeHeightStr), w > 0, h > 0 else { return true }
-                    return w == Int(imagePixelSize.width) && h == Int(imagePixelSize.height)
-                }())
+            .disabled(resizeDisabled)
         }
-        .disabled(resizeDisabled)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
     }
 
     private func initResizeFields() {
@@ -339,8 +357,7 @@ struct PhotoEditSidebarSection: View {
     // MARK: - Metadata section
 
     private var metadataSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Metadata")
+        collapsibleSection(.metadata, title: "Metadata", icon: "info.circle") {
             if let metadata, !metadata.rows.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(metadata.rows, id: \.label) { row in
@@ -364,91 +381,242 @@ struct PhotoEditSidebarSection: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    // MARK: - Collapsible section scaffolding
+
+    private func isExpanded(_ section: EditSection) -> Bool {
+        !collapsedSet.contains(section)
+    }
+
+    private var collapsedSet: Set<EditSection> {
+        Set(collapsedRaw.split(separator: ",").compactMap { EditSection(rawValue: String($0)) })
+    }
+
+    private func toggle(_ section: EditSection) {
+        var set = collapsedSet
+        if set.contains(section) { set.remove(section) } else { set.insert(section) }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            collapsedRaw = set.map(\.rawValue).sorted().joined(separator: ",")
+        }
+    }
+
+    /// A section with an icon header that toggles a disclosure. `trailingReset`,
+    /// when non-nil, shows a reset glyph on the right of the header.
+    private func collapsibleSection<C: View>(
+        _ section: EditSection,
+        title: String,
+        icon: String,
+        trailingReset: (() -> Void)? = nil,
+        @ViewBuilder content: () -> C
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            groupHeader(section, title: title, icon: icon, trailingReset: trailingReset)
+            if isExpanded(section) {
+                content()
+            }
+        }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+        .animation(.easeInOut(duration: 0.15), value: trailingReset != nil)
     }
 
-    // MARK: - Helpers
-
-    /// Generic labelled slider row with a reset dot.
-    private func adjustmentRow(
-        label: String,
-        systemImage: String,
-        value: Binding<Float>,
-        range: ClosedRange<Float>,
-        zeroPoint: Float,
-        format: String
+    private func groupHeader(
+        _ section: EditSection,
+        title: String,
+        icon: String,
+        trailingReset: (() -> Void)?
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: systemImage)
-                    .font(.system(size: 11))
-                    .frame(width: 16)
-                    .foregroundStyle(.secondary)
-                Text(label)
-                    .font(.system(size: 12))
-                Spacer()
-                Text(String(format: format, value.wrappedValue))
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 60, alignment: .trailing)
-                // Reset dot — visible only when value differs from default
-                Button {
-                    value.wrappedValue = zeroPoint
-                } label: {
-                    Circle()
-                        .fill(Color.accentColor)
-                        .frame(width: 6, height: 6)
+        HStack(spacing: 0) {
+            Button { toggle(section) } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(isExpanded(section) ? 90 : 0))
+                        .frame(width: 10)
+                    Image(systemName: icon)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.simplShotOrange)
+                        .frame(width: 18)
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if let trailingReset {
+                Button(action: trailingReset) {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .opacity(value.wrappedValue == zeroPoint ? 0 : 1)
-                .animation(.easeInOut(duration: 0.15), value: value.wrappedValue == zeroPoint)
-                .help("Reset \(label)")
+                .help("Reset \(title)")
+                .transition(.opacity)
             }
-            Slider(value: value, in: range)
         }
     }
 
-    /// Temperature slider with a warm-to-cool colour gradient track label.
-    private var temperatureRow: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: "thermometer.medium")
-                    .font(.system(size: 11))
-                    .frame(width: 16)
-                    .foregroundStyle(.secondary)
-                Text("Temperature")
-                    .font(.system(size: 12))
-                Spacer()
-                Text("\(Int(adjustments.temperature)) K")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 60, alignment: .trailing)
-                Button {
-                    adjustments.temperature = 6500
-                } label: {
-                    Circle()
-                        .fill(Color.accentColor)
-                        .frame(width: 6, height: 6)
+    private var groupDivider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.07))
+            .frame(height: 1)
+            .padding(.horizontal, 14)
+    }
+}
+
+// MARK: - Edit panel accent
+
+private extension Color {
+    /// SimplShot accent — #FF4800. Used across the Edit panel (section icons,
+    /// slider fill/thumb, aspect-lock) so the whole panel shares one tint.
+    static let simplShotOrange = Color(red: 1.0, green: 72.0 / 255.0, blue: 0.0)
+}
+
+// MARK: - AdjustmentSlider
+
+/// A Photos-style adjustment control: a full-width rounded bar with the label
+/// inset on the left and the formatted value on the right, a fill that grows
+/// from `zeroPoint` toward the thumb, and a thin vertical thumb. Drag anywhere
+/// on the bar to scrub; double-click to reset to `zeroPoint`.
+private struct AdjustmentSlider: View {
+    let label: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    /// The value the fill originates from (centre for bipolar controls, an edge
+    /// for unipolar ones). Double-click resets here.
+    let zeroPoint: Float
+    var step: Float? = nil
+    let display: (Float) -> String
+
+    @State private var isDragging = false
+    @State private var isHovering = false
+
+    /// Slider accent — SimplShot orange (#FF4800), used for the fill and thumb.
+    private static let tint = Color.simplShotOrange
+
+    private let barHeight: CGFloat = 28
+    private let corner: CGFloat = 7
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = max(geo.size.width, 1)
+            let thumbX = min(max(fraction(for: value) * w, 0), w)
+            let zeroX = min(max(zeroFraction * w, 0), w)
+
+            ZStack(alignment: .leading) {
+                // Track
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                    .fill(Color.primary.opacity(isHovering || isDragging ? 0.10 : 0.07))
+
+                // Fill from the zero origin toward the thumb
+                Rectangle()
+                    .fill(Self.tint.opacity(0.28))
+                    .frame(width: abs(thumbX - zeroX))
+                    .offset(x: min(zeroX, thumbX))
+
+                // Subtle ruler ticks while scrubbing
+                if isDragging {
+                    ticks(width: w)
                 }
-                .buttonStyle(.plain)
-                .opacity(adjustments.temperature == 6500 ? 0 : 1)
-                .animation(.easeInOut(duration: 0.15), value: adjustments.temperature == 6500)
-                .help("Reset Temperature")
+
+                // Label + value
+                HStack(spacing: 8) {
+                    Text(label)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(display(value))
+                        .font(.system(size: 11.5))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .allowsHitTesting(false)
+
+                // Thumb
+                Capsule()
+                    .fill(Self.tint)
+                    .frame(width: 2.5, height: barHeight - 12)
+                    .shadow(color: .black.opacity(0.22), radius: 0.5)
+                    .offset(x: min(max(thumbX - 1.25, 1), w - 3.5))
+                    .allowsHitTesting(false)
             }
-            Slider(value: $adjustments.temperature, in: 2000...10000, step: 100)
+            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { g in
+                        isDragging = true
+                        setValue(atX: g.location.x, width: w)
+                    }
+                    .onEnded { _ in isDragging = false }
+            )
+            .onTapGesture(count: 2) {
+                withAnimation(.easeOut(duration: 0.12)) { value = zeroPoint }
+            }
+            .onHover { isHovering = $0 }
         }
+        .frame(height: barHeight)
     }
 
-    private var sectionDivider: some View {
-        Divider()
-            .padding(.horizontal, 0)
+    /// Where `zeroPoint` sits along the bar: centred (0.5) for bipolar controls,
+    /// pinned to an edge when `zeroPoint` is the range's lower/upper bound.
+    private var zeroFraction: CGFloat {
+        if zeroPoint <= range.lowerBound { return 0 }
+        if zeroPoint >= range.upperBound { return 1 }
+        return 0.5
     }
 
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .textCase(.uppercase)
+    /// Maps a value to a bar fraction. Each side of `zeroPoint` is scaled
+    /// independently so the default always lands at `zeroFraction` (centre for
+    /// bipolar controls) regardless of how lopsided the numeric range is.
+    private func fraction(for value: Float) -> CGFloat {
+        let z = zeroFraction
+        if value <= zeroPoint, zeroPoint > range.lowerBound {
+            return z * CGFloat((value - range.lowerBound) / (zeroPoint - range.lowerBound))
+        } else if value >= zeroPoint, zeroPoint < range.upperBound {
+            return z + (1 - z) * CGFloat((value - zeroPoint) / (range.upperBound - zeroPoint))
+        }
+        return z
+    }
+
+    private func setValue(atX x: CGFloat, width: CGFloat) {
+        let f = min(max(x / width, 0), 1)
+        let z = zeroFraction
+        var v: Float
+        if f <= z, z > 0 {
+            v = range.lowerBound + Float(f / z) * (zeroPoint - range.lowerBound)
+        } else if f >= z, z < 1 {
+            v = zeroPoint + Float((f - z) / (1 - z)) * (range.upperBound - zeroPoint)
+        } else {
+            v = zeroPoint
+        }
+        if let step, step > 0 { v = (v / step).rounded() * step }
+        value = min(max(v, range.lowerBound), range.upperBound)
+    }
+
+    /// A row of faint tick marks along the top edge, echoing the ruler that
+    /// Apple Photos shows on the focused slider.
+    private func ticks(width w: CGFloat) -> some View {
+        let count = max(Int(w / 8), 8)
+        return Canvas { context, size in
+            let gap = size.width / CGFloat(count)
+            var path = Path()
+            for i in 0...count {
+                let x = CGFloat(i) * gap
+                path.move(to: CGPoint(x: x, y: 4))
+                path.addLine(to: CGPoint(x: x, y: 9))
+            }
+            context.stroke(path, with: .color(.primary.opacity(0.18)), lineWidth: 1)
+        }
+        .allowsHitTesting(false)
     }
 }

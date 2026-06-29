@@ -71,6 +71,8 @@ struct PhotoAdjustments: Equatable, Codable {
     var shadows: Float = 0.0
     /// CITemperatureAndTint neutral colour temperature in Kelvin. Range: 2000…10000 K. Default: 6500 (no change).
     var temperature: Float = 6500
+    /// CITemperatureAndTint green↔magenta tint (the neutral vector's y component). Range: -100…100. Default: 0 (no change).
+    var tint: Float = 0.0
     /// CISharpenLuminance `inputSharpness`. Range: 0…2. Default: 0 (no sharpening).
     var sharpness: Float = 0.0
     /// Grain / film-noise amount blended over the image. Range: 0…1. Default: 0 (none).
@@ -86,6 +88,7 @@ struct PhotoAdjustments: Equatable, Codable {
         highlights == 1    &&
         shadows    == 0    &&
         temperature == 6500 &&
+        tint       == 0    &&
         sharpness  == 0    &&
         noise      == 0
     }
@@ -123,10 +126,11 @@ struct PhotoAdjustments: Equatable, Codable {
             ])
         }
 
-        // Temperature (CITemperatureAndTint expects a CIVector for neutral/targetNeutral)
-        if temperature != 6500 {
+        // Temperature + Tint (CITemperatureAndTint expects a CIVector for neutral/targetNeutral:
+        // x = colour temperature in Kelvin, y = green↔magenta tint).
+        if temperature != 6500 || tint != 0 {
             ci = ci.applyingFilter("CITemperatureAndTint", parameters: [
-                "inputNeutral":       CIVector(x: CGFloat(temperature), y: 0),
+                "inputNeutral":       CIVector(x: CGFloat(temperature), y: CGFloat(tint)),
                 "inputTargetNeutral": CIVector(x: 6500, y: 0)
             ])
         }
