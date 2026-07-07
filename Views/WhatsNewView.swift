@@ -7,6 +7,14 @@ struct WhatsNewEntry {
 
 /// Hardcoded changelog — add new entries at the top before each release.
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.7.0", items: [
+        "Bendable arrows — select a Curved arrow and drag the new dot in the middle to shape the curve exactly how you want it.",
+        "New Double arrow style — arrowheads at both ends, straight by default and bendable via the same middle dot.",
+        "Sketch arrows got real character — they now render as a gritty, variable-width ink stroke that looks genuinely hand-drawn. Every arrow gets its own unique texture.",
+        "New Angle tool — measure angles like a protractor. Drag between two points, then pull the middle handle to the corner; SimplShot shows the angle in degrees with a neat arc.",
+        "More image formats — SimplShot can now open AVIF, HEIF, JPEG XL, JPEG 2000 and Photoshop (PSD) files, alongside the formats it already supported.",
+        "Saving back to one of these formats just works: SimplShot keeps the original format where it can, and offers Save As when a format can only be opened, not written.",
+    ]),
     WhatsNewEntry(version: "1.6.9", items: [
         "Straighten tool — while cropping, drag the new Straighten slider to level a tilted screenshot in 1° steps. The crop tightens automatically so you never get blank corners, and an alignment grid appears while you adjust to help you line things up.",
         "Redesigned Edit mode — photo adjustments are now organised into tidy, collapsible Light, Color and Detail sections (inspired by Apple Photos), so the panel is much easier to scan.",

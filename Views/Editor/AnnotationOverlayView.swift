@@ -49,16 +49,31 @@ struct AnnotationOverlayView: View {
             let sw   = displayStrokeWidth
             let col  = annotation.style.strokeColor
             let ss   = StrokeStyle(lineWidth: sw, lineCap: .round, lineJoin: .round)
-            if annotation.style.arrowStyle == .curved {
-                let dx = end.x - start.x; let dy = end.y - start.y
-                let cp = CGPoint(x: (start.x + end.x) / 2 + dy * 0.3,
-                                 y: (start.y + end.y) / 2 - dx * 0.3)
-                // Shaft stops at triangle base; lineWidth passed so shape can compute it
-                ArrowCurvedShaftShape(start: start, end: end, lineWidth: sw).stroke(col, style: ss)
-                ArrowFilledTriangleHead(start: start, end: end, lineWidth: sw, controlPoint: cp).fill(col)
+            if annotation.style.arrowStyle.supportsCurvature {
+                // Curved/double: build the single fill path in IMAGE space with
+                // the image-space line width, then scale to view points — the
+                // exact path the export renderer fills, so parity is structural.
+                let imagePath = ArrowGeometry.fillPath(
+                    start: annotation.startPoint,
+                    end: annotation.endPoint,
+                    curvature: annotation.arrowCurvature,
+                    doubleEnded: annotation.style.arrowStyle == .double,
+                    lineWidth: annotation.style.strokeWidth * dpiScaleFactor
+                )
+                Path(imagePath)
+                    .applying(CGAffineTransform(scaleX: scale, y: scale))
+                    .fill(col)
             } else if annotation.style.arrowStyle == .sketch {
-                ArrowSketchShaftShape(start: start, end: end).stroke(col, style: ss)
-                ArrowSketchHeadShape(start: start, end: end, lineWidth: sw).stroke(col, style: ss)
+                // Gritty ink ribbon — same image-space path as the export.
+                let imagePath = ArrowGeometry.sketchPath(
+                    start: annotation.startPoint,
+                    end: annotation.endPoint,
+                    lineWidth: annotation.style.strokeWidth * dpiScaleFactor,
+                    seed: annotation.sketchSeed
+                )
+                Path(imagePath)
+                    .applying(CGAffineTransform(scaleX: scale, y: scale))
+                    .fill(col)
             } else if annotation.style.arrowStyle == .triangle {
                 // Shaft ends at the triangle's base center: tip − headLen·cos(halfAngle)·direction
                 let angle = atan2(end.y - start.y, end.x - start.x)
@@ -90,6 +105,34 @@ struct AnnotationOverlayView: View {
             MeasurementHeadShape(baseCenter: start, toward: end, lineWidth: displayStrokeWidth)
                 .fill(annotation.style.strokeColor)
             measurementLabel(start: start, end: end)
+
+        case .angle:
+            // Protractor: geometry built in image space via AngleGeometry (the
+            // same paths the export fills/strokes), scaled to view points.
+            let a = annotation.startPoint
+            let v = annotation.angleVertex
+            let b = annotation.endPoint
+            let lwImage = annotation.style.strokeWidth * dpiScaleFactor
+            let tf = CGAffineTransform(scaleX: scale, y: scale)
+            let col = annotation.style.strokeColor
+            let radius = AngleGeometry.arcRadius(a: a, vertex: v, b: b, lineWidth: lwImage)
+            Path(AngleGeometry.raysPath(a: a, vertex: v, b: b))
+                .applying(tf)
+                .stroke(col, style: StrokeStyle(lineWidth: displayStrokeWidth, lineCap: .round, lineJoin: .round))
+            Path(AngleGeometry.arcPath(a: a, vertex: v, b: b, radius: radius))
+                .applying(tf)
+                .stroke(col, style: StrokeStyle(
+                    lineWidth: displayStrokeWidth * 0.7,
+                    lineCap: .butt,
+                    lineJoin: .round,
+                    // Must match the export's setLineDash([lw*2, lw*1.6]) —
+                    // displayStrokeWidth is the image-space lineWidth × scale.
+                    dash: [displayStrokeWidth * 2, displayStrokeWidth * 1.6]
+                ))
+            Path(AngleGeometry.dotsPath(a: a, vertex: v, b: b, lineWidth: lwImage))
+                .applying(tf)
+                .fill(col)
+            angleLabel(a: a, vertex: v, b: b, radius: radius)
 
         case .freeDraw:
             FreeDrawShape(points: annotation.points.map(scaled))
@@ -266,6 +309,14 @@ struct AnnotationOverlayView: View {
         case .arrow, .line, .measurement:
             HandleDot(center: start)
             HandleDot(center: end)
+            if annotation.tool == .arrow, annotation.style.arrowStyle.supportsCurvature {
+                CurveHandleDot(center: scaled(annotation.arrowMidPoint))
+            }
+
+        case .angle:
+            HandleDot(center: start)
+            HandleDot(center: end)
+            HandleDot(center: scaled(annotation.angleVertex))
 
         case .rectangle, .circle, .triangle, .star, .pixelate, .spotlight:
             let rect = scaledBoundingRect
@@ -312,6 +363,22 @@ struct AnnotationOverlayView: View {
             width: rect.width * scale,
             height: rect.height * scale
         )
+    }
+
+    /// Degree pill centered ON the arc (bisector at arc radius), capping the
+    /// dashed arc. Sizing mirrors measurementLabel / drawPillLabel.
+    @ViewBuilder
+    private func angleLabel(a: CGPoint, vertex: CGPoint, b: CGPoint, radius: CGFloat) -> some View {
+        let f = dimScale * AnnotationRenderer.measurementFontScale(strokeWidth: annotation.style.strokeWidth)
+        let center = AngleGeometry.labelCenter(a: a, vertex: vertex, b: b,
+                                               radius: radius, labelDistance: 0)
+        Text("\(AngleGeometry.degrees(a: a, vertex: vertex, b: b))°")
+            .font(.system(size: 11 * f, weight: .medium, design: .monospaced))
+            .foregroundStyle(annotation.style.isLight ? Color.black : Color.white)
+            .padding(.horizontal, 7 * f)
+            .padding(.vertical, 4 * f)
+            .background(annotation.style.strokeColor, in: Capsule())
+            .position(x: center.x * scale, y: center.y * scale)
     }
 
     @ViewBuilder
@@ -414,48 +481,15 @@ struct MeasurementLineShape: Shape {
     }
 }
 
-// MARK: - Arrow style: curved shaft (quadratic bezier)
-
-struct ArrowCurvedShaftShape: Shape {
-    let start: CGPoint
-    let end: CGPoint
-    let lineWidth: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        let dx = end.x - start.x
-        let dy = end.y - start.y
-        let control = CGPoint(x: (start.x + end.x) / 2 + dy * 0.3,
-                              y: (start.y + end.y) / 2 - dx * 0.3)
-        // Stop the shaft at the triangle base so the round cap
-        // is hidden behind the filled head rather than poking past the tip.
-        let tangentAngle = atan2(end.y - control.y, end.x - control.x)
-        let headLen = arrowHeadLen(for: lineWidth)
-        let depth = headLen * cos(CGFloat.pi / 4)   // end shaft at triangle's base center
-        let shaftEnd = CGPoint(x: end.x - depth * cos(tangentAngle),
-                               y: end.y - depth * sin(tangentAngle))
-        return Path { p in
-            p.move(to: start)
-            p.addQuadCurve(to: shaftEnd, control: control)
-        }
-    }
-}
-
-// MARK: - Arrow style: filled triangle head (used by .triangle and .curved)
+// MARK: - Arrow style: filled triangle head (used by .triangle)
 
 struct ArrowFilledTriangleHead: Shape {
     let start: CGPoint
     let end: CGPoint
     let lineWidth: CGFloat
-    /// When set, the head direction uses the tangent from this control point (curved arrows).
-    var controlPoint: CGPoint? = nil
 
     func path(in rect: CGRect) -> Path {
-        let angle: CGFloat
-        if let cp = controlPoint {
-            angle = atan2(end.y - cp.y, end.x - cp.x)
-        } else {
-            angle = atan2(end.y - start.y, end.x - start.x)
-        }
+        let angle = atan2(end.y - start.y, end.x - start.x)
         let headLen = arrowHeadLen(for: lineWidth)
         let halfAngle: CGFloat = .pi / 4
         let p1 = CGPoint(x: end.x - headLen * cos(angle - halfAngle),
@@ -467,48 +501,6 @@ struct ArrowFilledTriangleHead: Shape {
             p.addLine(to: p1)
             p.addLine(to: p2)
             p.closeSubpath()
-        }
-    }
-}
-
-// MARK: - Arrow style: sketch shaft (subtle S-curve cubic bezier)
-
-struct ArrowSketchShaftShape: Shape {
-    let start: CGPoint
-    let end: CGPoint
-
-    func path(in rect: CGRect) -> Path {
-        let angle = atan2(end.y - start.y, end.x - start.x)
-        let len   = hypot(end.x - start.x, end.y - start.y)
-        let cp1 = CGPoint(x: start.x + cos(angle) * len * 0.3 + (-sin(angle)) * len * 0.07,
-                          y: start.y + sin(angle) * len * 0.3 +   cos(angle)  * len * 0.07)
-        let cp2 = CGPoint(x: start.x + cos(angle) * len * 0.7 - (-sin(angle)) * len * 0.05,
-                          y: start.y + sin(angle) * len * 0.7 -   cos(angle)  * len * 0.05)
-        return Path { p in
-            p.move(to: start)
-            p.addCurve(to: end, control1: cp1, control2: cp2)
-        }
-    }
-}
-
-// MARK: - Arrow style: sketch head (wide open chevron)
-
-struct ArrowSketchHeadShape: Shape {
-    let start: CGPoint
-    let end: CGPoint
-    let lineWidth: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        let angle   = atan2(end.y - start.y, end.x - start.x)
-        let headLen = max(lineWidth * 7, 20)
-        let halfAngle: CGFloat = .pi / 5   // 36° → 72° total, wider than chevron
-        let p1 = CGPoint(x: end.x - headLen * cos(angle - halfAngle),
-                         y: end.y - headLen * sin(angle - halfAngle))
-        let p2 = CGPoint(x: end.x - headLen * cos(angle + halfAngle),
-                         y: end.y - headLen * sin(angle + halfAngle))
-        return Path { p in
-            p.move(to: end); p.addLine(to: p1)
-            p.move(to: end); p.addLine(to: p2)
         }
     }
 }
@@ -860,6 +852,21 @@ struct HandleDot: View {
         Circle()
             .fill(Color.white)
             .overlay(Circle().stroke(Color.accentColor, lineWidth: 1.5))
+            .frame(width: size, height: size)
+            .position(center)
+    }
+}
+
+/// Mid-curve handle for curved/double arrows — inverse colors of HandleDot so
+/// it reads as "bend the arrow" rather than "move an endpoint".
+struct CurveHandleDot: View {
+    let center: CGPoint
+    let size: CGFloat = 9
+
+    var body: some View {
+        Circle()
+            .fill(Color.accentColor)
+            .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
             .frame(width: size, height: size)
             .position(center)
     }

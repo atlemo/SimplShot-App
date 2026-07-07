@@ -241,11 +241,13 @@ struct ToolbarHoverButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(isHovered || configuration.isPressed ? .primary : .secondary)
             .background(
-                // Pill highlight inset 1px so it stays inside the container's
-                // edges, matching the top mode toggle's selected segment.
+                // Pill highlight inset vertically so it stays inside the
+                // container's top/bottom edges, matching the top mode toggle's
+                // selected segment. No horizontal inset — the capsule's rounded
+                // ends would otherwise read as a larger gap on the sides.
                 Capsule(style: .continuous)
                     .fill(isHovered ? .white.opacity(0.1) : .clear)
-                    .padding(1)
+                    .padding(.vertical, 3)
             )
             .opacity(configuration.isPressed ? 0.7 : 1.0)
             .onHover { isHovered = $0 }

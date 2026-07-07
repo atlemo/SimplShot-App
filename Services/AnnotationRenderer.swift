@@ -32,12 +32,17 @@ class AnnotationRenderer {
         case cannotCreateContext
         case cannotCreateOutputImage
         case cannotCropImage
+        /// The source file's format can be decoded but not encoded by ImageIO
+        /// (e.g. JPEG XL), so an in-place overwrite is impossible. Callers
+        /// should fall back to "Save As".
+        case unsupportedEncodeFormat
 
         var errorDescription: String? {
             switch self {
             case .cannotCreateContext:     return "Failed to create graphics context for annotation rendering"
             case .cannotCreateOutputImage: return "Failed to create output image"
             case .cannotCropImage:         return "Failed to crop image"
+            case .unsupportedEncodeFormat: return "This image format can be opened but not written. Use “Save As…” to choose a format."
             }
         }
     }
@@ -343,7 +348,9 @@ class AnnotationRenderer {
         switch annotation.tool {
         case .arrow:
             drawArrow(from: annotation.startPoint, to: annotation.endPoint,
-                      arrowStyle: annotation.style.arrowStyle, color: color, lineWidth: lineWidth, in: context)
+                      arrowStyle: annotation.style.arrowStyle, curvature: annotation.arrowCurvature,
+                      sketchSeed: annotation.sketchSeed,
+                      color: color, lineWidth: lineWidth, in: context)
         case .measurement:
             drawMeasurement(
                 from: annotation.startPoint,
@@ -354,6 +361,8 @@ class AnnotationRenderer {
                 lineWidth: lineWidth,
                 in: context
             )
+        case .angle:
+            drawAngle(annotation, color: color, lineWidth: lineWidth, in: context)
         case .freeDraw:
             drawFreeDraw(points: annotation.points, in: context)
         case .line:
@@ -379,14 +388,29 @@ class AnnotationRenderer {
         context.restoreGState()
     }
 
-    private func drawArrow(from start: CGPoint, to end: CGPoint, arrowStyle: ArrowStyle, color: CGColor, lineWidth: CGFloat, in context: CGContext) {
+    private func drawArrow(from start: CGPoint, to end: CGPoint, arrowStyle: ArrowStyle, curvature: CGVector, sketchSeed: UInt64, color: CGColor, lineWidth: CGFloat, in context: CGContext) {
         context.setLineCap(.round)
         context.setLineJoin(.round)
         switch arrowStyle {
         case .chevron:  drawArrowChevron(from: start, to: end, lineWidth: lineWidth, in: context)
         case .triangle: drawArrowTriangle(from: start, to: end, color: color, lineWidth: lineWidth, in: context)
-        case .curved:   drawArrowCurved(from: start, to: end, color: color, lineWidth: lineWidth, in: context)
-        case .sketch:   drawArrowSketch(from: start, to: end, lineWidth: lineWidth, in: context)
+        case .curved, .double:
+            // Shaft outline + head triangle(s) as ONE path, painted with one
+            // fill — no shaft/head seam, translucent colors don't double-darken,
+            // and the live preview draws the identical ArrowGeometry path.
+            let path = ArrowGeometry.fillPath(start: start, end: end, curvature: curvature,
+                                              doubleEnded: arrowStyle == .double, lineWidth: lineWidth)
+            context.setFillColor(color)
+            context.addPath(path)
+            context.fillPath(using: .winding)
+        case .sketch:
+            // Gritty ink ribbon — one fillable path, seeded per annotation so
+            // the export texture matches the preview exactly.
+            let path = ArrowGeometry.sketchPath(start: start, end: end,
+                                                lineWidth: lineWidth, seed: sketchSeed)
+            context.setFillColor(color)
+            context.addPath(path)
+            context.fillPath(using: .winding)
         }
     }
 
@@ -435,61 +459,6 @@ class AnnotationRenderer {
         context.fillPath()
     }
 
-    // Quadratic-bezier arc shaft + filled triangle aligned to tangent
-    private func drawArrowCurved(from start: CGPoint, to end: CGPoint, color: CGColor, lineWidth: CGFloat, in context: CGContext) {
-        let dx = end.x - start.x
-        let dy = end.y - start.y
-        let control = CGPoint(x: (start.x + end.x) / 2 + dy * 0.3,
-                              y: (start.y + end.y) / 2 - dx * 0.3)
-
-        // Arrow direction = tangent at t=1 of the bezier = end − control
-        let angle = atan2(end.y - control.y, end.x - control.x)
-        let headLength: CGFloat = max(lineWidth * 5, 16)
-        let halfAngle: CGFloat = .pi / 5   // 36° → 72° total, slightly narrower
-
-        // Shaft ends at the triangle's base center: tip − headLength·cos(halfAngle)·direction
-        let depth = headLength * cos(halfAngle)
-        let shaftEnd = CGPoint(x: end.x - depth * cos(angle),
-                               y: end.y - depth * sin(angle))
-        context.move(to: start)
-        context.addQuadCurve(to: shaftEnd, control: control)
-        context.strokePath()
-
-        let p1 = CGPoint(x: end.x - headLength * cos(angle - halfAngle),
-                         y: end.y - headLength * sin(angle - halfAngle))
-        let p2 = CGPoint(x: end.x - headLength * cos(angle + halfAngle),
-                         y: end.y - headLength * sin(angle + halfAngle))
-        context.setFillColor(color)
-        context.move(to: end)
-        context.addLine(to: p1)
-        context.addLine(to: p2)
-        context.closePath()
-        context.fillPath()
-    }
-
-    // Subtle S-curve shaft + wide open chevron (hand-drawn feel)
-    private func drawArrowSketch(from start: CGPoint, to end: CGPoint, lineWidth: CGFloat, in context: CGContext) {
-        let angle = atan2(end.y - start.y, end.x - start.x)
-        let len = hypot(end.x - start.x, end.y - start.y)
-        let cp1 = CGPoint(x: start.x + cos(angle) * len * 0.3 + (-sin(angle)) * len * 0.07,
-                          y: start.y + sin(angle) * len * 0.3 +   cos(angle)  * len * 0.07)
-        let cp2 = CGPoint(x: start.x + cos(angle) * len * 0.7 - (-sin(angle)) * len * 0.05,
-                          y: start.y + sin(angle) * len * 0.7 -   cos(angle)  * len * 0.05)
-        context.move(to: start)
-        context.addCurve(to: end, control1: cp1, control2: cp2)
-        context.strokePath()
-
-        let headLength: CGFloat = max(lineWidth * 7, 20)
-        let halfAngle: CGFloat = .pi / 5   // wider for sketch look
-        let p1 = CGPoint(x: end.x - headLength * cos(angle - halfAngle),
-                         y: end.y - headLength * sin(angle - halfAngle))
-        let p2 = CGPoint(x: end.x - headLength * cos(angle + halfAngle),
-                         y: end.y - headLength * sin(angle + halfAngle))
-        context.move(to: end); context.addLine(to: p1)
-        context.move(to: end); context.addLine(to: p2)
-        context.strokePath()
-    }
-
     private func drawLine(from start: CGPoint, to end: CGPoint, in context: CGContext) {
         context.setLineCap(.round)
         context.setLineJoin(.round)
@@ -503,10 +472,51 @@ class AnnotationRenderer {
 
         let pixelDistance = hypot(end.x - start.x, end.y - start.y)
         let label = "\(Int(pixelDistance.rounded())) px"
+        let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
+        drawPillLabel(label, centeredAt: mid, color: color, strokeIsLight: strokeIsLight,
+                      strokeWidth: strokeWidth, in: context)
+    }
 
-        // Font grows gently with stroke width (so a thick measurement gets a
+    /// Protractor: two rays from the vertex, filled dots at the three points,
+    /// an arc spanning the interior angle, and a degree pill on the bisector.
+    /// All geometry comes from AngleGeometry — identical to the live preview.
+    private func drawAngle(_ annotation: Annotation, color: CGColor, lineWidth: CGFloat, in context: CGContext) {
+        let a = annotation.startPoint
+        let v = annotation.angleVertex
+        let b = annotation.endPoint
+
+        context.addPath(AngleGeometry.raysPath(a: a, vertex: v, b: b))
+        context.strokePath()
+
+        let radius = AngleGeometry.arcRadius(a: a, vertex: v, b: b, lineWidth: lineWidth)
+        context.saveGState()
+        context.setLineWidth(lineWidth * 0.7)   // arc slightly lighter than the rays
+        // Dashed, butt caps for crisp dashes — must match the overlay's
+        // StrokeStyle(dash: [w*2, w*1.6]).
+        context.setLineCap(.butt)
+        context.setLineDash(phase: 0, lengths: [lineWidth * 2, lineWidth * 1.6])
+        context.addPath(AngleGeometry.arcPath(a: a, vertex: v, b: b, radius: radius))
+        context.strokePath()
+        context.restoreGState()
+
+        context.setFillColor(color)
+        context.addPath(AngleGeometry.dotsPath(a: a, vertex: v, b: b, lineWidth: lineWidth))
+        context.fillPath()
+
+        // labelDistance 0: the pill centers ON the arc, capping it visually.
+        let labelCenter = AngleGeometry.labelCenter(a: a, vertex: v, b: b,
+                                                    radius: radius, labelDistance: 0)
+        drawPillLabel("\(AngleGeometry.degrees(a: a, vertex: v, b: b))°",
+                      centeredAt: labelCenter, color: color,
+                      strokeIsLight: annotation.style.isLight,
+                      strokeWidth: annotation.style.strokeWidth, in: context)
+    }
+
+    /// Capsule label used by the measurement and angle tools.
+    /// Sizing must match the SwiftUI labels in AnnotationOverlayView exactly.
+    private func drawPillLabel(_ label: String, centeredAt center: CGPoint, color: CGColor, strokeIsLight: Bool, strokeWidth: CGFloat, in context: CGContext) {
+        // Font grows gently with stroke width (so a thick stroke gets a
         // slightly larger label, not a huge one), then ×styleScale for high-DPI.
-        // Must match AnnotationOverlayView.measurementLabel exactly.
         let fontScale = Self.measurementFontScale(strokeWidth: strokeWidth)
         let labelFontSize = 11 * fontScale * styleScale
         // System monospaced font: matches the live preview and never falls back
@@ -523,8 +533,7 @@ class AnnotationRenderer {
         let vPad = 4 * fontScale * styleScale
         let bgWidth = bounds.width + hPad * 2
         let bgHeight = bounds.height + vPad * 2
-        let mid = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
-        let bgRect = CGRect(x: mid.x - bgWidth / 2, y: mid.y - bgHeight / 2, width: bgWidth, height: bgHeight)
+        let bgRect = CGRect(x: center.x - bgWidth / 2, y: center.y - bgHeight / 2, width: bgWidth, height: bgHeight)
 
         context.saveGState()
         context.setFillColor(color)

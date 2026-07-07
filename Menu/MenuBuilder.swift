@@ -694,7 +694,13 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         panel.title = "Open File(s)"
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff, .gif, .bmp, .pdf]
+        var openTypes: [UTType] = [.png, .jpeg, .heic, .tiff, .gif, .bmp, .pdf]
+        // Formats without a UTType static accessor — decoded natively by ImageIO.
+        for id in ["public.avif", "public.heif", "public.jpeg-xl",
+                   "public.jpeg-2000", "com.adobe.photoshop-image"] {
+            if let t = UTType(id) { openTypes.append(t) }
+        }
+        panel.allowedContentTypes = openTypes
 
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }

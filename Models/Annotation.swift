@@ -8,6 +8,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     case arrow
     case freeDraw
     case measurement
+    case angle
     case rectangle
     case circle
     case triangle
@@ -28,6 +29,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .arrow:        return "Arrow"
         case .freeDraw:     return "Free Drawing"
         case .measurement:  return "Measurement"
+        case .angle:        return "Angle"
         case .rectangle:    return "Rectangle"
         case .circle:       return "Circle"
         case .triangle:     return "Triangle"
@@ -48,6 +50,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .arrow:        return "arrow.up.right"
         case .freeDraw:     return "pencil.and.scribble"
         case .measurement:  return "ruler"
+        case .angle:        return "angle"
         case .rectangle:    return "rectangle"
         case .circle:       return "circle"
         case .triangle:     return "triangle"
@@ -81,15 +84,446 @@ enum ArrowStyle: String, CaseIterable {
     case chevron   // open V arrowhead (default)
     case triangle  // filled solid triangle tip
     case curved    // arc shaft with filled triangle tip
-    case sketch    // hand-drawn: S-curve shaft with wide chevron
+    case double    // filled triangle tips at both ends; straight until bent via mid handle
+    case sketch    // hand-drawn: gritty ink ribbon (S-curve shaft, wide chevron flicks)
 
     var label: String {
         switch self {
         case .chevron:  return "Arrow"
         case .triangle: return "Filled"
         case .curved:   return "Curved"
+        case .double:   return "Double"
         case .sketch:   return "Sketch"
         }
+    }
+
+    /// Styles whose shaft bow is user-editable via the mid-curve handle.
+    var supportsCurvature: Bool {
+        self == .curved || self == .double
+    }
+}
+
+// MARK: - Arrow Geometry
+
+/// All curved/double arrow math in one place so the SwiftUI overlay, the CG
+/// export renderer, and canvas hit-testing share identical geometry.
+/// Coordinates are image-pixel space (top-left origin, y-down).
+///
+/// Curvature lives in the start→end local frame as a CGVector:
+///   dx — position of the quad-bezier control point along the segment (0.5 = middle)
+///   dy — perpendicular offset as a fraction of the segment length
+///        (perpendicular axis = (d.y, −d.x) for segment direction d)
+/// Because it is relative to the endpoints, the bow survives every whole-image
+/// point transform (padding shift, crop remap, resize, rotate, straighten)
+/// without any extra bookkeeping.
+enum ArrowGeometry {
+    /// Bow of the Curved style before the user drags the mid handle
+    /// (matches the original hardcoded control-point formula).
+    static let defaultCurvedBow: CGFloat = 0.3
+
+    /// Head size/angle for the filled-triangle heads of curved/double arrows.
+    static let headHalfAngle: CGFloat = .pi / 5
+
+    static func headLength(lineWidth: CGFloat) -> CGFloat {
+        max(lineWidth * 5, 16)
+    }
+
+    /// Quad-bezier control point for the given local-frame curvature.
+    static func controlPoint(start: CGPoint, end: CGPoint, curvature: CGVector) -> CGPoint {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        return CGPoint(x: start.x + curvature.dx * dx + curvature.dy * dy,
+                       y: start.y + curvature.dx * dy - curvature.dy * dx)
+    }
+
+    /// The point on the curve at t = 0.5 — where the mid-curve handle sits.
+    static func midPoint(start: CGPoint, end: CGPoint, curvature: CGVector) -> CGPoint {
+        let c = controlPoint(start: start, end: end, curvature: curvature)
+        return CGPoint(x: 0.25 * start.x + 0.5 * c.x + 0.25 * end.x,
+                       y: 0.25 * start.y + 0.5 * c.y + 0.25 * end.y)
+    }
+
+    /// Local-frame curvature that makes the curve pass through `mid` at t = 0.5.
+    /// Used when the user drags the mid handle: the curve stays under the cursor.
+    static func curvature(start: CGPoint, end: CGPoint, passingThrough mid: CGPoint) -> CGVector {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let lenSq = dx * dx + dy * dy
+        guard lenSq > 0.001 else { return CGVector(dx: 0.5, dy: 0) }
+        // Control point with B(0.5) == mid, expressed relative to start.
+        let rx = 2 * mid.x - (start.x + end.x) / 2 - start.x
+        let ry = 2 * mid.y - (start.y + end.y) / 2 - start.y
+        return CGVector(dx: (rx * dx + ry * dy) / lenSq,
+                        dy: (rx * dy - ry * dx) / lenSq)
+    }
+
+    /// The complete arrow — stroked-outline shaft plus filled head triangle(s) —
+    /// as a single path to be painted with ONE fill. One paint op means no
+    /// shaft/head seam and no double-darkening with translucent colors, and
+    /// both the live preview and the export draw this exact path.
+    static func fillPath(start: CGPoint, end: CGPoint, curvature: CGVector,
+                         doubleEnded: Bool, lineWidth: CGFloat) -> CGPath {
+        let control = controlPoint(start: start, end: end, curvature: curvature)
+        let headLen = headLength(lineWidth: lineWidth)
+        let depth = headLen * cos(headHalfAngle)
+
+        func unit(from a: CGPoint, to b: CGPoint) -> CGPoint? {
+            let d = hypot(b.x - a.x, b.y - a.y)
+            guard d > 0.001 else { return nil }
+            return CGPoint(x: (b.x - a.x) / d, y: (b.y - a.y) / d)
+        }
+
+        // Outward tip directions from the bezier tangents (t=1: end−control,
+        // t=0: start−control), falling back to the chord for degenerate cases.
+        let chord = unit(from: start, to: end) ?? CGPoint(x: 1, y: 0)
+        let endDir = unit(from: control, to: end) ?? chord
+        let startDir = unit(from: control, to: start) ?? CGPoint(x: -chord.x, y: -chord.y)
+
+        // Trim the shaft to the head base(s) so the round cap sits inside the
+        // triangle instead of bulging past the tip.
+        let shaftEnd = CGPoint(x: end.x - endDir.x * depth, y: end.y - endDir.y * depth)
+        let shaftStart = doubleEnded
+            ? CGPoint(x: start.x - startDir.x * depth, y: start.y - startDir.y * depth)
+            : start
+
+        var result: CGPath
+        let trimmedLength = hypot(end.x - start.x, end.y - start.y) - depth * (doubleEnded ? 2 : 1)
+        if trimmedLength > 0.5 {
+            let centerline = CGMutablePath()
+            centerline.move(to: shaftStart)
+            centerline.addQuadCurve(to: shaftEnd, control: control)
+            result = centerline.copy(strokingWithWidth: lineWidth, lineCap: .round,
+                                     lineJoin: .round, miterLimit: 10)
+        } else {
+            // Arrow too short for a shaft — heads only.
+            result = CGMutablePath()
+        }
+
+        result = result.union(headPath(tip: end, direction: endDir, headLength: headLen), using: .winding)
+        if doubleEnded {
+            result = result.union(headPath(tip: start, direction: startDir, headLength: headLen), using: .winding)
+        }
+        return result
+    }
+
+    private static func headPath(tip: CGPoint, direction: CGPoint, headLength: CGFloat) -> CGPath {
+        let angle = atan2(direction.y, direction.x)
+        let p1 = CGPoint(x: tip.x - headLength * cos(angle - headHalfAngle),
+                         y: tip.y - headLength * sin(angle - headHalfAngle))
+        let p2 = CGPoint(x: tip.x - headLength * cos(angle + headHalfAngle),
+                         y: tip.y - headLength * sin(angle + headHalfAngle))
+        let head = CGMutablePath()
+        head.move(to: tip)
+        head.addLine(to: p1)
+        head.addLine(to: p2)
+        head.closeSubpath()
+        return head
+    }
+
+    // MARK: Sketch style (gritty ink ribbon)
+
+    /// Deterministic PRNG (SplitMix64). The sketch arrow's grit is generated
+    /// from the annotation's seed, so it is stable across frames and identical
+    /// in preview and export — no shimmer, no parity drift.
+    private struct SketchRandom {
+        private var state: UInt64
+        init(seed: UInt64) { state = seed }
+        mutating func next() -> CGFloat {   // uniform [0, 1)
+            state = state &+ 0x9E3779B97F4A7C15
+            var z = state
+            z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+            z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+            z ^= z >> 31
+            return CGFloat(z >> 11) / CGFloat(UInt64(1) << 53)
+        }
+        mutating func range(_ lo: CGFloat, _ hi: CGFloat) -> CGFloat {
+            lo + (hi - lo) * next()
+        }
+    }
+
+    /// The whole sketch arrow — hand-drawn ink/charcoal look — as a single
+    /// fillable path (paint with ONE fill, .winding). Instead of a uniform
+    /// stroke, the shaft and head barbs are variable-width "ribbons": the width
+    /// tapers like a real pen stroke and both edges wobble with smooth seeded
+    /// noise. A thin offset overdraw strand adds charcoal-style striation.
+    static func sketchPath(start: CGPoint, end: CGPoint, lineWidth: CGFloat, seed: UInt64) -> CGPath {
+        let path = CGMutablePath()
+        let len = hypot(end.x - start.x, end.y - start.y)
+        guard len > 1 else {
+            path.addEllipse(in: CGRect(x: start.x - lineWidth / 2, y: start.y - lineWidth / 2,
+                                       width: lineWidth, height: lineWidth))
+            return path
+        }
+
+        var rng = SketchRandom(seed: seed)
+        let angle = atan2(end.y - start.y, end.x - start.x)
+        let dirX = cos(angle), dirY = sin(angle)
+        let perpX = -dirY, perpY = dirX
+
+        // Smooth ±1 pseudo-noise: two seeded sinusoids per channel.
+        func makeWobble(_ rng: inout SketchRandom) -> (CGFloat) -> CGFloat {
+            let f1 = rng.range(5, 8), p1 = rng.range(0, 2 * .pi)
+            let f2 = rng.range(11, 16), p2 = rng.range(0, 2 * .pi)
+            return { t in sin(t * f1 + p1) * 0.6 + sin(t * f2 + p2) * 0.4 }
+        }
+        let posWobble = makeWobble(&rng)     // edge roughness (position)
+        let widthWobble = makeWobble(&rng)   // ink flow (width)
+
+        func cubicPoint(_ t: CGFloat, _ p0: CGPoint, _ c1: CGPoint, _ c2: CGPoint, _ p3: CGPoint) -> CGPoint {
+            let mt = 1 - t
+            let a = mt * mt * mt, b = 3 * mt * mt * t, c = 3 * mt * t * t, d = t * t * t
+            return CGPoint(x: a * p0.x + b * c1.x + c * c2.x + d * p3.x,
+                           y: a * p0.y + b * c1.y + c * c2.y + d * p3.y)
+        }
+
+        // Closed variable-width polygon around a sampled centerline. All
+        // ribbons are built with the same traversal (forward on +normal, back
+        // on −normal) so their winding matches and overlaps fill solid.
+        func addRibbon(centers: [CGPoint], widths: [CGFloat]) {
+            guard centers.count >= 2 else { return }
+            var left: [CGPoint] = [], right: [CGPoint] = []
+            for i in centers.indices {
+                let prev = centers[max(i - 1, 0)], next = centers[min(i + 1, centers.count - 1)]
+                let dx = next.x - prev.x, dy = next.y - prev.y
+                let d = max(hypot(dx, dy), 0.0001)
+                let nx = -dy / d, ny = dx / d
+                let h = widths[i] / 2
+                left.append(CGPoint(x: centers[i].x + nx * h, y: centers[i].y + ny * h))
+                right.append(CGPoint(x: centers[i].x - nx * h, y: centers[i].y - ny * h))
+            }
+            path.move(to: left[0])
+            for pt in left.dropFirst() { path.addLine(to: pt) }
+            for pt in right.reversed() { path.addLine(to: pt) }
+            path.closeSubpath()
+        }
+
+        // Shaft: the classic subtle S-curve, with per-arrow bow variation.
+        let bow1 = len * rng.range(0.05, 0.09)
+        let bow2 = -len * rng.range(0.03, 0.07)
+        let cp1 = CGPoint(x: start.x + dirX * len * 0.3 + perpX * bow1,
+                          y: start.y + dirY * len * 0.3 + perpY * bow1)
+        let cp2 = CGPoint(x: start.x + dirX * len * 0.7 + perpX * bow2,
+                          y: start.y + dirY * len * 0.7 + perpY * bow2)
+        let tip = CGPoint(x: end.x + perpX * lineWidth * rng.range(-0.2, 0.2),
+                          y: end.y + perpY * lineWidth * rng.range(-0.2, 0.2))
+
+        let posAmp = lineWidth * 0.22
+        let shaftSamples = 28
+        var centers: [CGPoint] = [], widths: [CGFloat] = []
+        for i in 0...shaftSamples {
+            let t = CGFloat(i) / CGFloat(shaftSamples)
+            var pt = cubicPoint(t, start, cp1, cp2, tip)
+            let jitter = posAmp * posWobble(t)
+            pt.x += perpX * jitter
+            pt.y += perpY * jitter
+            // Ink profile: thin touch-down, fuller middle, easing off at the tip.
+            let profile = 0.45 + 0.65 * pow(sin(.pi * (0.08 + 0.84 * t)), 0.9)
+            let w = lineWidth * profile * (1 + 0.35 * widthWobble(t))
+            centers.append(pt)
+            widths.append(min(max(w, lineWidth * 0.25), lineWidth * 1.8))
+        }
+        addRibbon(centers: centers, widths: widths)
+
+        // Overdraw strand: a thin second pass hugging the shaft — the parallel
+        // striation that reads as charcoal/dry ink.
+        let overWobble = makeWobble(&rng)
+        let t0 = rng.range(0.06, 0.18), t1 = rng.range(0.72, 0.92)
+        let side: CGFloat = rng.next() < 0.5 ? -1 : 1
+        let strandOffset = side * lineWidth * rng.range(0.45, 0.8)
+        var oCenters: [CGPoint] = [], oWidths: [CGFloat] = []
+        let overSamples = 20
+        for i in 0...overSamples {
+            let u = CGFloat(i) / CGFloat(overSamples)
+            let t = t0 + (t1 - t0) * u
+            var pt = cubicPoint(t, start, cp1, cp2, tip)
+            let jitter = strandOffset + posAmp * 0.7 * overWobble(t)
+            pt.x += perpX * jitter
+            pt.y += perpY * jitter
+            // Taper the strand out at both ends so it fades in/out of the stroke.
+            let taper = sin(.pi * u)
+            oCenters.append(pt)
+            oWidths.append(max(lineWidth * 0.3 * taper * (1 + 0.4 * overWobble(u + 3)), 0.1))
+        }
+        addRibbon(centers: oCenters, widths: oWidths)
+
+        // Head barbs: wide chevron, each a tapered flick with its own angle,
+        // length and bow jitter, anchored near (not exactly at) the tip.
+        let headLen = max(lineWidth * 7, 20)
+        for sign in [CGFloat(-1), 1] {
+            let ha = (.pi / 5) * rng.range(0.85, 1.15)
+            let bl = headLen * rng.range(0.9, 1.1)
+            let barbAngle = angle + .pi + (-sign) * ha   // backward from tip, fanned out
+            let bDirX = cos(barbAngle), bDirY = sin(barbAngle)
+            let bPerpX = -bDirY, bPerpY = bDirX
+            let root = CGPoint(x: tip.x + perpX * lineWidth * rng.range(-0.3, 0.3),
+                               y: tip.y + perpY * lineWidth * rng.range(-0.3, 0.3))
+            let bowAmt = bl * rng.range(-0.08, 0.08)
+            let barbWobble = makeWobble(&rng)
+            var bCenters: [CGPoint] = [], bWidths: [CGFloat] = []
+            let barbSamples = 12
+            for i in 0...barbSamples {
+                let t = CGFloat(i) / CGFloat(barbSamples)
+                // Quadratic bow via midpoint offset, plus edge roughness.
+                let bow = bowAmt * 4 * t * (1 - t)
+                let jitter = bow + lineWidth * 0.15 * barbWobble(t)
+                let pt = CGPoint(x: root.x + bDirX * bl * t + bPerpX * jitter,
+                                 y: root.y + bDirY * bl * t + bPerpY * jitter)
+                // Flick: thickest where it leaves the tip, tapering outward.
+                let w = lineWidth * (0.85 - 0.55 * t) * (1 + 0.3 * barbWobble(t + 5))
+                bCenters.append(pt)
+                bWidths.append(min(max(w, lineWidth * 0.2), lineWidth * 1.4))
+            }
+            addRibbon(centers: bCenters, widths: bWidths)
+        }
+
+        return path
+    }
+}
+
+// MARK: - Angle (Protractor) Geometry
+
+/// Shared math for the .angle tool so the SwiftUI overlay, the CG export
+/// renderer, and hit-testing draw identical geometry.
+/// Coordinates are image-pixel space (top-left origin, y-down).
+///
+/// An angle annotation is two rays from a vertex (`points[0]`) to
+/// `startPoint` and `endPoint`; the measured value is the interior angle
+/// (0–180°) between the rays, with the arc and label on the interior side.
+enum AngleGeometry {
+    /// Signed sweep (radians, shortest way) from ray vertex→a to ray vertex→b.
+    /// Magnitude is the interior angle; sign gives the arc direction.
+    static func sweep(a: CGPoint, vertex: CGPoint, b: CGPoint) -> CGFloat {
+        let ang1 = atan2(a.y - vertex.y, a.x - vertex.x)
+        let ang2 = atan2(b.y - vertex.y, b.x - vertex.x)
+        let delta = atan2(sin(ang2 - ang1), cos(ang2 - ang1))
+        // Near-collinear the interior side is numerically ambiguous: ±180°
+        // flips with sub-pixel jitter (e.g. while the creation drag holds the
+        // vertex at the exact midpoint), making the arc and label flicker
+        // between sides. Canonicalize to +π for a stable side.
+        if delta < 0, delta < -(.pi - 0.006) { return .pi }
+        return delta
+    }
+
+    /// Interior angle in degrees, rounded for display.
+    static func degrees(a: CGPoint, vertex: CGPoint, b: CGPoint) -> Int {
+        Int((abs(sweep(a: a, vertex: vertex, b: b)) * 180 / .pi).rounded())
+    }
+
+    /// Arc radius: proportional to the shorter ray, kept clear of the vertex dot.
+    static func arcRadius(a: CGPoint, vertex: CGPoint, b: CGPoint, lineWidth: CGFloat) -> CGFloat {
+        let lenA = hypot(a.x - vertex.x, a.y - vertex.y)
+        let lenB = hypot(b.x - vertex.x, b.y - vertex.y)
+        let shorter = min(lenA, lenB)
+        return min(max(shorter * 0.4, lineWidth * 6), shorter * 0.9)
+    }
+
+    /// Unit vector along the interior-angle bisector (where arc label goes).
+    static func bisector(a: CGPoint, vertex: CGPoint, b: CGPoint) -> CGPoint {
+        let ang1 = atan2(a.y - vertex.y, a.x - vertex.x)
+        let mid = ang1 + sweep(a: a, vertex: vertex, b: b) / 2
+        return CGPoint(x: cos(mid), y: sin(mid))
+    }
+
+    /// The arc spanning the interior angle, as a sampled polyline path.
+    /// (Sampling sidesteps CGContext/SwiftUI clockwise-convention mismatches
+    /// in the flipped annotation space — both sides get the same points.)
+    static func arcPath(a: CGPoint, vertex: CGPoint, b: CGPoint, radius: CGFloat) -> CGPath {
+        let ang1 = atan2(a.y - vertex.y, a.x - vertex.x)
+        let delta = sweep(a: a, vertex: vertex, b: b)
+        let path = CGMutablePath()
+        let steps = max(Int(abs(delta) * 24 / .pi), 4)   // ~24 segments per 180°
+        for i in 0...steps {
+            let ang = ang1 + delta * CGFloat(i) / CGFloat(steps)
+            let pt = CGPoint(x: vertex.x + radius * cos(ang), y: vertex.y + radius * sin(ang))
+            if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+        }
+        return path
+    }
+
+    /// Both rays as one strokable path.
+    static func raysPath(a: CGPoint, vertex: CGPoint, b: CGPoint) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: a)
+        path.addLine(to: vertex)
+        path.addLine(to: b)
+        return path
+    }
+
+    /// Filled dots at the three defining points (vertex slightly larger).
+    static func dotsPath(a: CGPoint, vertex: CGPoint, b: CGPoint, lineWidth: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        let outerR = lineWidth * 2
+        let vertexR = lineWidth * 2.6
+        for (pt, r) in [(a, outerR), (b, outerR), (vertex, vertexR)] {
+            path.addEllipse(in: CGRect(x: pt.x - r, y: pt.y - r, width: r * 2, height: r * 2))
+        }
+        return path
+    }
+
+    /// Label anchor on the bisector. labelDistance 0 = centered ON the arc
+    /// (the pill caps the dashed arc); positive values push it outward.
+    static func labelCenter(a: CGPoint, vertex: CGPoint, b: CGPoint,
+                            radius: CGFloat, labelDistance: CGFloat) -> CGPoint {
+        let dir = bisector(a: a, vertex: vertex, b: b)
+        return CGPoint(x: vertex.x + dir.x * (radius + labelDistance),
+                       y: vertex.y + dir.y * (radius + labelDistance))
+    }
+
+    // MARK: Shift-snapping (45° steps)
+
+    /// The shift-snap increment: 45°.
+    private static let snapIncrement: CGFloat = .pi / 4
+
+    /// Shift-drag on an outer point: rotate it about the vertex so the angle
+    /// to the other ray snaps to the nearest 45° multiple (0…180°), preserving
+    /// the dragged ray's length.
+    static func snapOuterPoint(_ dragged: CGPoint, vertex: CGPoint, other: CGPoint) -> CGPoint {
+        let len = hypot(dragged.x - vertex.x, dragged.y - vertex.y)
+        guard len > 0.001 else { return dragged }
+        let sw = sweep(a: other, vertex: vertex, b: dragged)
+        let target = (sw / snapIncrement).rounded() * snapIncrement
+        let angOther = atan2(other.y - vertex.y, other.x - vertex.x)
+        let newAng = angOther + target
+        return CGPoint(x: vertex.x + len * cos(newAng),
+                       y: vertex.y + len * sin(newAng))
+    }
+
+    /// Shift-drag on the vertex: move it to the nearest point where the
+    /// interior angle is a 45° multiple (45…180° — 0° is geometrically
+    /// impossible for a vertex between two fixed points). The locus of
+    /// vertices seeing the chord a–b at a fixed angle θ is a circular arc
+    /// through a and b (inscribed-angle theorem), so the snap is a projection
+    /// onto the circle for the nearest 45° target; the 180° locus degenerates
+    /// to the segment itself.
+    static func snapVertex(_ v: CGPoint, a: CGPoint, b: CGPoint) -> CGPoint {
+        let abX = b.x - a.x, abY = b.y - a.y
+        let abLen = hypot(abX, abY)
+        guard abLen > 0.001 else { return v }
+
+        let current = abs(sweep(a: a, vertex: v, b: b))
+        var target = (current / snapIncrement).rounded() * snapIncrement
+        target = min(max(target, snapIncrement), .pi)
+
+        if target > .pi - 0.001 {
+            // 180°: closest point on the segment a–b.
+            let t = max(0, min(1, ((v.x - a.x) * abX + (v.y - a.y) * abY) / (abLen * abLen)))
+            return CGPoint(x: a.x + t * abX, y: a.y + t * abY)
+        }
+
+        let mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
+        // Unit normal to a–b on the vertex's current side.
+        var nx = -abY / abLen, ny = abX / abLen
+        if (v.x - mx) * nx + (v.y - my) * ny < 0 { nx = -nx; ny = -ny }
+        let half = abLen / 2
+        let radius = half / sin(target)
+        // Signed chord→center distance: center sits on the vertex's side for
+        // θ < 90° (major arc) and on the opposite side for θ > 90° (minor arc).
+        let h = half * cos(target) / sin(target)
+        let cx = mx + nx * h, cy = my + ny * h
+        let dvx = v.x - cx, dvy = v.y - cy
+        let dLen = hypot(dvx, dvy)
+        guard dLen > 0.001 else { return v }
+        return CGPoint(x: cx + dvx / dLen * radius, y: cy + dvy / dLen * radius)
     }
 }
 
@@ -167,6 +601,9 @@ struct Annotation: Identifiable, Equatable {
     var startPoint: CGPoint    // image-pixel coordinates
     var endPoint: CGPoint      // image-pixel coordinates
     var points: [CGPoint]      // used by free-draw tool
+    /// Arrow shaft bow in the start→end local frame (see ArrowGeometry).
+    /// nil = the style's default (0.3 bow for .curved, straight for .double).
+    var curvature: CGVector?
     var style: AnnotationStyle
     var text: String           // only meaningful for .text tool
     var stepNumber: Int        // only meaningful for .numberedStep tool
@@ -177,6 +614,7 @@ struct Annotation: Identifiable, Equatable {
         startPoint: CGPoint,
         endPoint: CGPoint,
         points: [CGPoint] = [],
+        curvature: CGVector? = nil,
         style: AnnotationStyle = AnnotationStyle(),
         text: String = "",
         stepNumber: Int = 0
@@ -186,13 +624,54 @@ struct Annotation: Identifiable, Equatable {
         self.startPoint = startPoint
         self.endPoint = endPoint
         self.points = points
+        self.curvature = curvature
         self.style = style
         self.text = text
         self.stepNumber = stepNumber
     }
 
+    /// Effective arrow curvature: the stored value, or the style's default bow.
+    var arrowCurvature: CGVector {
+        if let curvature { return curvature }
+        return CGVector(dx: 0.5, dy: style.arrowStyle == .curved ? ArrowGeometry.defaultCurvedBow : 0)
+    }
+
+    /// Quad-bezier control point of the arrow shaft (image-pixel space).
+    var arrowControlPoint: CGPoint {
+        ArrowGeometry.controlPoint(start: startPoint, end: endPoint, curvature: arrowCurvature)
+    }
+
+    /// The on-curve midpoint where the curve handle sits (image-pixel space).
+    var arrowMidPoint: CGPoint {
+        ArrowGeometry.midPoint(start: startPoint, end: endPoint, curvature: arrowCurvature)
+    }
+
+    /// Vertex (corner point) of an .angle annotation. Stored in `points[0]`
+    /// so every whole-image point transform (shift, crop remap, resize,
+    /// rotate, straighten) maps it for free alongside start/end.
+    var angleVertex: CGPoint {
+        points.first ?? CGPoint(x: (startPoint.x + endPoint.x) / 2,
+                                y: (startPoint.y + endPoint.y) / 2)
+    }
+
+    /// Stable seed for the sketch arrow's grit, folded from the UUID bytes
+    /// (NOT hashValue, which is randomized per process). Same arrow → same
+    /// hand-drawn texture, every frame and in every export.
+    var sketchSeed: UInt64 {
+        let u = id.uuid
+        return UInt64(u.0) << 56 | UInt64(u.1) << 48 | UInt64(u.2) << 40 | UInt64(u.3) << 32
+             | UInt64(u.4) << 24 | UInt64(u.5) << 16 | UInt64(u.6) << 8 | UInt64(u.7)
+    }
+
     /// The bounding rect of this annotation in image-pixel coordinates.
     var boundingRect: CGRect {
+        if tool == .angle {
+            let pts = [startPoint, endPoint, angleVertex]
+            let xs = pts.map(\.x), ys = pts.map(\.y)
+            return CGRect(x: xs.min()!, y: ys.min()!,
+                          width: max(xs.max()! - xs.min()!, 1),
+                          height: max(ys.max()! - ys.min()!, 1))
+        }
         if tool == .freeDraw, !points.isEmpty {
             let xs = points.map(\.x)
             let ys = points.map(\.y)

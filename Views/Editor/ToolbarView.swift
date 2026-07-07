@@ -12,7 +12,9 @@ struct ArrowStylePreview: View {
         Canvas { ctx, size in
             let s = CGPoint(x: 6, y: size.height * 0.62)
             let e = CGPoint(x: size.width - 6, y: size.height * 0.38)
-            let color = isSelected ? Color.accentColor : Color.secondary
+            // Solid colors only — .secondary is translucent, which washes out the
+            // filled heads and double-darkens where shaft and head overlap.
+            let color = isSelected ? Color.accentColor : Color.primary
             let lw: CGFloat = 1.5
 
             switch style {
@@ -41,13 +43,37 @@ struct ArrowStylePreview: View {
             case .curved:
                 let dx = e.x - s.x, dy = e.y - s.y
                 let cp = CGPoint(x: (s.x + e.x) / 2 + dy * 0.3, y: (s.y + e.y) / 2 - dx * 0.3)
-                var shaft = Path(); shaft.move(to: s); shaft.addQuadCurve(to: e, control: cp)
-                ctx.stroke(shaft, with: .color(color), style: StrokeStyle(lineWidth: lw, lineCap: .round))
                 let ang = atan2(e.y - cp.y, e.x - cp.x), hl: CGFloat = 7, ha = CGFloat.pi / 5
+                // Stop the shaft at the head base so the round cap never pokes
+                // past the triangle tip — the tip IS the end of the arrow.
+                let depth = hl * cos(ha)
+                let shaftE = CGPoint(x: e.x - depth * cos(ang), y: e.y - depth * sin(ang))
+                var shaft = Path(); shaft.move(to: s); shaft.addQuadCurve(to: shaftE, control: cp)
+                ctx.stroke(shaft, with: .color(color), style: StrokeStyle(lineWidth: lw, lineCap: .round))
                 let p1 = CGPoint(x: e.x - hl * cos(ang - ha), y: e.y - hl * sin(ang - ha))
                 let p2 = CGPoint(x: e.x - hl * cos(ang + ha), y: e.y - hl * sin(ang + ha))
                 var tri = Path(); tri.move(to: e); tri.addLine(to: p1); tri.addLine(to: p2); tri.closeSubpath()
                 ctx.fill(tri, with: .color(color))
+
+            case .double:
+                // Gently bowed shaft with filled heads at both ends — the bow
+                // hints that the shaft can be curved via the mid handle.
+                let dxv = e.x - s.x, dyv = e.y - s.y
+                let cp = CGPoint(x: (s.x + e.x) / 2 + dyv * 0.18, y: (s.y + e.y) / 2 - dxv * 0.18)
+                let hl: CGFloat = 7, ha = CGFloat.pi / 5
+                let endAng = atan2(e.y - cp.y, e.x - cp.x)
+                let startAng = atan2(s.y - cp.y, s.x - cp.x)
+                let depth = hl * cos(ha)
+                let shaftE = CGPoint(x: e.x - depth * cos(endAng), y: e.y - depth * sin(endAng))
+                let shaftS = CGPoint(x: s.x - depth * cos(startAng), y: s.y - depth * sin(startAng))
+                var shaft = Path(); shaft.move(to: shaftS); shaft.addQuadCurve(to: shaftE, control: cp)
+                ctx.stroke(shaft, with: .color(color), style: StrokeStyle(lineWidth: lw, lineCap: .round))
+                for (tip, ang) in [(e, endAng), (s, startAng)] {
+                    let p1 = CGPoint(x: tip.x - hl * cos(ang - ha), y: tip.y - hl * sin(ang - ha))
+                    let p2 = CGPoint(x: tip.x - hl * cos(ang + ha), y: tip.y - hl * sin(ang + ha))
+                    var tri = Path(); tri.move(to: tip); tri.addLine(to: p1); tri.addLine(to: p2); tri.closeSubpath()
+                    ctx.fill(tri, with: .color(color))
+                }
 
             case .sketch:
                 let ang = atan2(e.y - s.y, e.x - s.x)

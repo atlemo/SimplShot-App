@@ -8,6 +8,8 @@ enum DragMode: Equatable {
     case body                      // move entire annotation
     case startHandle               // move startPoint only (arrow/line)
     case endHandle                 // move endPoint only (arrow/line)
+    case midHandle                 // bend the arrow shaft (curved/double arrows)
+    case vertexHandle              // move the angle tool's corner point (points[0])
     case corner(minXFixed: Bool, minYFixed: Bool)  // resize rectangle via one corner
     case textLeftEdge              // resize text bubble from the left
     case textRightEdge             // resize text bubble from the right
@@ -404,6 +406,7 @@ struct EditorCanvasView: View {
                                     startPoint: duplicate.startPoint,
                                     endPoint: duplicate.endPoint,
                                     points: duplicate.points,
+                                    curvature: duplicate.curvature,
                                     style: duplicate.style,
                                     text: duplicate.text,
                                     stepNumber: duplicate.stepNumber
@@ -444,6 +447,12 @@ struct EditorCanvasView: View {
                                 tool: currentTool,
                                 startPoint: startInImage,
                                 endPoint: currentInImage,
+                                // Angle tool: vertex starts at the drag midpoint
+                                // (a flat 180°); the user bends it afterwards.
+                                points: currentTool == .angle
+                                    ? [CGPoint(x: (startInImage.x + currentInImage.x) / 2,
+                                               y: (startInImage.y + currentInImage.y) / 2)]
+                                    : [],
                                 style: currentStyle
                             )
                         }
@@ -466,7 +475,7 @@ struct EditorCanvasView: View {
                             pendingAnnotation?.points.append(currentInImage)
                         }
                         pendingAnnotation?.endPoint = pendingAnnotation?.points.last ?? currentInImage
-                    } else if isAngleLockTool(tool),
+                    } else if isAngleLockTool(tool) || tool == .angle,
                               isShiftDown,
                               let start = pendingAnnotation?.startPoint {
                         pendingAnnotation?.endPoint = constrainTo45Degree(start: start, end: currentInImage)
@@ -475,6 +484,12 @@ struct EditorCanvasView: View {
                         pendingAnnotation?.endPoint = constrainToSquare(start: start, end: currentInImage)
                     } else {
                         pendingAnnotation?.endPoint = currentInImage
+                    }
+                    // Angle tool: keep the vertex at the midpoint while the
+                    // outer points are being placed.
+                    if tool == .angle, let pa = pendingAnnotation {
+                        pendingAnnotation?.points = [CGPoint(x: (pa.startPoint.x + pa.endPoint.x) / 2,
+                                                             y: (pa.startPoint.y + pa.endPoint.y) / 2)]
                     }
                 }
             }
@@ -563,7 +578,7 @@ struct EditorCanvasView: View {
                                      y: ann.startPoint.y + dy)
             ann.endPoint   = CGPoint(x: ann.endPoint.x + dx,
                                      y: ann.endPoint.y + dy)
-            if ann.tool == .freeDraw {
+            if !ann.points.isEmpty {   // freeDraw stroke / angle vertex
                 ann.points = ann.points.map {
                     CGPoint(x: $0.x + dx, y: $0.y + dy)
                 }
@@ -589,7 +604,7 @@ struct EditorCanvasView: View {
                 ann.startPoint.y += snapDy
                 ann.endPoint.x += snapDx
                 ann.endPoint.y += snapDy
-                if ann.tool == .freeDraw {
+                if !ann.points.isEmpty {   // freeDraw stroke / angle vertex
                     ann.points = ann.points.map {
                         CGPoint(x: $0.x + snapDx, y: $0.y + snapDy)
                     }
@@ -602,7 +617,10 @@ struct EditorCanvasView: View {
         case .startHandle:
             let newStart = CGPoint(x: ann.startPoint.x + dx,
                                    y: ann.startPoint.y + dy)
-            if isAngleLockTool(ann.tool), isShiftDown {
+            if ann.tool == .angle, isShiftDown {
+                // Snap the measured angle to 45° steps (rotate about the vertex).
+                ann.startPoint = AngleGeometry.snapOuterPoint(newStart, vertex: ann.angleVertex, other: ann.endPoint)
+            } else if isAngleLockTool(ann.tool), isShiftDown {
                 ann.startPoint = constrainTo45Degree(start: ann.endPoint, end: newStart)
             } else {
                 ann.startPoint = newStart
@@ -613,11 +631,41 @@ struct EditorCanvasView: View {
         case .endHandle:
             let newEnd = CGPoint(x: ann.endPoint.x + dx,
                                  y: ann.endPoint.y + dy)
-            if isAngleLockTool(ann.tool), isShiftDown {
+            if ann.tool == .angle, isShiftDown {
+                ann.endPoint = AngleGeometry.snapOuterPoint(newEnd, vertex: ann.angleVertex, other: ann.startPoint)
+            } else if isAngleLockTool(ann.tool), isShiftDown {
                 ann.endPoint = constrainTo45Degree(start: ann.startPoint, end: newEnd)
             } else {
                 ann.endPoint = newEnd
             }
+            snapH = false
+            snapV = false
+
+        case .vertexHandle:
+            let origVertex = ann.angleVertex
+            var newVertex = CGPoint(x: origVertex.x + dx, y: origVertex.y + dy)
+            if isShiftDown {
+                // Snap the measured angle to 45° steps (project onto the
+                // inscribed-angle circle for the nearest target).
+                newVertex = AngleGeometry.snapVertex(newVertex, a: ann.startPoint, b: ann.endPoint)
+            }
+            ann.points = [newVertex]
+            snapH = false
+            snapV = false
+
+        case .midHandle:
+            // Keep the curve's midpoint under the cursor: solve for the
+            // local-frame curvature whose B(0.5) is the dragged point.
+            let origMid = ann.arrowMidPoint
+            let newMid = CGPoint(x: origMid.x + dx, y: origMid.y + dy)
+            var curv = ArrowGeometry.curvature(start: ann.startPoint, end: ann.endPoint,
+                                               passingThrough: newMid)
+            // Snap back to perfectly straight when the bow is nearly flat.
+            let length = dist(ann.startPoint, ann.endPoint)
+            if abs(curv.dy) * length < snapThreshold {
+                curv = CGVector(dx: 0.5, dy: 0)
+            }
+            ann.curvature = curv
             snapH = false
             snapV = false
 
@@ -818,6 +866,16 @@ struct EditorCanvasView: View {
         case .arrow, .line, .measurement:
             if dist(point, annotation.startPoint) < r { return .startHandle }
             if dist(point, annotation.endPoint)   < r { return .endHandle }
+            if annotation.tool == .arrow, annotation.style.arrowStyle.supportsCurvature,
+               dist(point, annotation.arrowMidPoint) < r {
+                return .midHandle
+            }
+            return nil
+
+        case .angle:
+            if dist(point, annotation.startPoint)  < r { return .startHandle }
+            if dist(point, annotation.endPoint)    < r { return .endHandle }
+            if dist(point, annotation.angleVertex) < r { return .vertexHandle }
             return nil
 
         case .rectangle, .circle, .triangle, .star, .pixelate, .spotlight:
@@ -876,16 +934,24 @@ struct EditorCanvasView: View {
             switch annotation.tool {
             case .arrow, .line, .measurement:
                 let hitDist: CGFloat
-                if annotation.tool == .arrow && annotation.style.arrowStyle == .curved {
-                    hitDist = distanceToCurvedArrow(point: point,
-                                                    start: annotation.startPoint,
-                                                    end: annotation.endPoint)
+                if annotation.tool == .arrow && annotation.style.arrowStyle.supportsCurvature {
+                    hitDist = distanceToQuadCurve(point: point,
+                                                  start: annotation.startPoint,
+                                                  control: annotation.arrowControlPoint,
+                                                  end: annotation.endPoint)
                 } else {
                     hitDist = distanceToSegment(point: point,
                                                 start: annotation.startPoint,
                                                 end: annotation.endPoint)
                 }
                 if hitDist < threshold {
+                    return annotation.id
+                }
+
+            case .angle:
+                let v = annotation.angleVertex
+                if distanceToSegment(point: point, start: v, end: annotation.startPoint) < threshold
+                    || distanceToSegment(point: point, start: v, end: annotation.endPoint) < threshold {
                     return annotation.id
                 }
 
@@ -950,13 +1016,9 @@ struct EditorCanvasView: View {
         return hypot(point.x - proj.x, point.y - proj.y)
     }
 
-    /// Samples the quadratic bezier used by the curved arrow style and returns
+    /// Samples a quadratic bezier (curved/double arrow shaft) and returns
     /// the minimum distance from `point` to any segment of the sampled polyline.
-    private func distanceToCurvedArrow(point: CGPoint, start: CGPoint, end: CGPoint) -> CGFloat {
-        let dx = end.x - start.x
-        let dy = end.y - start.y
-        let cp = CGPoint(x: (start.x + end.x) / 2 + dy * 0.3,
-                         y: (start.y + end.y) / 2 - dx * 0.3)
+    private func distanceToQuadCurve(point: CGPoint, start: CGPoint, control cp: CGPoint, end: CGPoint) -> CGFloat {
         let steps = 20
         var best = CGFloat.greatestFiniteMagnitude
         var prev = start

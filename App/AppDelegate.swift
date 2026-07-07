@@ -40,7 +40,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        let imageTypes: Set<String> = ["png", "jpg", "jpeg", "heic", "tiff", "tif", "gif", "bmp", "webp"]
+        let imageTypes: Set<String> = ["png", "jpg", "jpeg", "heic", "heif", "tiff", "tif", "gif", "bmp", "webp", "avif", "jxl", "jp2", "psd"]
         let imageURLs = urls.filter { imageTypes.contains($0.pathExtension.lowercased()) }
         let pdfURLs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
 
@@ -625,7 +625,7 @@ private final class StatusItemDragView: NSView {
     weak var statusItem: NSStatusItem?
 
     private let validExtensions: Set<String> = [
-        "png", "jpg", "jpeg", "heic", "tiff", "tif", "gif", "bmp", "webp", "pdf"
+        "png", "jpg", "jpeg", "heic", "heif", "tiff", "tif", "gif", "bmp", "webp", "avif", "jxl", "jp2", "psd", "pdf"
     ]
     private var isHighlighted = false
 

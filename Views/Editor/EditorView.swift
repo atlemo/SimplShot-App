@@ -3693,6 +3693,10 @@ struct EditorView: View {
             }
             requestReviewIfEligible()
             onDismiss()
+        } catch AnnotationRenderer.RenderError.unsupportedEncodeFormat {
+            // Source is a decode-only format (e.g. JPEG XL) with no encodable
+            // equivalent — can't overwrite in place, so offer "Save As" instead.
+            saveAs()
         } catch {
             showSaveError(error)
         }
@@ -3739,6 +3743,15 @@ struct EditorView: View {
         case "tiff", "tif": utType = UTType.tiff.identifier as CFString
         case "gif":         utType = UTType.gif.identifier as CFString
         case "bmp":         utType = UTType.bmp.identifier as CFString
+        case "avif":        utType = "public.avif" as CFString; isLossy = true
+        // HEIF is decode-only in ImageIO; HEIC is the equivalent encodable
+        // container (HEIF + HEVC), so a .heif overwrite stays a valid HEIF file.
+        case "heif":        utType = "public.heic" as CFString; isLossy = true
+        case "jp2":         utType = "public.jpeg-2000" as CFString; isLossy = true
+        case "psd":         utType = "com.adobe.photoshop-image" as CFString
+        // JPEG XL: ImageIO can decode but not encode, and there is no equivalent
+        // container — overwrite is impossible. Caller falls back to "Save As".
+        case "jxl":         throw AnnotationRenderer.RenderError.unsupportedEncodeFormat
         default:            utType = UTType.jpeg.identifier as CFString; isLossy = true
         }
 
@@ -3773,14 +3786,21 @@ struct EditorView: View {
             panel.allowedContentTypes = [.pdf]
         } else {
             let ext = imageURL.pathExtension.lowercased()
+            let jp2Type = UTType("public.jpeg-2000")
+            let psdType = UTType("com.adobe.photoshop-image")
             let sourceType: UTType
             switch ext {
-            case "png":  sourceType = .png
-            case "heic": sourceType = .heic
+            case "png":          sourceType = .png
+            // HEIF re-encodes as its equivalent HEIC container.
+            case "heic", "heif": sourceType = .heic
+            case "jp2":          sourceType = jp2Type ?? .png
+            case "psd":          sourceType = psdType ?? .png
+            // JPEG XL is decode-only — default to lossless PNG, not lossy JPEG.
+            case "jxl":          sourceType = .png
             #if !APPSTORE
-            case "webp": sourceType = .webP
+            case "webp":         sourceType = .webP
             #endif
-            default:     sourceType = .jpeg
+            default:             sourceType = .jpeg
             }
             // Offer every supported raster format via an accessory popup,
             // defaulting to the source image's format (first entry).
@@ -3792,6 +3812,8 @@ struct EditorView: View {
             #if !APPSTORE
             formats.append(.init(label: "WebP", type: .webP, ext: "webp"))
             #endif
+            if let jp2Type { formats.append(.init(label: "JPEG 2000", type: jp2Type, ext: "jp2")) }
+            if let psdType { formats.append(.init(label: "Photoshop", type: psdType, ext: "psd")) }
             if let idx = formats.firstIndex(where: { $0.type == sourceType }) {
                 formats.insert(formats.remove(at: idx), at: 0)
             }

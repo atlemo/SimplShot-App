@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-07-07 (1.7.0)
+
+### Bendable Curved Arrows
+Curved arrows now have an editable bow. Selecting a curved arrow shows a third, accent-colored handle at the middle of the curve — drag it to bend the shaft exactly where you want it, with the curve staying under the cursor. Pushing the handle back toward the straight line snaps the arrow perfectly straight. The curvature is stored relative to the arrow's endpoints, so it survives moving, resizing, cropping, rotating and straightening.
+
+### Double Arrow Style
+A new arrow style with filled arrowheads at both ends. Double arrows start straight and can be bent with the same middle handle as curved arrows. Both curved and double arrows now render as a single filled outline path, so semi-transparent colors stay uniform with no seams between shaft and heads — in the editor, in raster export and in vector PDF export alike.
+
+### Hand-Drawn Sketch Arrows
+The Sketch arrow style has been redrawn as a gritty, variable-width ink stroke: a tapering shaft with roughened edges, a thin charcoal-style overdraw strand, and arrowhead flicks that thin out like real pen strokes. Each arrow gets its own stable texture (seeded per annotation), so it never shimmers while editing and exports pixel-identically to the preview.
+
+### Angle Tool (Protractor)
+A new measurement tool for angles. Drag between two points to place the outer legs, then pull the middle handle to the corner being measured — SimplShot draws the two rays, a dashed arc spanning the angle, and a degree pill centered on the arc. Hold Shift while dragging any of the three handles to snap the measured angle to 45° steps (dragging an outer point rotates it around the corner; dragging the corner finds the nearest position that hits the target angle exactly).
+
 ## 2026-05-20
 
 ### Annotation Bounds Clipping

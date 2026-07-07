@@ -122,7 +122,7 @@ struct EditorSidebarView: View {
     // distort the on-screen page and be silently dropped from the saved PDF.
     private var drawingTools: [AnnotationTool] {
         let base: [AnnotationTool] = [
-            .select, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep, .measurement, .pixelate, .spotlight, .crop
+            .select, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep, .measurement, .angle, .pixelate, .spotlight, .crop
         ]
         guard !hasTemplate else { return base }
         // PDF sessions: pixelate/crop don't apply (vector export draws the full
@@ -132,7 +132,7 @@ struct EditorSidebarView: View {
     }
 
     private let stylingTools: [AnnotationTool] = [
-        .arrow, .freeDraw, .measurement, .rectangle, .circle, .triangle, .star, .line, .text, .numberedStep
+        .arrow, .freeDraw, .measurement, .angle, .rectangle, .circle, .triangle, .star, .line, .text, .numberedStep
     ]
 
     private var showStyleControls: Bool {
