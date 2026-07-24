@@ -15,6 +15,13 @@ struct EditorModeToggle: View {
 
     @AppStorage("debugSimulateSonomaAppearance") private var simulateSonoma = false
 
+    /// Keyboard-focus tracking for the segments. Clicking a plain button doesn't
+    /// move macOS keyboard focus on its own, so the blue focus ring would stay
+    /// stuck on whichever segment was focused first (e.g. Annotate) while the
+    /// selected-capsule highlight moved elsewhere. Driving focus from the tap
+    /// keeps the ring on the segment you actually clicked.
+    @FocusState private var focusedMode: EditorMode?
+
     private var availableModes: [EditorMode] {
         isPDFSession ? EditorMode.allCases.filter { $0 != .edit } : EditorMode.allCases
     }
@@ -39,6 +46,7 @@ struct EditorModeToggle: View {
         let isSelected = editorMode == mode
         Button {
             editorMode = mode
+            focusedMode = mode
         } label: {
             Text(mode.rawValue)
                 .font(.system(size: 13, weight: .medium))
@@ -55,6 +63,7 @@ struct EditorModeToggle: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .focused($focusedMode, equals: mode)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }

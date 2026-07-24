@@ -36,6 +36,10 @@ struct EditorView: View {
     /// onChange observers don't treat session-switches as user edits
     /// (which would re-shift annotations or overwrite app defaults).
     @State private var isRestoringSession: Bool = false
+    /// True while applyEditorTemplate writes its batch of template properties.
+    /// The per-property onChange handlers skip their annotation shifts during
+    /// the batch — applyEditorTemplate defers one authoritative shift instead.
+    @State private var isApplyingTemplatePreset: Bool = false
     /// Set while a coalesced display re-render is already queued, so the many
     /// template-property onChange handlers that fire together (e.g. applying a
     /// template changes ~7 settings at once) trigger only one render.
@@ -471,7 +475,7 @@ struct EditorView: View {
                 appSettings?.screenshotTemplate.wallpaperSource = newValue
             }
             if let rawImage {
-                if wasEnabled != isEnabled {
+                if wasEnabled != isEnabled, !isApplyingTemplatePreset {
                     let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
                     let oldOrigin = wasEnabled ? screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment) : .zero
                     let newOrigin = isEnabled ? screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment) : .zero
@@ -484,22 +488,29 @@ struct EditorView: View {
             guard !isRestoringSession else { return }
             appSettings?.screenshotTemplate.padding = newValue
             if selectedWallpaper != nil, let rawImage {
-                let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
-                let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: oldValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
-                let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: newValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
-                deferAnnotationShift(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                if !isApplyingTemplatePreset {
+                    let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
+                    let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: oldValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
+                    let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: newValue, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
+                    deferAnnotationShift(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                }
                 scheduleDisplayRefresh()
             }
         }
         .onChange(of: editorAspectRatioID) { oldID, newID in
             guard !isRestoringSession else { return }
             if selectedWallpaper != nil, let rawImage {
-                let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
-                let oldRatio = aspectRatioValue(for: oldID)
-                let newRatio = aspectRatioValue(for: newID)
-                let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: oldRatio)
-                let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: newRatio)
-                deferAnnotationShift(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                if !isApplyingTemplatePreset {
+                    let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
+                    let oldRatio = aspectRatioValue(for: oldID)
+                    let newRatio = aspectRatioValue(for: newID)
+                    // Pass the current alignment — omitting it defaulted to
+                    // .middleCenter and computed a wrong shift for any other
+                    // alignment.
+                    let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: oldRatio, alignment: screenshotAlignment)
+                    let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: newRatio, alignment: screenshotAlignment)
+                    deferAnnotationShift(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                }
                 scheduleDisplayRefresh()
             }
         }
@@ -523,10 +534,12 @@ struct EditorView: View {
         .onChange(of: screenshotAlignment) { oldAlignment, newAlignment in
             guard !isRestoringSession else { return }
             if selectedWallpaper != nil, let rawImage {
-                let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
-                let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: oldAlignment)
-                let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: newAlignment)
-                deferAnnotationShift(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                if !isApplyingTemplatePreset {
+                    let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
+                    let oldOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: oldAlignment)
+                    let newOrigin = screenshotOriginInTemplatedCanvas(screenshotPixelSize: cropSize, padding: editorPadding, aspectRatio: selectedEditorAspectRatio?.ratio, alignment: newAlignment)
+                    deferAnnotationShift(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+                }
                 scheduleDisplayRefresh()
             }
         }
@@ -2231,13 +2244,45 @@ struct EditorView: View {
     }
 
     private func applyEditorTemplate(_ template: EditorTemplatePreset) {
+        // One authoritative annotation shift for the whole template change,
+        // computed old-state → template-state BEFORE any writes. The
+        // per-property onChange handlers each compute their delta with the
+        // OTHER properties already at their new values, so their sum does not
+        // telescope to origin(new) − origin(old) when a template changes
+        // several origin-affecting properties at once (padding, aspect ratio
+        // and alignment couple inside screenshotOriginInTemplatedCanvas) —
+        // annotations would land offset. The handlers skip their shifts while
+        // isApplyingTemplatePreset is set.
+        let newAspectID = normalizedAspectRatioID(template.aspectRatioID)
+        if let rawImage {
+            let cropSize = screenshotCropRect.isEmpty ? rawImage.size : screenshotCropRect.size
+            let oldOrigin: CGPoint = selectedWallpaper != nil
+                ? screenshotOriginInTemplatedCanvas(
+                    screenshotPixelSize: cropSize, padding: editorPadding,
+                    aspectRatio: selectedEditorAspectRatio?.ratio, alignment: screenshotAlignment)
+                : .zero
+            let newOrigin: CGPoint = template.wallpaperSource != nil
+                ? screenshotOriginInTemplatedCanvas(
+                    screenshotPixelSize: cropSize, padding: template.padding,
+                    aspectRatio: aspectRatioValue(for: newAspectID), alignment: template.alignment)
+                : .zero
+            deferAnnotationShift(by: CGPoint(x: newOrigin.x - oldOrigin.x, y: newOrigin.y - oldOrigin.y))
+        }
+
+        isApplyingTemplatePreset = true
         selectedWallpaper = template.wallpaperSource
         editorPadding = template.padding
         editorCornerRadius = template.cornerRadius
         shadowIntensity = template.shadowIntensity
         screenshotAlignment = template.alignment
-        editorAspectRatioID = normalizedAspectRatioID(template.aspectRatioID)
+        editorAspectRatioID = newAspectID
         watermarkSettings = template.watermarkSettings
+        // Clear on the next runloop tick — after SwiftUI has fired the
+        // onChange observers for the writes above (same pattern as
+        // isRestoringSession in restoreSessionState).
+        DispatchQueue.main.async {
+            isApplyingTemplatePreset = false
+        }
     }
 
     private func overwriteSelectedTemplate() {
@@ -2338,7 +2383,7 @@ struct EditorView: View {
         annotations[idx].startPoint.y += delta.height
         annotations[idx].endPoint.x += delta.width
         annotations[idx].endPoint.y += delta.height
-        if annotations[idx].tool == .freeDraw {
+        if !annotations[idx].points.isEmpty {   // freeDraw stroke / angle vertex
             annotations[idx].points = annotations[idx].points.map {
                 CGPoint(x: $0.x + delta.width, y: $0.y + delta.height)
             }
