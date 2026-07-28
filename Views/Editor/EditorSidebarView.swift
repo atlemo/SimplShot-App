@@ -1054,10 +1054,12 @@ struct EditorSidebarView: View {
             Text("Stroke")
                 .font(.system(size: 12, weight: .medium))
             HStack(spacing: 8) {
+                // Never add .focusable(false) to a Slider — on macOS 26 it
+                // suppresses the knob entirely (track and fill still draw), so
+                // the control looks like it has no drag handle until you click it.
                 Slider(value: strokeWidthBinding, in: 1...15)
                     .tint(.accentColor)
                     .frame(width: 180)
-                    .focusable(false)
                     .focusEffectDisabled()
                 Text("\(Int(currentStyle.strokeWidth))px")
                     .font(.system(size: 11, design: .monospaced))
@@ -1073,10 +1075,10 @@ struct EditorSidebarView: View {
             Text("Font Size")
                 .font(.system(size: 12, weight: .medium))
             HStack(spacing: 8) {
+                // No .focusable(false) — see strokeWidthSliderContent.
                 Slider(value: fontSizeBinding, in: 12...120)
                     .tint(.accentColor)
                     .frame(width: 180)
-                    .focusable(false)
                     .focusEffectDisabled()
                 Text("\(Int(currentStyle.fontSize))pt")
                     .font(.system(size: 11, design: .monospaced))
@@ -1133,10 +1135,10 @@ struct EditorSidebarView: View {
             Text("Pixelation")
                 .font(.system(size: 12, weight: .medium))
             HStack(spacing: 8) {
+                // No .focusable(false) — see strokeWidthSliderContent.
                 Slider(value: pixelationScaleBinding, in: 2...60)
                     .tint(.accentColor)
                     .frame(width: 180)
-                    .focusable(false)
                     .focusEffectDisabled()
                 Text("\(Int(currentStyle.pixelationScale))")
                     .font(.system(size: 11, design: .monospaced))
@@ -1172,10 +1174,10 @@ struct EditorSidebarView: View {
             Text("Dim Opacity")
                 .font(.system(size: 12, weight: .medium))
             HStack(spacing: 8) {
+                // No .focusable(false) — see strokeWidthSliderContent.
                 Slider(value: spotlightOpacityBinding, in: 0.1...0.9)
                     .tint(.accentColor)
                     .frame(width: 180)
-                    .focusable(false)
                     .focusEffectDisabled()
                 Text("\(Int(currentStyle.spotlightOpacity * 100))%")
                     .font(.system(size: 11, design: .monospaced))
@@ -1187,10 +1189,10 @@ struct EditorSidebarView: View {
             Text("Feather")
                 .font(.system(size: 12, weight: .medium))
             HStack(spacing: 8) {
+                // No .focusable(false) — see strokeWidthSliderContent.
                 Slider(value: spotlightFeatherBinding, in: 0...200)
                     .tint(.accentColor)
                     .frame(width: 180)
-                    .focusable(false)
                     .focusEffectDisabled()
                 Text("\(Int(currentStyle.spotlightFeather))px")
                     .font(.system(size: 11, design: .monospaced))

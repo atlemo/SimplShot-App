@@ -3969,6 +3969,13 @@ struct EditorView: View {
         printOperation.printInfo.verticalPagination = .clip
         printOperation.printInfo.isHorizontallyCentered = true
         printOperation.printInfo.isVerticallyCentered = true
+
+        // Add a rotation control to the system print panel so a wide (landscape)
+        // screenshot can be rotated 90° to fill a portrait page, and vice versa.
+        printOperation.printPanel.addAccessoryController(
+            PrintRotationAccessoryController(printInfo: printOperation.printInfo)
+        )
+
         printOperation.runModal(for: hostingWindow ?? NSApp.keyWindow ?? NSWindow(),
                                 delegate: nil, didRun: nil, contextInfo: nil)
     }
@@ -3982,9 +3989,194 @@ struct EditorView: View {
     }
 }
 
+/// How each image is rotated relative to the page before being placed.
+/// Stored as an `Int` in `NSPrintInfo.dictionary()` under `printRotationKey`
+/// so the print-panel accessory and the print view share one source of truth.
+private enum PrintRotation: Int, CaseIterable {
+    case none = 0
+    case auto = 1              // rotate 90° only when it fills the page better
+    case clockwise = 2         // 90° clockwise
+    case counterClockwise = 3  // 90° counterclockwise
+
+    var localizedName: String {
+        switch self {
+        case .none:             return "None"
+        case .auto:             return "Auto (fit page)"
+        case .clockwise:        return "90° Clockwise"
+        case .counterClockwise: return "90° Counterclockwise"
+        }
+    }
+
+    /// Rotation to apply (in degrees, counterclockwise-positive) for a given
+    /// image on a page of `pageSize`. `.auto` rotates only when the image's
+    /// orientation differs from the page's.
+    func angle(for imageSize: NSSize, pageSize: NSSize) -> CGFloat {
+        switch self {
+        case .none:             return 0
+        case .clockwise:        return -90
+        case .counterClockwise: return 90
+        case .auto:
+            let imageIsLandscape = imageSize.width >= imageSize.height
+            let pageIsLandscape = pageSize.width >= pageSize.height
+            return imageIsLandscape == pageIsLandscape ? 0 : 90
+        }
+    }
+}
+
+/// Key under which the chosen `PrintRotation` (raw value) is stored in the
+/// shared `NSPrintInfo.dictionary()`.
+private let printRotationKey = "SimplShotPrintRotation"
+
+/// Reads the selected rotation out of a print info dictionary, defaulting to
+/// `.auto` so landscape screenshots fill portrait pages without extra steps.
+private func printRotation(from printInfo: NSPrintInfo) -> PrintRotation {
+    let raw = (printInfo.dictionary()[printRotationKey] as? Int) ?? PrintRotation.auto.rawValue
+    return PrintRotation(rawValue: raw) ?? .auto
+}
+
+/// Key under which the chosen scale (an integer percentage) is stored in the
+/// shared `NSPrintInfo.dictionary()`.
+private let printScaleKey = "SimplShotPrintScale"
+
+/// Percentage presets offered by the Scale popup. 100 % = fit to page (the
+/// default), smaller values shrink the content, larger values enlarge it (and
+/// may spill past the page, which is then clipped).
+private let printScalePresets = [25, 50, 75, 100, 125, 150, 200]
+
+/// Reads the selected scale percentage, defaulting to 100 % (fit to page).
+private func printScalePercent(from printInfo: NSPrintInfo) -> Int {
+    (printInfo.dictionary()[printScaleKey] as? Int) ?? 100
+}
+
+/// A control added to the system print panel that lets the user rotate the
+/// printed content 90° (e.g. print a landscape screenshot as portrait).
+private final class PrintRotationAccessoryController: NSViewController, NSPrintPanelAccessorizing {
+    private let printInfo: NSPrintInfo
+
+    /// Selected rotation, as a `PrintRotation` raw value. `@objc dynamic` so the
+    /// print panel can observe it (see `keyPathsForValuesAffectingPreview`) and
+    /// refresh the preview when it changes.
+    @objc dynamic var rotationMode: Int {
+        didSet { printInfo.dictionary()[printRotationKey] = rotationMode }
+    }
+
+    /// Selected scale, as an integer percentage. `@objc dynamic` for the same
+    /// preview-observation reason as `rotationMode`.
+    @objc dynamic var scalePercent: Int {
+        didSet { printInfo.dictionary()[printScaleKey] = scalePercent }
+    }
+
+    init(printInfo: NSPrintInfo) {
+        self.printInfo = printInfo
+        self.rotationMode = printRotation(from: printInfo).rawValue
+        self.scalePercent = printScalePercent(from: printInfo)
+        super.init(nibName: nil, bundle: nil)
+        // Seed the dictionary so the print view sees the defaults immediately.
+        printInfo.dictionary()[printRotationKey] = rotationMode
+        printInfo.dictionary()[printScaleKey] = scalePercent
+        title = "Layout"
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    private let rowHeight: CGFloat = 44
+    private let leftInset: CGFloat = 20
+    private let rightInset: CGFloat = 16
+
+    override func loadView() {
+        // Print-panel accessories are laid out by frame, not Auto Layout, so
+        // build a frame-based view. Origin is bottom-left (view is not flipped).
+        // The container is flexible-width so the panel can stretch it to fill
+        // the accessory column (matching the width of the system sections); each
+        // row's label is pinned left and its popup pinned right — native
+        // label-left / value-right rows, like the "Media & Quality" card.
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: rowHeight * 2))
+        container.autoresizingMask = [.width]
+
+        // Top row: Rotate. Bottom row: Scale. (Bottom-left origin → the top row
+        // sits at the higher y.)
+        let rotatePopup = makeRow(
+            in: container, title: "Rotate:", centerY: rowHeight + rowHeight / 2,
+            action: #selector(rotationChanged(_:)))
+        for rotation in PrintRotation.allCases {
+            let item = NSMenuItem(title: rotation.localizedName, action: nil, keyEquivalent: "")
+            item.tag = rotation.rawValue
+            rotatePopup.menu?.addItem(item)
+        }
+        rotatePopup.selectItem(withTag: rotationMode)
+
+        let scalePopup = makeRow(
+            in: container, title: "Scale:", centerY: rowHeight / 2,
+            action: #selector(scaleChanged(_:)))
+        for percent in printScalePresets {
+            let item = NSMenuItem(title: "\(percent)%", action: nil, keyEquivalent: "")
+            item.tag = percent
+            scalePopup.menu?.addItem(item)
+        }
+        scalePopup.selectItem(withTag: scalePercent)
+
+        // Hairline separator between the two rows, matching the system card.
+        let separator = NSBox(frame: NSRect(x: leftInset, y: rowHeight,
+                                            width: container.frame.width - leftInset, height: 1))
+        separator.boxType = .separator
+        separator.autoresizingMask = [.width]
+        container.addSubview(separator)
+
+        self.view = container
+    }
+
+    /// Builds one label-left / popup-right row and adds it to `container`,
+    /// returning the popup so the caller can populate its menu.
+    private func makeRow(in container: NSView, title: String,
+                         centerY: CGFloat, action: Selector) -> NSPopUpButton {
+        let label = NSTextField(labelWithString: title)
+        label.alignment = .left
+        label.sizeToFit()
+        label.frame.origin = NSPoint(x: leftInset, y: centerY - label.frame.height / 2)
+        label.autoresizingMask = [.maxXMargin]
+        container.addSubview(label)
+
+        let popupWidth: CGFloat = 210
+        let popupHeight: CGFloat = 25
+        let popup = NSPopUpButton(
+            frame: NSRect(x: container.frame.width - rightInset - popupWidth,
+                          y: centerY - popupHeight / 2,
+                          width: popupWidth, height: popupHeight),
+            pullsDown: false)
+        popup.target = self
+        popup.action = action
+        popup.autoresizingMask = [.minXMargin]  // stay pinned to the right edge
+        container.addSubview(popup)
+        return popup
+    }
+
+    @objc private func rotationChanged(_ sender: NSPopUpButton) {
+        rotationMode = sender.selectedTag()
+    }
+
+    @objc private func scaleChanged(_ sender: NSPopUpButton) {
+        scalePercent = sender.selectedTag()
+    }
+
+    // MARK: NSPrintPanelAccessorizing
+
+    func localizedSummaryItems() -> [[NSPrintPanel.AccessorySummaryKey: String]] {
+        let rotationName = (PrintRotation(rawValue: rotationMode) ?? .auto).localizedName
+        return [
+            [.itemName: "Rotation", .itemDescription: rotationName],
+            [.itemName: "Scale", .itemDescription: "\(scalePercent)%"],
+        ]
+    }
+
+    func keyPathsForValuesAffectingPreview() -> Set<String> {
+        ["rotationMode", "scalePercent"]
+    }
+}
+
 /// An NSView that paginates a list of images, one per printed page.
 /// Each image is scaled to fit within the page's printable area while
-/// preserving its aspect ratio.
+/// preserving its aspect ratio, optionally rotated 90° (see `PrintRotation`).
 private class MultiPagePrintView: NSView {
     private let images: [NSImage]
 
@@ -3996,43 +4188,49 @@ private class MultiPagePrintView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    /// Printable area of a single page (paper size minus margins) for the
+    /// active print operation. All pagination math derives from this so the
+    /// frame, page rects, and drawing stay consistent.
+    private func printablePageSize() -> NSSize {
+        let printInfo = NSPrintOperation.current?.printInfo ?? NSPrintInfo.shared
+        let paperSize = printInfo.paperSize
+        return NSSize(
+            width: paperSize.width - printInfo.leftMargin - printInfo.rightMargin,
+            height: paperSize.height - printInfo.topMargin - printInfo.bottomMargin
+        )
+    }
+
     override func knowsPageRange(_ range: NSRangePointer) -> Bool {
+        // AppKit validates pagination immediately after this call, so the frame
+        // must already span every page here — not just in `rectForPage`.
+        // Leaving it at the init size trips an AppKit pagination assertion
+        // (a debugger breakpoint) that halts the app under Xcode.
+        let page = printablePageSize()
+        frame = NSRect(x: 0, y: 0, width: page.width,
+                       height: page.height * CGFloat(images.count))
         range.pointee = NSRange(location: 1, length: images.count)
         return true
     }
 
     override func rectForPage(_ page: Int) -> NSRect {
-        let printInfo = NSPrintOperation.current?.printInfo ?? NSPrintInfo.shared
-        let paperSize = printInfo.paperSize
-        let margins = NSEdgeInsets(
-            top: printInfo.topMargin,
-            left: printInfo.leftMargin,
-            bottom: printInfo.bottomMargin,
-            right: printInfo.rightMargin
-        )
-        let printableWidth = paperSize.width - margins.left - margins.right
-        let printableHeight = paperSize.height - margins.top - margins.bottom
-
-        frame = NSRect(x: 0, y: 0, width: printableWidth,
-                       height: printableHeight * CGFloat(images.count))
-        return NSRect(x: 0, y: printableHeight * CGFloat(page - 1),
-                      width: printableWidth, height: printableHeight)
+        let pageSize = printablePageSize()
+        frame = NSRect(x: 0, y: 0, width: pageSize.width,
+                       height: pageSize.height * CGFloat(images.count))
+        return NSRect(x: 0, y: pageSize.height * CGFloat(page - 1),
+                      width: pageSize.width, height: pageSize.height)
     }
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current else { return }
         let printInfo = NSPrintOperation.current?.printInfo ?? NSPrintInfo.shared
-        let paperSize = printInfo.paperSize
-        let margins = NSEdgeInsets(
-            top: printInfo.topMargin,
-            left: printInfo.leftMargin,
-            bottom: printInfo.bottomMargin,
-            right: printInfo.rightMargin
-        )
-        let printableWidth = paperSize.width - margins.left - margins.right
-        let printableHeight = paperSize.height - margins.top - margins.bottom
+        let pageSize = printablePageSize()
+        let printableWidth = pageSize.width
+        let printableHeight = pageSize.height
+        let rotation = printRotation(from: printInfo)
+        // User scale multiplies the fit-to-page size: 100 % = fit, <100 % shrinks,
+        // >100 % enlarges (and may spill past the page, which is clipped).
+        let userScale = CGFloat(printScalePercent(from: printInfo)) / 100.0
 
-        context.saveGraphicsState()
         for (index, image) in images.enumerated() {
             let pageOriginY = printableHeight * CGFloat(index)
             let pageRect = NSRect(x: 0, y: pageOriginY,
@@ -4041,17 +4239,32 @@ private class MultiPagePrintView: NSView {
 
             let imageSize = image.size
             guard imageSize.width > 0, imageSize.height > 0 else { continue }
-            let scale = min(printableWidth / imageSize.width,
-                            printableHeight / imageSize.height,
-                            1.0)
+
+            let angle = rotation.angle(for: imageSize, pageSize: pageSize)
+            let rotated = abs(angle) == 90
+
+            // When rotated 90°, the page's width/height axes swap relative to
+            // the image, so fit against the swapped extents.
+            let availW = rotated ? printableHeight : printableWidth
+            let availH = rotated ? printableWidth : printableHeight
+            let fitScale = min(availW / imageSize.width,
+                               availH / imageSize.height,
+                               1.0)
+            let scale = fitScale * userScale
             let drawW = imageSize.width * scale
             let drawH = imageSize.height * scale
-            let drawX = (printableWidth - drawW) / 2
-            let drawY = pageOriginY + (printableHeight - drawH) / 2
-            image.draw(in: NSRect(x: drawX, y: drawY, width: drawW, height: drawH),
+
+            context.saveGraphicsState()
+            // Rotate about the page center, then draw the image centered there.
+            let transform = NSAffineTransform()
+            transform.translateX(by: printableWidth / 2,
+                                 yBy: pageOriginY + printableHeight / 2)
+            transform.rotate(byDegrees: angle)
+            transform.concat()
+            image.draw(in: NSRect(x: -drawW / 2, y: -drawH / 2, width: drawW, height: drawH),
                        from: .zero, operation: .sourceOver, fraction: 1.0)
+            context.restoreGraphicsState()
         }
-        context.restoreGraphicsState()
     }
 }
 
