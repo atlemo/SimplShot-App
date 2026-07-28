@@ -7,6 +7,11 @@ struct WhatsNewEntry {
 
 /// Hardcoded changelog — add new entries at the top before each release.
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.7.1", items: [
+        "Crop now reaches every edge — with an aspect ratio locked, dragging a handle no longer stalls just short of the right or bottom edge. Every handle now reaches its edge, whichever side you drag from.",
+        "The Annotate · Edit · View switch is now a proper glass pill that matches the rest of the editor, and the focus ring follows the segment you actually clicked instead of staying stuck on the first one.",
+        "Fixed missing drag handles on the Stroke, Font Size, Pixelation and Spotlight sliders — the knob now appears right away instead of only showing up once you'd clicked and dragged.",
+    ]),
     WhatsNewEntry(version: "1.7.0", items: [
         "Bendable arrows — select a Curved arrow and drag the new dot in the middle to shape the curve exactly how you want it.",
         "New Double arrow style — arrowheads at both ends, straight by default and bendable via the same middle dot.",
