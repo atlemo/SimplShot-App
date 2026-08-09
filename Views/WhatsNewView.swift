@@ -8,9 +8,11 @@ struct WhatsNewEntry {
 /// Hardcoded changelog — add new entries at the top before each release.
 let whatsNewEntries: [WhatsNewEntry] = [
     WhatsNewEntry(version: "1.7.1", items: [
+        "New print options — the print dialog now has Rotation and Scale controls. Rotation can turn the page 90° clockwise or counterclockwise, and “Auto (fit page)” rotates only when that fills the paper better, so a landscape screenshot prints large on a portrait page without any fiddling. Scale offers 25 % to 200 %, with 100 % meaning fit to page. The preview updates as you change either.",
         "Crop now reaches every edge — with an aspect ratio locked, dragging a handle no longer stalls just short of the right or bottom edge. Every handle now reaches its edge, whichever side you drag from.",
-        "The Annotate · Edit · View switch is now a proper glass pill that matches the rest of the editor, and the focus ring follows the segment you actually clicked instead of staying stuck on the first one.",
+        "Applying a saved template no longer nudges your annotations out of place — they keep their position relative to the screenshot when the padding, background, aspect ratio and alignment all change at once.",
         "Fixed missing drag handles on the Stroke, Font Size, Pixelation and Spotlight sliders — the knob now appears right away instead of only showing up once you'd clicked and dragged.",
+        "The focus ring on the Annotate · Edit · View switch now follows the segment you actually clicked, instead of staying stuck on whichever one had it first.",
     ]),
     WhatsNewEntry(version: "1.7.0", items: [
         "Bendable arrows — select a Curved arrow and drag the new dot in the middle to shape the curve exactly how you want it.",

@@ -22,6 +22,7 @@ struct EditorSidebarView: View {
     @Binding var annotations: [Annotation]
     @Binding var isCropping: Bool
     @Binding var cropAspectPreset: CropAspectPreset
+    @Binding var cropAspectPortrait: Bool
     @Binding var straightenDialAngle: Double
     @Binding var isAdjustingCrop: Bool
     /// True for PDF sessions — straighten is offered for raster images only.
@@ -174,6 +175,7 @@ struct EditorSidebarView: View {
                     metadata: imageMetadata,
                     isCropping: isCropping,
                     cropAspectPreset: $cropAspectPreset,
+                    cropAspectPortrait: $cropAspectPortrait,
                     straightenDialAngle: $straightenDialAngle,
                     isAdjustingCrop: $isAdjustingCrop,
                     straightenAvailable: selectedWallpaper == nil && !isPDFSession,
@@ -330,15 +332,9 @@ struct EditorSidebarView: View {
             groupHeader("Crop", section: .crop)
             if !isCollapsed(.crop) {
                 sectionLabel("Aspect ratio")
-                Picker("", selection: $cropAspectPreset) {
-                    ForEach(CropAspectPreset.allCases) { preset in
-                        Text(preset.rawValue).tag(preset)
-                    }
-                }
-                .labelsHidden()
-                .fixedSize()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 2)
+                CropAspectPickerRow(preset: $cropAspectPreset, portrait: $cropAspectPortrait)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 2)
                 HStack(spacing: 8) {
                     Button("Apply", action: onApplyCrop)
                         .buttonStyle(.borderedProminent)

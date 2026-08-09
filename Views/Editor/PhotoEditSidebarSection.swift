@@ -13,6 +13,7 @@ struct PhotoEditSidebarSection: View {
     var metadata: ImageMetadata?
     var isCropping: Bool
     @Binding var cropAspectPreset: CropAspectPreset
+    @Binding var cropAspectPortrait: Bool
     /// Additional fine straighten angle (degrees) for the current crop session.
     @Binding var straightenDialAngle: Double
     /// True while the user drags the straighten slider — drives the grid overlay.
@@ -105,14 +106,8 @@ struct PhotoEditSidebarSection: View {
                 Text("Aspect ratio")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                Picker("", selection: $cropAspectPreset) {
-                    ForEach(CropAspectPreset.allCases) { preset in
-                        Text(preset.rawValue).tag(preset)
-                    }
-                }
-                .labelsHidden()
-                .fixedSize()
-                .frame(maxWidth: .infinity, alignment: .leading)
+                CropAspectPickerRow(preset: $cropAspectPreset, portrait: $cropAspectPortrait)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if straightenAvailable {

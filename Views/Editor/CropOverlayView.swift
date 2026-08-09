@@ -2,27 +2,87 @@ import SwiftUI
 
 /// Preset aspect ratios offered for the crop tool. `.free` allows any rectangle;
 /// the others lock the crop region (and its handle drags) to a fixed ratio.
+///
+/// Each preset stores its **landscape** term order (long side first). Portrait
+/// variants are not separate cases — the crop UI carries an orientation flag and
+/// asks for `ratio(portrait:)` / `label(portrait:)`, so a single "swap" button
+/// turns 3:2 into 2:3 (and 16:9 into 9:16, …) for every preset at once.
 enum CropAspectPreset: String, CaseIterable, Identifiable {
     case free = "Free"
     case square = "1:1"
     case fourThree = "4:3"
     case threeTwo = "3:2"
     case sixteenNine = "16:9"
-    case threeFour = "3:4"
-    case nineSixteen = "9:16"
 
     var id: String { rawValue }
 
-    /// width / height, or nil for a freeform crop.
-    var ratio: CGFloat? {
+    /// Landscape width:height terms, or nil for a freeform crop.
+    var terms: (width: CGFloat, height: CGFloat)? {
         switch self {
         case .free:        return nil
-        case .square:      return 1
-        case .fourThree:   return 4.0 / 3.0
-        case .threeTwo:    return 3.0 / 2.0
-        case .sixteenNine: return 16.0 / 9.0
-        case .threeFour:   return 3.0 / 4.0
-        case .nineSixteen: return 9.0 / 16.0
+        case .square:      return (1, 1)
+        case .fourThree:   return (4, 3)
+        case .threeTwo:    return (3, 2)
+        case .sixteenNine: return (16, 9)
+        }
+    }
+
+    /// Whether swapping the terms produces a different shape (1:1 and Free don't).
+    var supportsOrientation: Bool {
+        guard let t = terms else { return false }
+        return t.width != t.height
+    }
+
+    /// width / height for the requested orientation, or nil for a freeform crop.
+    func ratio(portrait: Bool) -> CGFloat? {
+        guard let t = terms else { return nil }
+        return portrait ? t.height / t.width : t.width / t.height
+    }
+
+    /// Menu/button label for the requested orientation, e.g. "3:2" or "2:3".
+    func label(portrait: Bool) -> String {
+        guard portrait, supportsOrientation, let t = terms else { return rawValue }
+        return "\(Int(t.height)):\(Int(t.width))"
+    }
+
+    /// width / height in landscape orientation, or nil for a freeform crop.
+    var ratio: CGFloat? { ratio(portrait: false) }
+}
+
+/// Aspect-ratio preset picker plus the orientation swap button (3:2 ⇄ 2:3).
+/// Shared by the Pro sidebar's crop section and the photo-edit crop panel so both
+/// stay in sync. The swap button applies to whichever preset is selected; it is
+/// disabled for `Free` and `1:1`, whose terms are symmetric.
+struct CropAspectPickerRow: View {
+    @Binding var preset: CropAspectPreset
+    @Binding var portrait: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Picker("", selection: $preset) {
+                ForEach(CropAspectPreset.allCases) { item in
+                    Text(item.label(portrait: portrait)).tag(item)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+
+            Button {
+                portrait.toggle()
+            } label: {
+                Image(systemName: portrait
+                      ? "rectangle.portrait.rotate"
+                      : "rectangle.landscape.rotate")
+                    .font(.system(size: 12))
+                    .frame(width: 18, height: 14)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!preset.supportsOrientation)
+            .help(portrait ? "Switch to landscape" : "Switch to portrait")
+            .accessibilityLabel(portrait ? "Switch to landscape" : "Switch to portrait")
+
+            Spacer(minLength: 0)
         }
     }
 }
@@ -118,8 +178,14 @@ struct CropOverlayView: View {
             cropHandle(.left, viewRect: viewRect)
             cropHandle(.right, viewRect: viewRect)
         }
-        .onChange(of: aspectRatio) { _, newRatio in
-            if let ratio = newRatio {
+        .onChange(of: aspectRatio) { oldRatio, newRatio in
+            guard let ratio = newRatio else { return }
+            if let old = oldRatio, CropGeometry.isTranspose(from: old, to: ratio) {
+                // Orientation swap (3:2 ⇄ 2:3): rotate the selection in place so it
+                // keeps its size. Inscribing the flipped ratio would shrink the crop
+                // on every swap.
+                cropRect = CropGeometry.transposedRect(cropRect, bounds: effectiveBounds)
+            } else {
                 cropRect = CropGeometry.fitRect(cropRect, ratio: ratio, bounds: effectiveBounds)
             }
         }
@@ -460,6 +526,37 @@ enum CropGeometry {
         if h > bounds.height {
             h = bounds.height
             w = h * ratio
+        }
+        return CGRect(
+            x: clamp(rect.midX - w / 2, bounds.minX, bounds.maxX - w),
+            y: clamp(rect.midY - h / 2, bounds.minY, bounds.maxY - h),
+            width: w, height: h
+        )
+    }
+
+    /// True when `to` is the reciprocal of `from` — i.e. the same ratio with its
+    /// terms swapped (3:2 → 2:3). That is exactly what the crop panel's
+    /// orientation button produces, and it wants `transposedRect`, not `fitRect`.
+    static func isTranspose(from: CGFloat, to: CGFloat) -> Bool {
+        guard from > 0, to > 0, from != to else { return false }
+        return abs(from * to - 1) < 0.0001
+    }
+
+    /// Rotates `rect` 90° about its own centre — width and height swap, so the
+    /// selection keeps its size instead of being inscribed into its old shape
+    /// (which would shrink it a little more on every orientation swap).
+    /// Only shrinks — proportionally — if the transposed rect no longer fits
+    /// `bounds`, which then stays stable across further swaps.
+    static func transposedRect(_ rect: CGRect, bounds: CGRect) -> CGRect {
+        var w = rect.height
+        var h = rect.width
+        if w > bounds.width, w > 0 {
+            let s = bounds.width / w
+            w *= s; h *= s
+        }
+        if h > bounds.height, h > 0 {
+            let s = bounds.height / h
+            w *= s; h *= s
         }
         return CGRect(
             x: clamp(rect.midX - w / 2, bounds.minX, bounds.maxX - w),

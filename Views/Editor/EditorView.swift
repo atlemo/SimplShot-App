@@ -100,7 +100,18 @@ struct EditorView: View {
         return false
     }
 
+    /// Where the active session's image is in its load cycle. Decoding a large
+    /// file takes real time, so the canvas must distinguish "still decoding"
+    /// from "decode failed" — otherwise the error placeholder flashes for every
+    /// slow image and then the picture appears anyway.
+    enum ImageLoadState {
+        case loading
+        case ready
+        case failed
+    }
+
     @State private var image: NSImage?
+    @State private var imageLoadState: ImageLoadState = .loading
     @State private var rawImage: NSImage?
     @State private var currentDisplayCGImage: CGImage?
     @State private var imageMetadata: ImageMetadata?
@@ -130,6 +141,9 @@ struct EditorView: View {
     @State private var cropRect: CGRect = .zero
     /// Selected crop aspect-ratio preset (`.free` = unconstrained).
     @State private var cropAspectPreset: CropAspectPreset = .free
+    /// Orientation applied to `cropAspectPreset`: false = landscape (3:2),
+    /// true = portrait (2:3). Toggled by the swap button next to the picker.
+    @State private var cropAspectPortrait: Bool = false
     /// Non-destructive crop in raw screenshot pixel space.
     /// Applied before the gradient so rawImage is never mutated by crop.
     @State private var screenshotCropRect: CGRect = .zero
@@ -680,6 +694,7 @@ struct EditorView: View {
             annotations: $annotations,
             isCropping: $isCropping,
             cropAspectPreset: $cropAspectPreset,
+            cropAspectPortrait: $cropAspectPortrait,
             straightenDialAngle: $straightenDialAngle,
             isAdjustingCrop: $isAdjustingCrop,
             isPDFSession: isPDFSession,
@@ -876,7 +891,7 @@ struct EditorView: View {
                                     cropRect: $cropRect,
                                     isCropping: $isCropping,
                                     cropBoundsRect: screenshotBoundsInDisplay,
-                                    cropAspectRatio: cropAspectPreset.ratio,
+                                    cropAspectRatio: cropAspectPreset.ratio(portrait: cropAspectPortrait),
                                     straightenDialAngle: straightenDialAngle,
                                     showCropGrid: isAdjustingCrop,
                                     watermarkSettings: watermarkSettings,
@@ -887,7 +902,20 @@ struct EditorView: View {
                                 .padding(20)
                                 .background(ScrollViewAccessor { nsScrollView = $0 })
                             }
+                        } else if imageLoadState == .loading {
+                            // Decoding a large file takes a moment — show progress
+                            // rather than the failure placeholder.
+                            VStack(spacing: 10) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Loading image…")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
+                            // .failed, or a load that reported success but produced
+                            // no displayable image.
                             ContentUnavailableView("Unable to load image", systemImage: "photo.badge.exclamationmark")
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
@@ -1443,15 +1471,25 @@ struct EditorView: View {
     /// responsive while the (potentially ~100ms) PNG decode runs in the
     /// background; results are dispatched back to main when ready.
     private func loadImage() {
-        guard let session = activeSession else { return }
+        guard let session = activeSession else {
+            imageLoadState = .failed
+            return
+        }
         let currentID = session.id
         let backingScale = displayBackingScale
+
+        // The canvas shows a spinner until this load resolves. Both outcomes
+        // (`applyLoaded` / `applyLoadFailure`) are reported back on main.
+        imageLoadState = .loading
 
         // PDF path
         if let pdfSource = session.pdfPageSource {
             let sourceURL = pdfSource.sourceURL
             Self.imageLoadQueue.async {
-                guard let cgImage = pdfSource.renderPage(backingScale: backingScale) else { return }
+                guard let cgImage = pdfSource.renderPage(backingScale: backingScale) else {
+                    DispatchQueue.main.async { applyLoadFailure(sessionID: currentID) }
+                    return
+                }
                 let metadata = ImageMetadata.load(from: sourceURL)
                 let size = NSSize(width: cgImage.width, height: cgImage.height)
                 let nsImage = NSImage(size: size)
@@ -1469,12 +1507,24 @@ struct EditorView: View {
             guard let nsImage = NSImage(contentsOf: url),
                   // Force decode here off the main thread.
                   let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
-            else { return }
+            else {
+                DispatchQueue.main.async { applyLoadFailure(sessionID: currentID) }
+                return
+            }
             let metadata = ImageMetadata.load(from: url)
             DispatchQueue.main.async {
                 applyLoaded(image: nsImage, cgImage: cgImage, metadata: metadata, sessionID: currentID)
             }
         }
+    }
+
+    /// Main-thread continuation for a `loadImage` that couldn't produce an image.
+    /// Only surfaces the error if that session is still the active one — a failed
+    /// background load for a session the user already left must not replace the
+    /// canvas they're looking at.
+    private func applyLoadFailure(sessionID: UUID) {
+        guard activeSessionID == sessionID else { return }
+        imageLoadState = .failed
     }
 
     /// Background queue for image decoding. Concurrent so multiple sessions can
@@ -1510,6 +1560,7 @@ struct EditorView: View {
             dpiScaleFactor = metadata.dpiScaleFactor
             screenshotCropRect = originalSession.screenshotCropRect
             applyDisplayImage(from: nsImage)
+            imageLoadState = .ready
             saveActiveSessionState()
         } else {
             // User has navigated away. Pre-render the display image into the
@@ -1949,8 +2000,9 @@ struct EditorView: View {
     private func enterCropMode() {
         flushPendingDisplayRender()
 
-        // Each crop session starts unconstrained.
+        // Each crop session starts unconstrained, in landscape orientation.
         cropAspectPreset = .free
+        cropAspectPortrait = false
         // Fine straighten is adjusted fresh each crop session.
         straightenDialAngle = 0
         isAdjustingCrop = false
@@ -3477,6 +3529,10 @@ struct EditorView: View {
         refreshPDFOutlineIfNeeded()
 
         image = session.image
+        // A session that was never activated has no decoded image yet; the
+        // caller kicks off `loadImage()` right after, which keeps us in
+        // `.loading` until it resolves.
+        imageLoadState = session.image != nil ? .ready : .loading
         rawImage = session.rawImage
         currentDisplayCGImage = session.currentDisplayCGImage
         imageMetadata = session.metadata
