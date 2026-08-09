@@ -10,6 +10,8 @@ let whatsNewEntries: [WhatsNewEntry] = [
     WhatsNewEntry(version: "1.7.1", items: [
         "New print options — the print dialog now has Rotation and Scale controls. Rotation can turn the page 90° clockwise or counterclockwise, and “Auto (fit page)” rotates only when that fills the paper better, so a landscape screenshot prints large on a portrait page without any fiddling. Scale offers 25 % to 200 %, with 100 % meaning fit to page. The preview updates as you change either.",
         "Crop now reaches every edge — with an aspect ratio locked, dragging a handle no longer stalls just short of the right or bottom edge. Every handle now reaches its edge, whichever side you drag from.",
+        "Flip any crop ratio between landscape and portrait — pick 3:2 and click the new orientation button to get 2:3, and the same for 4:3 and 16:9. The selection keeps its size as you flip, so you can switch back and forth freely. The separate 3:4 and 9:16 presets are gone; the button covers them for every ratio.",
+        "Large images no longer look like they failed to open — while a big file is being decoded the editor shows a loading indicator instead of briefly flashing “Unable to load image”.",
         "Applying a saved template no longer nudges your annotations out of place — they keep their position relative to the screenshot when the padding, background, aspect ratio and alignment all change at once.",
         "Fixed missing drag handles on the Stroke, Font Size, Pixelation and Spotlight sliders — the knob now appears right away instead of only showing up once you'd clicked and dragged.",
         "The focus ring on the Annotate · Edit · View switch now follows the segment you actually clicked, instead of staying stuck on whichever one had it first.",
