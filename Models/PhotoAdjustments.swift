@@ -11,6 +11,16 @@ enum EditorMode: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Localized label for the mode switch. Kept separate from `rawValue`,
+    /// which is persisted via `Codable` and must stay English.
+    var displayName: String {
+        switch self {
+        case .annotate: return String(localized: "Annotate")
+        case .edit:     return String(localized: "Edit")
+        case .view:     return String(localized: "View")
+        }
+    }
+
     var systemImage: String {
         switch self {
         case .annotate: return "pencil.tip"
@@ -34,10 +44,10 @@ enum DefaultEditorModeSetting: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .annotate: return "Annotate"
-        case .edit:     return "Edit"
-        case .view:     return "View"
-        case .lastUsed: return "Last Used"
+        case .annotate: return String(localized: "Annotate")
+        case .edit:     return String(localized: "Edit")
+        case .view:     return String(localized: "View")
+        case .lastUsed: return String(localized: "Last Used")
         }
     }
 

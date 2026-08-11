@@ -1,0 +1,68 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : {
+      "comment" : "App name — brand, never translated.",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "SimplShot"
+          }
+        }
+      },
+      "shouldTranslate" : false
+    },
+    "CFBundleName" : {
+      "comment" : "App name — brand, never translated.",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "SimplShot"
+          }
+        }
+      },
+      "shouldTranslate" : false
+    },
+    "NSAccessibilityUsageDescription" : {
+      "comment" : "Shown by macOS when SimplShot asks for Accessibility access.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot needs accessibility access to resize application windows."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot a besoin de l’accès à l’accessibilité pour redimensionner les fenêtres des apps."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShotがアプリケーションウインドウのサイズを変更するには、アクセシビリティへのアクセスが必要です。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot требуется доступ к универсальному доступу, чтобы изменять размер окон приложений."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot 需要辅助功能权限才能调整应用窗口的大小。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

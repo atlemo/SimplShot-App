@@ -48,7 +48,7 @@ struct EditorModeToggle: View {
             editorMode = mode
             focusedMode = mode
         } label: {
-            Text(mode.rawValue)
+            Text(mode.displayName)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(isSelected ? Color.primary : Color.secondary)
                 .padding(.horizontal, 16)

@@ -9,11 +9,11 @@ enum TemplateRenderError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .cannotCreateContext:
-            return "Failed to create graphics context for template rendering"
+            return String(localized: "Failed to create graphics context for template rendering")
         case .cannotLoadCustomImage(let path):
-            return "Failed to load custom wallpaper image at: \(path)"
+            return String(localized: "Failed to load custom wallpaper image at: \(path)")
         case .cannotCreateOutputImage:
-            return "Failed to create output image from template rendering"
+            return String(localized: "Failed to create output image from template rendering")
         }
     }
 }

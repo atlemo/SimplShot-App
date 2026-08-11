@@ -174,7 +174,7 @@ struct EditorBottomToolbarView: View {
 
     private var zoomBar: some View {
         HStack(spacing: 6) {
-            Text("\(annotationsCount) annotation\(annotationsCount == 1 ? "" : "s")")
+            Text("\(annotationsCount) annotations")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
 

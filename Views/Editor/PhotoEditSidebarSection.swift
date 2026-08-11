@@ -171,7 +171,8 @@ struct PhotoEditSidebarSection: View {
                 adjustments.exposure = 0; adjustments.brightness = 0
                 adjustments.contrast = 1; adjustments.highlights = 1
                 adjustments.shadows = 0
-            }
+            },
+            resetHelp: "Reset Light"
         ) {
             VStack(spacing: 8) {
                 AdjustmentSlider(label: "Exposure", value: $adjustments.exposure,
@@ -197,7 +198,8 @@ struct PhotoEditSidebarSection: View {
             .color, title: "Color", icon: "drop.fill",
             trailingReset: colorSectionDefault ? nil : {
                 adjustments.saturation = 1; adjustments.temperature = 6500; adjustments.tint = 0
-            }
+            },
+            resetHelp: "Reset Color"
         ) {
             VStack(spacing: 8) {
                 AdjustmentSlider(label: "Saturation", value: $adjustments.saturation,
@@ -225,7 +227,8 @@ struct PhotoEditSidebarSection: View {
             .detail, title: "Detail", icon: "wand.and.stars",
             trailingReset: detailSectionDefault ? nil : {
                 adjustments.sharpness = 0; adjustments.noise = 0
-            }
+            },
+            resetHelp: "Reset Detail"
         ) {
             VStack(spacing: 8) {
                 AdjustmentSlider(label: "Sharpness", value: $adjustments.sharpness,
@@ -431,13 +434,14 @@ struct PhotoEditSidebarSection: View {
     /// when non-nil, shows a reset glyph on the right of the header.
     private func collapsibleSection<C: View>(
         _ section: EditSection,
-        title: String,
+        title: LocalizedStringKey,
         icon: String,
         trailingReset: (() -> Void)? = nil,
+        resetHelp: LocalizedStringKey = "Reset",
         @ViewBuilder content: () -> C
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            groupHeader(section, title: title, icon: icon, trailingReset: trailingReset)
+            groupHeader(section, title: title, icon: icon, trailingReset: trailingReset, resetHelp: resetHelp)
             if isExpanded(section) {
                 content()
             }
@@ -449,9 +453,10 @@ struct PhotoEditSidebarSection: View {
 
     private func groupHeader(
         _ section: EditSection,
-        title: String,
+        title: LocalizedStringKey,
         icon: String,
-        trailingReset: (() -> Void)?
+        trailingReset: (() -> Void)?,
+        resetHelp: LocalizedStringKey = "Reset"
     ) -> some View {
         HStack(spacing: 0) {
             Button { toggle(section) } label: {
@@ -483,7 +488,7 @@ struct PhotoEditSidebarSection: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("Reset \(title)")
+                .help(resetHelp)
                 .transition(.opacity)
             }
         }
@@ -512,7 +517,7 @@ private extension Color {
 /// from `zeroPoint` toward the thumb, and a thin vertical thumb. Drag anywhere
 /// on the bar to scrub; double-click to reset to `zeroPoint`.
 private struct AdjustmentSlider: View {
-    let label: String
+    let label: LocalizedStringKey
     @Binding var value: Float
     let range: ClosedRange<Float>
     /// The value the fill originates from (centre for bipolar controls, an edge
@@ -560,6 +565,10 @@ private struct AdjustmentSlider: View {
                         .font(.system(size: 12.5))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
+                        // Localized labels run longer than the English ones
+                        // (Russian especially) — shrink slightly rather than
+                        // truncate inside the fixed-width sidebar.
+                        .minimumScaleFactor(0.8)
                     Spacer(minLength: 4)
                     Text(display(value))
                         .font(.system(size: 11.5))

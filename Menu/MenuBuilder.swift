@@ -102,7 +102,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
         if ScreenRecordingPermissionManager.shared.state != .granted {
             let warningItem = NSMenuItem(
-                title: "Screen Recording: Not Enabled",
+                title: String(localized: "Screen Recording: Not Enabled"),
                 action: #selector(openPermissionSettings),
                 keyEquivalent: ""
             )
@@ -115,7 +115,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
 #if !APPSTORE
         // --- Application picker ---
-        let appTitle = menuState.selectedApp?.name ?? "Select Application..."
+        let appTitle = menuState.selectedApp?.name ?? String(localized: "Select Application...")
         let appItem = NSMenuItem(title: appTitle, action: nil, keyEquivalent: "")
         if let icon = menuState.selectedApp?.icon {
             appItem.image = icon.resized(to: NSSize(width: 16, height: 16))
@@ -132,7 +132,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             appSubmenu.addItem(item)
         }
         if menuState.availableApps.isEmpty {
-            let emptyItem = NSMenuItem(title: "No applications with windows", action: nil, keyEquivalent: "")
+            let emptyItem = NSMenuItem(title: String(localized: "No applications with windows"), action: nil, keyEquivalent: "")
             emptyItem.isEnabled = false
             appSubmenu.addItem(emptyItem)
         }
@@ -142,7 +142,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // --- Width presets ---
-        let widthHeader = NSMenuItem(title: "Width", action: nil, keyEquivalent: "")
+        let widthHeader = NSMenuItem(title: String(localized: "Width"), action: nil, keyEquivalent: "")
         widthHeader.isEnabled = false
         menu.addItem(widthHeader)
 
@@ -162,7 +162,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // --- Aspect ratios ---
-        let ratioHeader = NSMenuItem(title: "Aspect Ratio", action: nil, keyEquivalent: "")
+        let ratioHeader = NSMenuItem(title: String(localized: "Aspect Ratio"), action: nil, keyEquivalent: "")
         ratioHeader.isEnabled = false
         menu.addItem(ratioHeader)
 
@@ -183,7 +183,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         let canCapture = menuState.canResize && appSettings.selectedWidthPreset != nil && appSettings.selectedAspectRatio != nil
 
         let appName = menuState.selectedApp?.name
-        let captureTitle = appName.map { "Capture \($0)" } ?? "Capture"
+        let captureTitle = appName.map { String(localized: "Capture \($0)") } ?? String(localized: "Capture")
         let captureItem = NSMenuItem(title: captureTitle, action: #selector(resizeAndCaptureAction), keyEquivalent: "")
         captureItem.target = self
         captureItem.isEnabled = canCapture
@@ -192,7 +192,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(captureItem)
 
-        let batchTitle = appName.map { "Capture \($0) in All Sizes" } ?? "Capture All Widths"
+        let batchTitle = appName.map { String(localized: "Capture \($0) in All Sizes") } ?? String(localized: "Capture All Widths")
         let batchItem = NSMenuItem(title: batchTitle, action: #selector(batchCaptureAction), keyEquivalent: "")
         batchItem.target = self
         batchItem.isEnabled = menuState.canResize && appSettings.selectedAspectRatio != nil
@@ -203,7 +203,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 #endif
 
         // --- Capture Area (available in all builds) ---
-        let freeSizeItem = NSMenuItem(title: "Capture Area", action: #selector(freeSizeCaptureAction), keyEquivalent: "")
+        let freeSizeItem = NSMenuItem(title: String(localized: "Capture Area"), action: #selector(freeSizeCaptureAction), keyEquivalent: "")
         freeSizeItem.target = self
         freeSizeItem.isEnabled = true
         applyShortcut(.freeSizeCapture, to: freeSizeItem)
@@ -211,7 +211,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(freeSizeItem)
 
-        let captureWindowItem = NSMenuItem(title: "Capture Window", action: #selector(captureWindowAction), keyEquivalent: "")
+        let captureWindowItem = NSMenuItem(title: String(localized: "Capture Window"), action: #selector(captureWindowAction), keyEquivalent: "")
         captureWindowItem.target = self
         captureWindowItem.isEnabled = true
         applyShortcut(.captureWindow, to: captureWindowItem)
@@ -219,7 +219,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(captureWindowItem)
 
-        let ocrItem = NSMenuItem(title: "Capture Text from Image (OCR)", action: #selector(captureTextOCRAction), keyEquivalent: "")
+        let ocrItem = NSMenuItem(title: String(localized: "Capture Text from Image (OCR)"), action: #selector(captureTextOCRAction), keyEquivalent: "")
         ocrItem.target = self
         ocrItem.isEnabled = true
         applyShortcut(.captureTextOCR, to: ocrItem)
@@ -230,19 +230,19 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // --- Open existing image ---
-        let clipboardItem = NSMenuItem(title: "Open from Clipboard", action: #selector(openFromClipboardAction), keyEquivalent: "")
+        let clipboardItem = NSMenuItem(title: String(localized: "Open from Clipboard"), action: #selector(openFromClipboardAction), keyEquivalent: "")
         clipboardItem.target = self
         clipboardItem.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(clipboardItem)
 
-        let openFileItem = NSMenuItem(title: "Open File(s)…", action: #selector(openFileAction), keyEquivalent: "")
+        let openFileItem = NSMenuItem(title: String(localized: "Open File(s)…"), action: #selector(openFileAction), keyEquivalent: "")
         openFileItem.target = self
         openFileItem.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(openFileItem)
 
-        let openScreenshotsFolderItem = NSMenuItem(title: "Open Screenshots Folder", action: #selector(openScreenshotsFolderAction), keyEquivalent: "")
+        let openScreenshotsFolderItem = NSMenuItem(title: String(localized: "Open Screenshots Folder"), action: #selector(openScreenshotsFolderAction), keyEquivalent: "")
         openScreenshotsFolderItem.target = self
         openScreenshotsFolderItem.image = NSImage(systemSymbolName: "folder.badge.gearshape", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
@@ -251,7 +251,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // --- Utility tools ---
-        let colorPickerItem = NSMenuItem(title: "Color Picker", action: #selector(openColorPicker), keyEquivalent: "")
+        let colorPickerItem = NSMenuItem(title: String(localized: "Color Picker"), action: #selector(openColorPicker), keyEquivalent: "")
         colorPickerItem.target = self
         colorPickerItem.image = NSImage(systemSymbolName: "eyedropper", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
@@ -262,7 +262,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 #if !APPSTORE
         menu.addItem(.separator())
 
-        let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        let checkForUpdatesItem = NSMenuItem(title: String(localized: "Check for Updates…"), action: #selector(checkForUpdates), keyEquivalent: "")
         checkForUpdatesItem.target = self
         checkForUpdatesItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
@@ -272,13 +272,13 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 #endif
 
-        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(title: String(localized: "Settings…"), action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
         menu.addItem(settingsItem)
 
-        let quitItem = NSMenuItem(title: "Quit SimplShot", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: String(localized: "Quit SimplShot"), action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
     }
@@ -344,7 +344,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
             guard let app = menuState.selectedApp else {
                 await MainActor.run {
-                    showAlert("No application selected. Please select an application first.")
+                    showAlert(String(localized: "No application selected. Please select an application first."))
                 }
                 return
             }
@@ -406,7 +406,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             let capturedFiles = results.compactMap { try? $0.get() }
             let errors: [String] = results.enumerated().compactMap { index, result in
                 if case .failure(let error) = result {
-                    return "Window \(index + 1): \(error.localizedDescription)"
+                    return String(localized: "Window \(index + 1): \(error.localizedDescription)")
                 }
                 return nil
             }
@@ -417,14 +417,14 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                         EditorWindowController.openEditor(imageURL: capturedFiles[0], template: template, appSettings: appSettings)
                     } else if capturedFiles.count == 1, !appSettings.openEditorAfterCapture {
                         applyTemplateAndCopy(fileURL: capturedFiles[0], template: nil)
-                        showSystemNotification(title: "Screenshot Copied", body: "Click to Edit", imageURL: capturedFiles[0])
+                        showSystemNotification(title: String(localized: "Screenshot Copied"), body: String(localized: "Click to Edit"), imageURL: capturedFiles[0])
                     } else {
-                        showSystemNotification(title: "Screenshots Saved", body: "\(capturedFiles.count) screenshots saved")
+                        showSystemNotification(title: String(localized: "Screenshots Saved"), body: String(localized: "\(capturedFiles.count) screenshots saved"))
                     }
                     onScreenshotsTaken?(capturedFiles.count)
                 }
                 if !errors.isEmpty {
-                    showAlert("Some captures failed:\n" + errors.joined(separator: "\n"))
+                    showAlert(String(localized: "Some captures failed:\n") + errors.joined(separator: "\n"))
                 }
             }
         }
@@ -518,7 +518,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 }
             } catch {
                 await MainActor.run {
-                    self.showAlert("Capture failed: \(error.localizedDescription)")
+                    self.showAlert(String(localized: "Capture failed: \(error.localizedDescription)"))
                 }
                 return
             }
@@ -529,7 +529,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                     _ = await ensureScreenRecordingPermission(for: "capture screenshots")
                 } else if terminationStatus != 0 {
                     await MainActor.run { [self] in
-                        showAlert("Capture did not complete. Check the selected save folder and try again.")
+                        showAlert(String(localized: "Capture did not complete. Check the selected save folder and try again."))
                     }
                 }
                 return
@@ -562,7 +562,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             } catch {
                 try? FileManager.default.removeItem(at: captureURL)
                 await MainActor.run { [self] in
-                    showAlert("SimplShot captured the screenshot but could not save it to the selected folder. Re-select the folder in Settings and try again.")
+                    showAlert(String(localized: "SimplShot captured the screenshot but could not save it to the selected folder. Re-select the folder in Settings and try again."))
                 }
                 return
             }
@@ -590,7 +590,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                         rawURL = finalURL
                     }
                     applyTemplateAndCopy(fileURL: finalURL, template: template)
-                    showSystemNotification(title: "Screenshot Copied", body: "Click to Edit", imageURL: rawURL)
+                    showSystemNotification(title: String(localized: "Screenshot Copied"), body: String(localized: "Click to Edit"), imageURL: rawURL)
                 }
                 onScreenshotsTaken?(1)
             }
@@ -616,7 +616,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                     do { try process.run() } catch { cont.resume(throwing: error) }
                 }
             } catch {
-                await MainActor.run { self.showAlert("OCR capture failed: \(error.localizedDescription)") }
+                await MainActor.run { self.showAlert(String(localized: "OCR capture failed: \(error.localizedDescription)")) }
                 return
             }
 
@@ -628,7 +628,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             guard let source = CGImageSourceCreateWithURL(captureURL as CFURL, nil),
                   let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
                 try? FileManager.default.removeItem(at: captureURL)
-                await MainActor.run { self.showAlert("Could not load the captured image for OCR.") }
+                await MainActor.run { self.showAlert(String(localized: "Could not load the captured image for OCR.")) }
                 return
             }
             try? FileManager.default.removeItem(at: captureURL)
@@ -637,7 +637,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 let text = try await OCRService.recognizeText(in: cgImage)
                 await MainActor.run {
                     if text.isEmpty {
-                        self.showAlert("No text was found in the selected area.")
+                        self.showAlert(String(localized: "No text was found in the selected area."))
                     } else {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(text, forType: .string)
@@ -645,7 +645,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                     }
                 }
             } catch {
-                await MainActor.run { self.showAlert("OCR failed: \(error.localizedDescription)") }
+                await MainActor.run { self.showAlert(String(localized: "OCR failed: \(error.localizedDescription)")) }
             }
         }
     }
@@ -653,7 +653,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     @objc func openFromClipboardAction() {
         let pasteboard = NSPasteboard.general
         guard let image = NSImage(pasteboard: pasteboard) else {
-            showAlert("No image found on the clipboard. Copy an image first, then try again.")
+            showAlert(String(localized: "No image found on the clipboard. Copy an image first, then try again."))
             return
         }
 
@@ -671,14 +671,14 @@ class MenuBuilder: NSObject, NSMenuDelegate {
               let bitmap = NSBitmapImageRep(data: tiffData),
               let pngData = bitmap.representation(using: .png, properties: [:])
         else {
-            showAlert("Failed to prepare the clipboard image for editing.")
+            showAlert(String(localized: "Failed to prepare the clipboard image for editing."))
             return
         }
 
         do {
             try pngData.write(to: fileURL)
         } catch {
-            showAlert("Failed to save clipboard image: \(error.localizedDescription)")
+            showAlert(String(localized: "Failed to save clipboard image: \(error.localizedDescription)"))
             return
         }
 
@@ -691,7 +691,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     @objc func openFileAction() {
         let panel = NSOpenPanel()
-        panel.title = "Open File(s)"
+        panel.title = String(localized: "Open File(s)")
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         var openTypes: [UTType] = [.png, .jpeg, .heic, .tiff, .gif, .bmp, .pdf]
@@ -736,7 +736,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
             guard let app = menuState.selectedApp else {
                 await MainActor.run {
-                    showAlert("No application selected. Please select an application first.")
+                    showAlert(String(localized: "No application selected. Please select an application first."))
                 }
                 return
             }
@@ -745,7 +745,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             let allWindows = windowManager.standardWindows(of: app)
             guard !allWindows.isEmpty else {
                 await MainActor.run {
-                    showAlert("Cannot access \(app.name)'s windows. Make sure Accessibility permission is granted.")
+                    showAlert(String(localized: "Cannot access \(app.name)'s windows. Make sure Accessibility permission is granted."))
                 }
                 return
             }
@@ -774,13 +774,13 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 )
                 await MainActor.run {
                     showNotification(
-                        title: "Batch Capture Complete",
-                        body: "\(urls.count) screenshots saved"
+                        title: String(localized: "Batch Capture Complete"),
+                        body: String(localized: "\(urls.count) screenshots saved")
                     )
                 }
             } catch {
                 await MainActor.run {
-                    showAlert("Batch capture failed: \(error.localizedDescription)")
+                    showAlert(String(localized: "Batch capture failed: \(error.localizedDescription)"))
                 }
             }
         }
@@ -791,7 +791,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         guard ensureAccessibilityPermission(for: "resize app windows") else { return nil }
 
         guard let app = menuState.selectedApp else {
-            showAlert("No application selected. Please select an application first.")
+            showAlert(String(localized: "No application selected. Please select an application first."))
             return nil
         }
         guard let widthPreset = appSettings.selectedWidthPreset,
@@ -799,7 +799,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
         let allWindows = windowManager.standardWindows(of: app)
         guard !allWindows.isEmpty else {
-            showAlert("Cannot access \(app.name)'s windows. Make sure Accessibility permission is granted.")
+            showAlert(String(localized: "Cannot access \(app.name)'s windows. Make sure Accessibility permission is granted."))
             return nil
         }
 
@@ -818,7 +818,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         }
 
         if !anySuccess {
-            showAlert("Failed to resize \(app.name)'s windows.")
+            showAlert(String(localized: "Failed to resize \(app.name)'s windows."))
             return nil
         }
 
@@ -891,8 +891,8 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     private func showOCRSuccessNotification(characterCount: Int) {
         showSystemNotification(
-            title: "Text Copied",
-            body: "\(characterCount) character\(characterCount == 1 ? "" : "s") copied to clipboard"
+            title: String(localized: "Text Copied"),
+            body: String(localized: "\(characterCount) characters copied to clipboard")
         )
     }
 
@@ -952,11 +952,11 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         alert.messageText = title
         alert.informativeText = body
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Show in Finder")
+        alert.addButton(withTitle: String(localized: "Show in Finder"))
         if editableFileURL != nil {
-            alert.addButton(withTitle: "Edit & Annotate")
+            alert.addButton(withTitle: String(localized: "Edit & Annotate"))
         }
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: String(localized: "OK"))
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
             NSWorkspace.shared.open(appSettings.screenshotSaveURL)
@@ -973,8 +973,8 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             guard let self else { return }
             if !AccessibilityService.isTrusted {
                 self.showPermissionAlert(
-                    title: "Accessibility Permission Required",
-                    message: "SimplShot needs Accessibility permission to \(feature).",
+                    title: String(localized: "Accessibility Permission Required"),
+                    message: String(localized: "SimplShot needs Accessibility permission to \(feature)."),
                     openSettings: AccessibilityService.openAccessibilitySettings
                 )
             }
@@ -1002,8 +1002,8 @@ class MenuBuilder: NSObject, NSMenuDelegate {
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.showPermissionAlert(
-                    title: "Screen Recording Permission Required",
-                    message: "SimplShot needs Screen Recording permission to \(feature).\n\nAfter enabling it in System Settings, you'll need to restart SimplShot.",
+                    title: String(localized: "Screen Recording Permission Required"),
+                    message: String(localized: "SimplShot needs Screen Recording permission to \(feature).\n\nAfter enabling it in System Settings, you'll need to restart SimplShot."),
                     openSettings: manager.openSettings
                 )
             }
@@ -1017,8 +1017,8 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Open Settings")
-        alert.addButton(withTitle: "Later")
+        alert.addButton(withTitle: String(localized: "Open Settings"))
+        alert.addButton(withTitle: String(localized: "Later"))
         if alert.runModal() == .alertFirstButtonReturn {
             openSettings()
         }
@@ -1027,11 +1027,11 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     private func showRestartRequiredAlert() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Restart Required"
-        alert.informativeText = "Screen Recording permission was recently changed. SimplShot needs to restart for it to take effect."
+        alert.messageText = String(localized: "Restart Required")
+        alert.informativeText = String(localized: "Screen Recording permission was recently changed. SimplShot needs to restart for it to take effect.")
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Restart Now")
-        alert.addButton(withTitle: "Later")
+        alert.addButton(withTitle: String(localized: "Restart Now"))
+        alert.addButton(withTitle: String(localized: "Later"))
         if alert.runModal() == .alertFirstButtonReturn {
             Self.relaunchApp()
         }
@@ -1068,7 +1068,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         var errorDescription: String? {
             switch self {
             case .noWindowID(let index):
-                return "Window \(index): could not get ID"
+                return String(localized: "Window \(index): could not get ID")
             }
         }
     }

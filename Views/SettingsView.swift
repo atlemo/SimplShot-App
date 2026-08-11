@@ -3,11 +3,17 @@ import SwiftUI
 struct SettingsView: View {
     let appSettings: AppSettings
 
+    /// Sized for the tallest tab (General). The non-App-Store build is taller
+    /// because it shows an extra caption and the Accessibility permission row.
+    ///
+    /// Includes headroom for localization: the caption under a row wraps to a
+    /// second line in languages whose text runs longer than English (Russian
+    /// especially), so the pane needs slack beyond what the English layout uses.
     private var settingsHeight: CGFloat {
 #if APPSTORE
-        360
+        440
 #else
-        380
+        460
 #endif
     }
 

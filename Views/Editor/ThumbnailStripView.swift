@@ -299,7 +299,7 @@ private struct ThumbnailItem: View {
             .contentShape(Rectangle())
             .onTapGesture { onSelect() }
             .accessibilityLabel(session.isPDF
-                ? "Page \(displayLabel ?? "")"
+                ? String(localized: "Page \(displayLabel ?? "")")
                 : session.imageURL.lastPathComponent)
             .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : [.isButton])
 

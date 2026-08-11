@@ -54,6 +54,9 @@ enum Constants {
         /// Records the user's most recently active mode for the "Last Used" setting.
         static let lastUsedEditorMode = "lastUsedEditorMode"
         static let hasShownPermissionOnboarding = "hasShownPermissionOnboarding"
+        /// Language override: an `AppLanguage.rawValue`, or absent for "System".
+        /// The actual switch is done by writing `AppleLanguages` (see `AppLanguage.apply`).
+        static let appLanguage = "appLanguage"
         static let screenshotSaveBookmark = "screenshotSaveBookmark"
         static let customBackgroundImages = "customBackgroundImages"
         static let customColors = "customColors"

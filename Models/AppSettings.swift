@@ -40,6 +40,61 @@ enum ScreenshotFormat: String, Codable, CaseIterable {
     }
 }
 
+/// In-app UI language override.
+///
+/// macOS already supports a per-app language in System Settings › General ›
+/// Language & Region › Applications, but it is buried, so we expose the same
+/// mechanism here: writing `AppleLanguages` into our own defaults domain makes
+/// the bundle resolve `.lproj` / string-catalog lookups in that language.
+///
+/// The change only takes effect on the next launch, because the bundle picks its
+/// localization once at startup — callers should offer a relaunch.
+enum AppLanguage: String, CaseIterable, Identifiable {
+    /// Follow the macOS system language (no override).
+    case system
+    // Ordered alphabetically by English language name.
+    case english = "en"
+    case french = "fr"
+    case japanese = "ja"
+    case russian = "ru"
+    case chineseSimplified = "zh-Hans"
+
+    var id: String { rawValue }
+
+    /// Each language is shown in its OWN script and never translated, so a user
+    /// who lands in the wrong language by mistake can still find their way back —
+    /// only `.system` follows the current UI language, since it names a behaviour
+    /// rather than a language. This matches System Settings › Language & Region.
+    var displayName: String {
+        switch self {
+        case .system:            return String(localized: "System")
+        case .english:           return "English"
+        case .french:            return "Français"
+        case .japanese:          return "日本語"
+        case .russian:           return "Русский"
+        case .chineseSimplified: return "简体中文"
+        }
+    }
+
+    /// The value currently stored in our defaults domain.
+    static var current: AppLanguage {
+        guard let raw = UserDefaults.standard.string(forKey: Constants.UserDefaultsKeys.appLanguage),
+              let lang = AppLanguage(rawValue: raw) else { return .system }
+        return lang
+    }
+
+    /// Persist the choice and set/clear the `AppleLanguages` override.
+    func apply() {
+        let defaults = UserDefaults.standard
+        defaults.set(rawValue, forKey: Constants.UserDefaultsKeys.appLanguage)
+        if self == .system {
+            defaults.removeObject(forKey: "AppleLanguages")
+        } else {
+            defaults.set([rawValue], forKey: "AppleLanguages")
+        }
+    }
+}
+
 @Observable
 class AppSettings {
 #if !APPSTORE
@@ -475,8 +530,8 @@ class AppSettings {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
-        panel.prompt = "Choose"
-        panel.message = "Choose where SimplShot should save screenshots."
+        panel.prompt = String(localized: "Choose")
+        panel.message = String(localized: "Choose where SimplShot should save screenshots.")
         panel.directoryURL = Constants.suggestedScreenshotURL.deletingLastPathComponent()
         panel.nameFieldStringValue = Constants.suggestedScreenshotURL.lastPathComponent
 

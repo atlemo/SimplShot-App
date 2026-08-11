@@ -73,7 +73,7 @@ struct TemplateSettingsView: View {
 
     // MARK: - Reusable row layout (matches GeneralSettingsView)
 
-    private func settingsRow<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+    private func settingsRow<Content: View>(_ label: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Text(label)
                 .multilineTextAlignment(.trailing)

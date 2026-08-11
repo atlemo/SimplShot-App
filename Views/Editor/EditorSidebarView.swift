@@ -106,6 +106,15 @@ struct EditorSidebarView: View {
         case gradients = "Gradients"
         case solidColors = "Solid Colors"
         var id: String { rawValue }
+
+        /// Localized label for the picker. Kept separate from `rawValue`, which is
+        /// persisted in @AppStorage and must stay English.
+        var displayName: String {
+            switch self {
+            case .gradients:   return String(localized: "Gradients")
+            case .solidColors: return String(localized: "Solid Colors")
+            }
+        }
     }
 
     private var backgroundType: BackgroundType {
@@ -355,6 +364,7 @@ struct EditorSidebarView: View {
             if !isCollapsed(.backgrounds) {
                 StringPopupPicker(
                     items: BackgroundType.allCases.map(\.rawValue),
+                    titles: BackgroundType.allCases.map(\.displayName),
                     selection: $backgroundTypeRawValue
                 )
                 .frame(maxWidth: .infinity)
@@ -570,7 +580,7 @@ struct EditorSidebarView: View {
     }
 
     private var watermarkFilePickerRow: some View {
-        let filename = watermarkSettings.imagePath.map { ($0 as NSString).lastPathComponent } ?? "No image selected"
+        let filename = watermarkSettings.imagePath.map { ($0 as NSString).lastPathComponent } ?? String(localized: "No image selected")
         return HStack(spacing: 6) {
             WatermarkFilePickerButton(title: filename, onPick: {})
                 .frame(maxWidth: .infinity, minHeight: 28)
@@ -746,7 +756,7 @@ struct EditorSidebarView: View {
                 .contentShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
-            .help(isActive && hasOptions ? "Click again to change style" : tool.label)
+            .help(isActive && hasOptions ? String(localized: "Click again to change style") : tool.label)
             .onHover { isHovering in hoveredTool = isHovering ? tool : nil }
             .focused($focusedTool, equals: tool)
 
@@ -1267,14 +1277,14 @@ struct EditorSidebarView: View {
         tool == .arrow || tool == .pixelate || tool == .spotlight
     }
 
-    private func sectionLabel(_ text: String) -> some View {
+    private func sectionLabel(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(.secondary)
             .padding(.leading, 5)
     }
 
-    private func groupHeader(_ text: String, section: SidebarSection) -> some View {
+    private func groupHeader(_ text: LocalizedStringKey, section: SidebarSection) -> some View {
         Button {
             toggleSection(section)
         } label: {
@@ -1300,7 +1310,7 @@ struct EditorSidebarView: View {
         .help(isCollapsed(section) ? "Expand section" : "Collapse section")
     }
 
-    private func groupHeaderLabel(_ text: String, isHovered: Bool = false) -> some View {
+    private func groupHeaderLabel(_ text: LocalizedStringKey, isHovered: Bool = false) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(isHovered ? .primary : .secondary)
@@ -1509,8 +1519,13 @@ private struct TemplatePopupPicker: NSViewRepresentable {
 }
 
 private struct StringPopupPicker: NSViewRepresentable {
+    /// Persisted values, used for the selection binding.
     let items: [String]
+    /// Localized display titles, parallel to `items`. Defaults to the raw values.
+    var titles: [String]? = nil
     @Binding var selection: String
+
+    private var displayTitles: [String] { titles ?? items }
 
     func makeNSView(context: Context) -> NSPopUpButton {
         let button = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -1520,13 +1535,13 @@ private struct StringPopupPicker: NSViewRepresentable {
         button.translatesAutoresizingMaskIntoConstraints = false
         button.target = context.coordinator
         button.action = #selector(Coordinator.selectionChanged(_:))
-        context.coordinator.update(button: button, items: items, selection: selection)
+        context.coordinator.update(button: button, items: items, titles: displayTitles, selection: selection)
         return button
     }
 
     func updateNSView(_ button: NSPopUpButton, context: Context) {
         context.coordinator.parent = self
-        context.coordinator.update(button: button, items: items, selection: selection)
+        context.coordinator.update(button: button, items: items, titles: displayTitles, selection: selection)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -1540,14 +1555,14 @@ private struct StringPopupPicker: NSViewRepresentable {
             self.parent = parent
         }
 
-        func update(button: NSPopUpButton, items: [String], selection: String) {
+        func update(button: NSPopUpButton, items: [String], titles: [String], selection: String) {
             let existingTitles = button.itemArray.map(\.title)
-            let needsReload = existingTitles != items || button.numberOfItems != items.count
+            let needsReload = existingTitles != titles || button.numberOfItems != items.count
 
             if needsReload {
                 button.removeAllItems()
-                for item in items {
-                    button.addItem(withTitle: item)
+                for (item, title) in zip(items, titles) {
+                    button.addItem(withTitle: title)
                     button.lastItem?.representedObject = item
                 }
             }

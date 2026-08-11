@@ -7,11 +7,35 @@ struct GeneralSettingsView: View {
     @State private var accessibilityGranted = AccessibilityService.isTrusted
 #endif
     @State private var screenRecordingGranted = false
+    @State private var language = AppLanguage.current
 
     private let labelWidth: CGFloat = 140
 
     var body: some View {
         VStack(spacing: 0) {
+            // --- UI language ---
+            settingsRow("Language:") {
+                VStack(alignment: .leading, spacing: 2) {
+                    Picker("", selection: $language) {
+                        ForEach(AppLanguage.allCases) { lang in
+                            Text(lang.displayName).tag(lang)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    .onChange(of: language) { _, newValue in
+                        newValue.apply()
+                        promptRestartForLanguageChange()
+                    }
+                    Text("Takes effect after restarting SimplShot")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Divider().padding(.horizontal)
+
             // --- Start at Login ---
             settingsRow("Startup:") {
                 Toggle("Launch at login", isOn: $appSettings.startAtLogin)
@@ -108,7 +132,7 @@ struct GeneralSettingsView: View {
 
     // MARK: - Reusable row layout
 
-    private func settingsRow<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+    private func settingsRow<Content: View>(_ label: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(label)
                 .multilineTextAlignment(.trailing)
@@ -124,7 +148,7 @@ struct GeneralSettingsView: View {
 
     // MARK: - Permission row
 
-    private func permissionRow(label: String, granted: Bool, action: @escaping () -> Void) -> some View {
+    private func permissionRow(label: LocalizedStringKey, granted: Bool, action: @escaping () -> Void) -> some View {
         HStack(spacing: 6) {
             Image(systemName: granted ? "checkmark.circle.fill" : "xmark.circle.fill")
                 .foregroundStyle(granted ? .green : .red)
@@ -141,6 +165,20 @@ struct GeneralSettingsView: View {
     }
 
     // MARK: - Helpers
+
+    /// The bundle resolves its localization once at launch, so a language change
+    /// only shows up after a relaunch.
+    private func promptRestartForLanguageChange() {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Restart Required")
+        alert.informativeText = String(localized: "SimplShot needs to restart to change the language.")
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: String(localized: "Restart Now"))
+        alert.addButton(withTitle: String(localized: "Later"))
+        if alert.runModal() == .alertFirstButtonReturn {
+            MenuBuilder.relaunchApp()
+        }
+    }
 
     private func refreshPermissions() {
 #if !APPSTORE
@@ -203,7 +241,7 @@ struct PathControlPicker: NSViewRepresentable {
             button.menu?.addItem(.separator())
 
             // "Choose..." option
-            button.addItem(withTitle: "Choose…")
+            button.addItem(withTitle: String(localized: "Choose…"))
             button.lastItem?.tag = chooseTag
 
             // Select the folder item

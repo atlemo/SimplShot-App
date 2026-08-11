@@ -220,7 +220,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.title = "What's New"
+            window.title = String(localized: "What's New")
             window.center()
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: WhatsNewView(entries: entries) {
@@ -244,7 +244,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.title = "Support SimplShot"
+            window.title = String(localized: "Support SimplShot")
             window.level = .floating
             window.center()
             window.isReleasedWhenClosed = false
@@ -334,11 +334,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard onboardingWindowController == nil else { return }
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Restart Required"
-        alert.informativeText = "Screen Recording permission was recently changed. SimplShot needs to restart for it to take effect."
+        alert.messageText = String(localized: "Restart Required")
+        alert.informativeText = String(localized: "Screen Recording permission was recently changed. SimplShot needs to restart for it to take effect.")
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Restart Now")
-        alert.addButton(withTitle: "Later")
+        alert.addButton(withTitle: String(localized: "Restart Now"))
+        alert.addButton(withTitle: String(localized: "Later"))
         if alert.runModal() == .alertFirstButtonReturn {
             MenuBuilder.relaunchApp()
         }
@@ -403,7 +403,7 @@ private final class PermissionOnboardingWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Set Up SimplShot"
+        window.title = String(localized: "Set Up SimplShot")
         window.isReleasedWhenClosed = false
         window.center()
 
@@ -550,10 +550,10 @@ private struct PermissionOnboardingView: View {
 
 #if !APPSTORE
     private func permissionCard(
-        title: String,
+        title: LocalizedStringKey,
         granted: Bool,
-        description: String,
-        primaryActionTitle: String,
+        description: LocalizedStringKey,
+        primaryActionTitle: LocalizedStringKey,
         primaryAction: @escaping () -> Void,
         secondaryAction: @escaping () -> Void
     ) -> some View {

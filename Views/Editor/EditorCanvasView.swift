@@ -1901,7 +1901,7 @@ struct PDFInfoView: View {
             .padding(.bottom, 14)
 
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 8) {
-                ForEach(infoRows, id: \.0) { row in
+                ForEach(Array(infoRows.enumerated()), id: \.offset) { _, row in
                     GridRow {
                         Text(row.0)
                             .foregroundStyle(.secondary)
@@ -1917,8 +1917,8 @@ struct PDFInfoView: View {
         .frame(width: 380)
     }
 
-    private var infoRows: [(String, String)] {
-        var rows: [(String, String)] = []
+    private var infoRows: [(LocalizedStringKey, String)] {
+        var rows: [(LocalizedStringKey, String)] = []
         let attrs = document.documentAttributes ?? [:]
         if let title = attrs[PDFDocumentAttribute.titleAttribute] as? String, !title.isEmpty {
             rows.append(("Title", title))

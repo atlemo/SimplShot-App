@@ -8,9 +8,9 @@ enum PDFExportError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noPDFSource:         return "No PDF source found for export"
-        case .cannotCreateContext:  return "Failed to create PDF graphics context"
-        case .cannotRenderPage:    return "Failed to render PDF page"
+        case .noPDFSource:         return String(localized: "No PDF source found for export")
+        case .cannotCreateContext:  return String(localized: "Failed to create PDF graphics context")
+        case .cannotRenderPage:    return String(localized: "Failed to render PDF page")
         }
     }
 }

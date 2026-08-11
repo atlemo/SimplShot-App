@@ -159,16 +159,16 @@ enum PDFService {
     private static func promptForPassword(filename: String, retry: Bool) -> String? {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = retry ? "Incorrect Password" : "Password Required"
+        alert.messageText = retry ? String(localized: "Incorrect Password") : String(localized: "Password Required")
         alert.informativeText = retry
-            ? "The password for “\(filename)” was incorrect. Please try again."
-            : "“\(filename)” is password protected. Enter the password to open it."
+            ? String(localized: "The password for “\(filename)” was incorrect. Please try again.")
+            : String(localized: "“\(filename)” is password protected. Enter the password to open it.")
         alert.alertStyle = .informational
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
-        field.placeholderString = "Password"
+        field.placeholderString = String(localized: "Password")
         alert.accessoryView = field
-        alert.addButton(withTitle: "Unlock")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Unlock"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
         return field.stringValue

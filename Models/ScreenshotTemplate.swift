@@ -115,26 +115,26 @@ enum BuiltInGradient: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .sunsetBlaze: return "Sunset Blaze"
-        case .oceanDreams: return "Ocean Dreams"
-        case .purpleHaze:  return "Purple Haze"
-        case .forestMist:  return "Forest Mist"
-        case .coralReef:   return "Coral Reef"
-        case .mintFresh:   return "Mint Fresh"
-        case .goldenHour:  return "Golden Hour"
-        case .midnightSky: return "Midnight Sky"
-        case .darkEmber:   return "Dark Ember"
-        case .carbonSteel: return "Carbon Steel"
-        case .solidWhite:  return "White"
-        case .solidBlack:  return "Black"
-        case .solidGray:   return "Gray"
-        case .solidRed:    return "Red"
-        case .solidOrange: return "Orange"
-        case .solidYellow: return "Yellow"
-        case .solidGreen:  return "Green"
-        case .solidBlue:   return "Blue"
-        case .solidPurple: return "Purple"
-        case .solidPink:   return "Pink"
+        case .sunsetBlaze: return String(localized: "Sunset Blaze")
+        case .oceanDreams: return String(localized: "Ocean Dreams")
+        case .purpleHaze:  return String(localized: "Purple Haze")
+        case .forestMist:  return String(localized: "Forest Mist")
+        case .coralReef:   return String(localized: "Coral Reef")
+        case .mintFresh:   return String(localized: "Mint Fresh")
+        case .goldenHour:  return String(localized: "Golden Hour")
+        case .midnightSky: return String(localized: "Midnight Sky")
+        case .darkEmber:   return String(localized: "Dark Ember")
+        case .carbonSteel: return String(localized: "Carbon Steel")
+        case .solidWhite:  return String(localized: "White")
+        case .solidBlack:  return String(localized: "Black")
+        case .solidGray:   return String(localized: "Gray")
+        case .solidRed:    return String(localized: "Red")
+        case .solidOrange: return String(localized: "Orange")
+        case .solidYellow: return String(localized: "Yellow")
+        case .solidGreen:  return String(localized: "Green")
+        case .solidBlue:   return String(localized: "Blue")
+        case .solidPurple: return String(localized: "Purple")
+        case .solidPink:   return String(localized: "Pink")
         }
     }
 
@@ -341,7 +341,7 @@ struct EditorTemplatePreset: Codable, Identifiable {
 
     static func `default`(from template: ScreenshotTemplate, aspectRatioID: UUID? = nil) -> EditorTemplatePreset {
         EditorTemplatePreset(
-            name: "My default",
+            name: String(localized: "My default"),
             wallpaperSource: template.isEnabled ? template.wallpaperSource : nil,
             padding: template.padding,
             cornerRadius: template.cornerRadius,

@@ -59,10 +59,10 @@ enum WatermarkPosition: String, CaseIterable, Codable, Identifiable {
 
     var label: String {
         switch self {
-        case .topLeft:     return "Top Left"
-        case .topRight:    return "Top Right"
-        case .bottomLeft:  return "Bottom Left"
-        case .bottomRight: return "Bottom Right"
+        case .topLeft:     return String(localized: "Top Left")
+        case .topRight:    return String(localized: "Top Right")
+        case .bottomLeft:  return String(localized: "Bottom Left")
+        case .bottomRight: return String(localized: "Bottom Right")
         }
     }
 

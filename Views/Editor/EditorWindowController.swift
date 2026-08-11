@@ -125,8 +125,8 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
             defer: false
         )
         let title = imageURLs.count > 1
-            ? "Edit & Annotate — \(imageURLs.count) images"
-            : "Edit & Annotate — \(imageURLs[0].lastPathComponent)"
+            ? String(localized: "Edit & Annotate — \(imageURLs.count) images")
+            : String(localized: "Edit & Annotate — \(imageURLs[0].lastPathComponent)")
         window.title = title
         window.minSize = NSSize(width: 600, height: 500)
         window.isReleasedWhenClosed = false
@@ -233,8 +233,8 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
         let fileName = sessions.first?.imageURL.deletingPathExtension().lastPathComponent ?? "PDF"
         let pageCount = sessions.count
         window.title = pageCount > 1
-            ? "Annotate — \(fileName).pdf (\(pageCount) pages)"
-            : "Annotate — \(fileName).pdf"
+            ? String(localized: "Annotate — \(fileName).pdf (\(pageCount) pages)")
+            : String(localized: "Annotate — \(fileName).pdf")
         window.minSize = NSSize(width: 600, height: 500)
         window.isReleasedWhenClosed = false
 

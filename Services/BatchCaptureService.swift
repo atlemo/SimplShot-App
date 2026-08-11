@@ -9,9 +9,9 @@ enum BatchCaptureError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .cannotReadWindow: return "Cannot read window state"
-        case .noWindowID: return "Cannot get window ID for screenshot"
-        case .noWindows: return "No windows found for the application"
+        case .cannotReadWindow: return String(localized: "Cannot read window state")
+        case .noWindowID: return String(localized: "Cannot get window ID for screenshot")
+        case .noWindows: return String(localized: "No windows found for the application")
         }
     }
 }

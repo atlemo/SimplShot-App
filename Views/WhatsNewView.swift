@@ -2,12 +2,25 @@ import SwiftUI
 
 struct WhatsNewEntry {
     let version: String
-    let items: [String]
+    /// Localized bullets. `LocalizedStringResource` (not `String`) so Xcode
+    /// extracts each one into the string catalog and resolves it at display time.
+    let items: [LocalizedStringResource]
 }
 
-/// Hardcoded changelog — add new entries at the top before each release.
+/// Hardcoded changelog — add a new entry at the top before each release and
+/// delete the oldest so the list stays at `maxWhatsNewEntries`.
+///
+/// The dialog only shows entries newer than the user's last-seen version
+/// (`relevantEntries`), so this list is the backlog for users who skipped
+/// releases. It is capped because every bullet has to be translated into
+/// every supported language; someone more than `maxWhatsNewEntries` releases
+/// behind simply sees the most recent ones.
+let maxWhatsNewEntries = 4
+
 let whatsNewEntries: [WhatsNewEntry] = [
     WhatsNewEntry(version: "1.7.1", items: [
+        "SimplShot now speaks your language — the whole interface is available in English, French, Japanese, Russian and Simplified Chinese, and it follows your macOS language automatically. Menus, the editor, alerts and even these release notes are translated.",
+        "Want SimplShot in a different language than the rest of your Mac? Settings › General now opens with a Language picker. Each language is written in its own script, so you can always find your way back if you pick the wrong one by mistake. SimplShot restarts to apply the change.",
         "New print options — the print dialog now has Rotation and Scale controls. Rotation can turn the page 90° clockwise or counterclockwise, and “Auto (fit page)” rotates only when that fills the paper better, so a landscape screenshot prints large on a portrait page without any fiddling. Scale offers 25 % to 200 %, with 100 % meaning fit to page. The preview updates as you change either.",
         "Crop now reaches every edge — with an aspect ratio locked, dragging a handle no longer stalls just short of the right or bottom edge. Every handle now reaches its edge, whichever side you drag from.",
         "Flip any crop ratio between landscape and portrait — pick 3:2 and click the new orientation button to get 2:3, and the same for 4:3 and 16:9. The selection keeps its size as you flip, so you can switch back and forth freely. The separate 3:4 and 9:16 presets are gone; the button covers them for every ratio.",
@@ -36,35 +49,6 @@ let whatsNewEntries: [WhatsNewEntry] = [
         "Screenshots without a background again show with subtle rounded corners and a soft drop shadow, matching the look used for PDF pages.",
         "Thumbnails in the open-images strip now update live as you restyle an image, so they always match what you see.",
     ]),
-    WhatsNewEntry(version: "1.6.7", items: [
-        "You can now open password-protected PDFs — SimplShot asks for the password and unlocks the document",
-        "Much smoother editing: adjusting padding, background, alignment or aspect ratio no longer makes annotations wobble, and the preview keeps up with fast slider drags",
-        "Smoother pinch-zoom in the editor — the view stays anchored under your cursor instead of jittering",
-        "Annotations in the editor now match the exported image exactly, at any zoom level",
-        "Resizing a rotated image now scales annotations and text correctly",
-        "Many smaller fixes from a full code review — deleting a multi-page PDF trashes the right file, text annotations undo cleanly, and more",
-    ]),
-    WhatsNewEntry(version: "1.6.6", items: [
-        "Fixed the Crop tool on screenshots without a background — the crop selection now covers the whole image from the start instead of appearing shifted down and to the right",
-    ]),
-    WhatsNewEntry(version: "1.6.5", items: [
-        "Multi-page PDFs now render correctly — pages after the first are no longer cropped or shrunk, and rotated (e.g. scanned) pages appear upright and full size",
-        "Scanned and image-based PDFs now copy, save and print at full resolution instead of looking soft",
-        "Selecting the Arrow or Shapes tool no longer pops open its style picker automatically — click the tool again to change its style",
-        "The toolbar now shows the focus highlight on the active tool instead of the pointer",
-        "Fixed a freeze when applying a template whose watermark image was missing or slow to load, and templates now apply faster",
-    ]),
-    WhatsNewEntry(version: "1.6.4", items: [
-        "Crop tool: choose a preset aspect ratio (1:1, 4:3, 16:9 and more), and drag inside the selection to reposition it",
-        "Save As now lets you choose the file format — PNG, JPEG, HEIC or WebP",
-        "Color picker: fixed the black-and-white grid glitch and made the live magnifier much smoother",
-        "Background panel: added a Padding label, renamed “Effects” to “Background Effects”, and the Alignment & Ratio controls now stay disabled until a background is applied",
-    ]),
-    WhatsNewEntry(version: "1.1", items: [
-        "Print support — print open images and documents (Cmd+P)",
-        "TelemetryDeck analytics for usage insights",
-        "What's New dialog after updates",
-    ]),
 ]
 
 struct WhatsNewView: View {
@@ -92,7 +76,7 @@ struct WhatsNewView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Version \(entry.version)")
                                 .font(.headline)
-                            ForEach(entry.items, id: \.self) { item in
+                            ForEach(Array(entry.items.enumerated()), id: \.offset) { _, item in
                                 HStack(alignment: .top, spacing: 8) {
                                     Text("•")
                                         .foregroundStyle(.secondary)
@@ -143,10 +127,16 @@ struct WhatsNewService {
         UserDefaults.standard.set(currentVersion, forKey: lastSeenVersionKey)
     }
 
-    /// Returns entries newer than the last seen version (or all if parsing fails).
+    /// Returns entries newer than the last seen version (or all if parsing fails),
+    /// capped at `maxWhatsNewEntries` so a user returning after many releases sees
+    /// the most recent ones rather than an unbounded wall of text.
     static func relevantEntries(since lastSeen: String? = nil) -> [WhatsNewEntry] {
         let previous = lastSeen ?? UserDefaults.standard.string(forKey: lastSeenVersionKey) ?? "0"
-        return whatsNewEntries.filter { compareVersions($0.version, isNewerThan: previous) }
+        return Array(
+            whatsNewEntries
+                .filter { compareVersions($0.version, isNewerThan: previous) }
+                .prefix(maxWhatsNewEntries)
+        )
     }
 
     private static func compareVersions(_ a: String, isNewerThan b: String) -> Bool {

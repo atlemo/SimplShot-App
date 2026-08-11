@@ -39,10 +39,10 @@ class AnnotationRenderer {
 
         var errorDescription: String? {
             switch self {
-            case .cannotCreateContext:     return "Failed to create graphics context for annotation rendering"
-            case .cannotCreateOutputImage: return "Failed to create output image"
-            case .cannotCropImage:         return "Failed to crop image"
-            case .unsupportedEncodeFormat: return "This image format can be opened but not written. Use “Save As…” to choose a format."
+            case .cannotCreateContext:     return String(localized: "Failed to create graphics context for annotation rendering")
+            case .cannotCreateOutputImage: return String(localized: "Failed to create output image")
+            case .cannotCropImage:         return String(localized: "Failed to crop image")
+            case .unsupportedEncodeFormat: return String(localized: "This image format can be opened but not written. Use “Save As…” to choose a format.")
             }
         }
     }

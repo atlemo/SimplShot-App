@@ -24,22 +24,22 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .select:       return "Select"
-        case .textSelect:   return "Select Text"
-        case .arrow:        return "Arrow"
-        case .freeDraw:     return "Free Drawing"
-        case .measurement:  return "Measurement"
-        case .angle:        return "Angle"
-        case .rectangle:    return "Rectangle"
-        case .circle:       return "Circle"
-        case .triangle:     return "Triangle"
-        case .star:         return "Star"
-        case .line:         return "Line"
-        case .text:         return "Text"
-        case .pixelate:     return "Pixelate"
-        case .spotlight:    return "Spotlight"
-        case .numberedStep: return "Steps"
-        case .crop:         return "Crop"
+        case .select:       return String(localized: "Select")
+        case .textSelect:   return String(localized: "Select Text")
+        case .arrow:        return String(localized: "Arrow")
+        case .freeDraw:     return String(localized: "Free Drawing")
+        case .measurement:  return String(localized: "Measurement")
+        case .angle:        return String(localized: "Angle")
+        case .rectangle:    return String(localized: "Rectangle")
+        case .circle:       return String(localized: "Circle")
+        case .triangle:     return String(localized: "Triangle")
+        case .star:         return String(localized: "Star")
+        case .line:         return String(localized: "Line")
+        case .text:         return String(localized: "Text")
+        case .pixelate:     return String(localized: "Pixelate")
+        case .spotlight:    return String(localized: "Spotlight")
+        case .numberedStep: return String(localized: "Steps")
+        case .crop:         return String(localized: "Crop")
         }
     }
 
@@ -89,11 +89,11 @@ enum ArrowStyle: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .chevron:  return "Arrow"
-        case .triangle: return "Filled"
-        case .curved:   return "Curved"
-        case .double:   return "Double"
-        case .sketch:   return "Sketch"
+        case .chevron:  return String(localized: "Arrow")
+        case .triangle: return String(localized: "Filled")
+        case .curved:   return String(localized: "Curved")
+        case .double:   return String(localized: "Double")
+        case .sketch:   return String(localized: "Sketch")
         }
     }
 

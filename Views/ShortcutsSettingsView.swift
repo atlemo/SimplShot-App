@@ -33,7 +33,7 @@ struct ShortcutsSettingsView: View {
         .padding()
     }
 
-    private func shortcutRow(_ label: String, shortcut: KeyboardShortcuts.Name) -> some View {
+    private func shortcutRow(_ label: LocalizedStringKey, shortcut: KeyboardShortcuts.Name) -> some View {
         HStack {
             Text(label)
                 .font(.system(size: 13))

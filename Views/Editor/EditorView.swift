@@ -660,18 +660,18 @@ struct EditorView: View {
         let isMulti = sessions.count > 1
         let isPDFDone = isPDFSession && !pdfDocumentHasEdits
         let hasEdits = anySessionHasEdits
-        if isPDFDone { return "Done" }
-        if isMulti { return hasEdits ? "Save All" : "Done" }
-        return hasEdits ? "Save & Copy" : "Copy"
+        if isPDFDone { return String(localized: "Done") }
+        if isMulti { return hasEdits ? String(localized: "Save All") : String(localized: "Done") }
+        return hasEdits ? String(localized: "Save & Copy") : String(localized: "Copy")
     }
 
     private var saveActionHelp: String {
         let isMulti = sessions.count > 1
         let isPDFDone = isPDFSession && !pdfDocumentHasEdits
         let hasEdits = anySessionHasEdits
-        if isPDFDone { return "Close the document" }
-        if isMulti { return hasEdits ? "Save all open images and close" : "Close all images" }
-        return hasEdits ? "Save, close and copy the image to your clipboard" : "Copy the image to your clipboard"
+        if isPDFDone { return String(localized: "Close the document") }
+        if isMulti { return hasEdits ? String(localized: "Save all open images and close") : String(localized: "Close all images") }
+        return hasEdits ? String(localized: "Save, close and copy the image to your clipboard") : String(localized: "Copy the image to your clipboard")
     }
 
     /// Width of the Annotate/Edit sidebar (kept in sync with `sidebarContent`).
@@ -2343,11 +2343,11 @@ struct EditorView: View {
         else { return }
 
         let alert = NSAlert()
-        alert.messageText = "Save Template?"
-        alert.informativeText = "Save the current setup to \"\(selectedTemplate.name)\"?"
+        alert.messageText = String(localized: "Save Template?")
+        alert.informativeText = String(localized: "Save the current setup to \"\(selectedTemplate.name)\"?")
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Save"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         saveCurrentTemplateSetup()
     }
@@ -2373,16 +2373,16 @@ struct EditorView: View {
         guard let appSettings else { return }
 
         let alert = NSAlert()
-        alert.messageText = "Save Template"
-        alert.informativeText = "Enter a name for this template."
+        alert.messageText = String(localized: "Save Template")
+        alert.informativeText = String(localized: "Enter a name for this template.")
         alert.alertStyle = .informational
 
         let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
         input.stringValue = suggestedTemplateName(existing: appSettings.editorTemplates.map(\.name))
         alert.accessoryView = input
 
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Save"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
@@ -2404,7 +2404,7 @@ struct EditorView: View {
     }
 
     private func suggestedTemplateName(existing names: [String]) -> String {
-        let base = "My template"
+        let base = String(localized: "My template")
         guard names.contains(base) else { return base }
         var index = 2
         while names.contains("\(base) \(index)") {
@@ -2884,7 +2884,7 @@ struct EditorView: View {
     @ViewBuilder
     private func pdfNavIconButton(
         _ systemName: String,
-        help: String,
+        help: LocalizedStringKey,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -3455,7 +3455,7 @@ struct EditorView: View {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.png, .jpeg, .svg, .image]
-        panel.title = "Choose Watermark Image"
+        panel.title = String(localized: "Choose Watermark Image")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         watermarkSettings.imagePath = url.path
         watermarkSettings.isEnabled = true
@@ -3745,11 +3745,11 @@ struct EditorView: View {
         }
         if hasEdits {
             let alert = NSAlert()
-            alert.messageText = "Discard Edits?"
-            alert.informativeText = "All unsaved annotations and adjustments will be lost."
+            alert.messageText = String(localized: "Discard Edits?")
+            alert.informativeText = String(localized: "All unsaved annotations and adjustments will be lost.")
             alert.alertStyle = .warning
-            alert.addButton(withTitle: "Discard")
-            alert.addButton(withTitle: "Keep Editing")
+            alert.addButton(withTitle: String(localized: "Discard"))
+            alert.addButton(withTitle: String(localized: "Keep Editing"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
         }
         onDismiss()
@@ -3977,10 +3977,10 @@ struct EditorView: View {
         UserDefaults.standard.set(count, forKey: key)
         if count == 3 {
             let alert = NSAlert()
-            alert.messageText = "Enjoying SimplShot?"
-            alert.informativeText = "We'd love your feedback — it helps us grow and make SimplShot even better!"
-            alert.addButton(withTitle: "Rate SimplShot")
-            alert.addButton(withTitle: "Not Now")
+            alert.messageText = String(localized: "Enjoying SimplShot?")
+            alert.informativeText = String(localized: "We'd love your feedback — it helps us grow and make SimplShot even better!")
+            alert.addButton(withTitle: String(localized: "Rate SimplShot"))
+            alert.addButton(withTitle: String(localized: "Not Now"))
             alert.alertStyle = .informational
             if alert.runModal() == .alertFirstButtonReturn {
                 requestReview()
@@ -4038,7 +4038,7 @@ struct EditorView: View {
 
     private func showSaveError(_ error: Error) {
         let alert = NSAlert()
-        alert.messageText = "Save Failed"
+        alert.messageText = String(localized: "Save Failed")
         alert.informativeText = error.localizedDescription
         alert.alertStyle = .warning
         alert.runModal()
@@ -4056,10 +4056,10 @@ private enum PrintRotation: Int, CaseIterable {
 
     var localizedName: String {
         switch self {
-        case .none:             return "None"
-        case .auto:             return "Auto (fit page)"
-        case .clockwise:        return "90° Clockwise"
-        case .counterClockwise: return "90° Counterclockwise"
+        case .none:             return String(localized: "None")
+        case .auto:             return String(localized: "Auto (fit page)")
+        case .clockwise:        return String(localized: "90° Clockwise")
+        case .counterClockwise: return String(localized: "90° Counterclockwise")
         }
     }
 
@@ -4153,7 +4153,7 @@ private final class PrintRotationAccessoryController: NSViewController, NSPrintP
         // Top row: Rotate. Bottom row: Scale. (Bottom-left origin → the top row
         // sits at the higher y.)
         let rotatePopup = makeRow(
-            in: container, title: "Rotate:", centerY: rowHeight + rowHeight / 2,
+            in: container, title: String(localized: "Rotate:"), centerY: rowHeight + rowHeight / 2,
             action: #selector(rotationChanged(_:)))
         for rotation in PrintRotation.allCases {
             let item = NSMenuItem(title: rotation.localizedName, action: nil, keyEquivalent: "")
@@ -4163,7 +4163,7 @@ private final class PrintRotationAccessoryController: NSViewController, NSPrintP
         rotatePopup.selectItem(withTag: rotationMode)
 
         let scalePopup = makeRow(
-            in: container, title: "Scale:", centerY: rowHeight / 2,
+            in: container, title: String(localized: "Scale:"), centerY: rowHeight / 2,
             action: #selector(scaleChanged(_:)))
         for percent in printScalePresets {
             let item = NSMenuItem(title: "\(percent)%", action: nil, keyEquivalent: "")
@@ -4447,7 +4447,7 @@ private final class SaveFormatPicker: NSObject {
 
     func makeAccessoryView() -> NSView {
         let container = NSView()
-        let label = NSTextField(labelWithString: "Format:")
+        let label = NSTextField(labelWithString: String(localized: "Format:"))
         label.translatesAutoresizingMaskIntoConstraints = false
 
         let popup = NSPopUpButton(frame: .zero, pullsDown: false)

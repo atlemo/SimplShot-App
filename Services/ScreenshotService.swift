@@ -18,17 +18,17 @@ enum ScreenshotError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .captureFailed:
-            return "Failed to capture window image. Make sure Screen Recording permission is granted, then restart SimplShot."
+            return String(localized: "Failed to capture window image. Make sure Screen Recording permission is granted, then restart SimplShot.")
         case .noWindowID:
-            return "Could not get window ID for screenshot"
+            return String(localized: "Could not get window ID for screenshot")
         case .saveFailed:
-            return "Failed to save screenshot to disk"
+            return String(localized: "Failed to save screenshot to disk")
         case .windowNotFound:
-            return "Could not find window for capture. It may have closed."
+            return String(localized: "Could not find window for capture. It may have closed.")
         case .permissionDenied:
-            return "Screen Recording permission is not granted. Enable it in System Settings › Privacy & Security › Screen Recording, then restart SimplShot."
+            return String(localized: "Screen Recording permission is not granted. Enable it in System Settings › Privacy & Security › Screen Recording, then restart SimplShot.")
         case .permissionNeedsRestart:
-            return "Screen Recording permission was recently changed. Please restart SimplShot for it to take effect."
+            return String(localized: "Screen Recording permission was recently changed. Please restart SimplShot for it to take effect.")
         }
     }
 }
