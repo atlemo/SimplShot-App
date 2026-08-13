@@ -1248,6 +1248,11 @@ final class _PDFPageNSView: NSView {
     /// Anchor point (PDF page space) for an in-progress click-drag selection.
     private var dragAnchor: CGPoint?
 
+    /// True while this page has live selected text. `EditorView`'s key monitor
+    /// checks it so the customizable Save & Copy shortcut (⌘C by default) yields
+    /// to the text copy in `performKeyEquivalent` below.
+    var hasTextSelection: Bool { selection?.string?.isEmpty == false }
+
     /// Search-match highlights for THIS page, set from the SwiftUI layer during
     /// an in-document find. All matches are tinted; the active one is emphasized.
     var searchHighlights: [PDFSelection] = [] { didSet { needsDisplay = true } }

@@ -7,6 +7,12 @@
     },
     "\"%@\" will be removed from your templates.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ wird aus deinen Vorlagen entfernt."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -38,6 +44,24 @@
     },
     "%lld annotations": {
       "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Anmerkung"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Anmerkungen"
+                }
+              }
+            }
+          }
+        },
         "en": {
           "variations": {
             "plural": {
@@ -132,6 +156,24 @@
     },
     "%lld characters copied to clipboard": {
       "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Zeichen in die Zwischenablage kopiert"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Zeichen in die Zwischenablage kopiert"
+                }
+              }
+            }
+          }
+        },
         "en": {
           "variations": {
             "plural": {
@@ -226,6 +268,12 @@
     },
     "%lld of %lld": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld von %lld"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -254,6 +302,24 @@
     },
     "%lld screenshots saved": {
       "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Bildschirmfoto gesichert"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Bildschirmfotos gesichert"
+                }
+              }
+            }
+          }
+        },
         "en": {
           "variations": {
             "plural": {
@@ -369,6 +435,12 @@
     },
     "90° Clockwise": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "90° im Uhrzeigersinn"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -397,6 +469,12 @@
     },
     "90° Counterclockwise": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "90° gegen den Uhrzeigersinn"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -428,6 +506,12 @@
     },
     "About": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Über"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -456,6 +540,12 @@
     },
     "Accessibility": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bedienungshilfen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -484,6 +574,12 @@
     },
     "Accessibility Permission Required": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berechtigung für Bedienungshilfen erforderlich"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -512,6 +608,12 @@
     },
     "Acknowledgments": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danksagungen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -540,6 +642,12 @@
     },
     "Actual Size": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Originalgröße"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -568,6 +676,12 @@
     },
     "Add": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hinzufügen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -596,6 +710,12 @@
     },
     "Add Aspect Ratio": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenverhältnis hinzufügen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -624,6 +744,12 @@
     },
     "Add Custom Color": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigene Farbe hinzufügen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -652,6 +778,12 @@
     },
     "Add Custom Image": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigenes Bild hinzufügen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -680,6 +812,12 @@
     },
     "Add Width Preset": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Breiten-Voreinstellung hinzufügen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -708,6 +846,12 @@
     },
     "After capture:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach der Aufnahme:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -736,6 +880,12 @@
     },
     "Alignment": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausrichtung"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -764,6 +914,12 @@
     },
     "Alignment and ratio": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausrichtung und Seitenverhältnis"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -792,6 +948,12 @@
     },
     "All unsaved annotations and adjustments will be lost.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle nicht gesicherten Anmerkungen und Anpassungen gehen verloren."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -820,6 +982,12 @@
     },
     "Angle": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Winkel"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -848,6 +1016,12 @@
     },
     "Annotate": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmerken"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -876,6 +1050,12 @@
     },
     "Annotate — %@.pdf": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmerken — %@.pdf"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -904,6 +1084,24 @@
     },
     "Annotate — %@.pdf (%lld pages)": {
       "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Anmerken — %1$@.pdf (%2$lld Seite)"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Anmerken — %1$@.pdf (%2$lld Seiten)"
+                }
+              }
+            }
+          }
+        },
         "en": {
           "variations": {
             "plural": {
@@ -998,6 +1196,12 @@
     },
     "Applies when opening files from Finder or other apps": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gilt beim Öffnen von Dateien aus dem Finder oder anderen Apps"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1026,6 +1230,12 @@
     },
     "Apply": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anwenden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1052,36 +1262,14 @@
         }
       }
     },
-    "Apply one look to every open image at once — switch on “Apply to all images” in the editor sidebar to share the same background, padding, corner radius, shadow and alignment across all your open screenshots. If some images are already styled differently, SimplShot asks before replacing them.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Appliquez le même style à toutes les images ouvertes en une fois — activez « Appliquer à toutes les images » dans la barre latérale de l’éditeur pour partager le même arrière-plan, la même marge, le même rayon de coin, la même ombre et le même alignement sur toutes vos captures ouvertes. Si certaines images ont déjà un style différent, SimplShot vous le demande avant de les remplacer."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開いているすべての画像に一括で同じ見た目を適用 — エディタのサイドバーで「すべての画像に適用」をオンにすると、背景、余白、角の丸み、シャドウ、配置を開いているすべてのスクリーンショットで揃えられます。すでに異なるスタイルの画像がある場合は、置き換える前にSimplShotが確認します。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Применяйте один стиль сразу ко всем открытым изображениям — включите «Применить ко всем изображениям» в боковой панели редактора, чтобы задать одинаковый фон, отступы, радиус скругления, тень и выравнивание для всех открытых снимков. Если часть изображений оформлена иначе, SimplShot спросит перед заменой."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一次为所有已打开的图像套用同一种外观——在编辑器边栏中打开“应用到所有图像”，即可让所有已打开的截图共用相同的背景、边距、圆角半径、阴影和对齐方式。若其中部分图像已有不同样式，SimplShot 会在替换前询问。"
-          }
-        }
-      }
-    },
     "Apply selected template to screenshots": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgewählte Vorlage auf Bildschirmfotos anwenden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1110,6 +1298,12 @@
     },
     "Apply to All": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf alle anwenden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1138,6 +1332,12 @@
     },
     "Apply to all images": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf alle Bilder anwenden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1166,6 +1366,12 @@
     },
     "Apply to all open images?": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf alle geöffneten Bilder anwenden?"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1194,6 +1400,12 @@
     },
     "Applying a saved template no longer nudges your annotations out of place — they keep their position relative to the screenshot when the padding, background, aspect ratio and alignment all change at once.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Anwenden einer gesicherten Vorlage verschiebt deine Anmerkungen nicht mehr — sie behalten ihre Position relativ zum Bildschirmfoto, selbst wenn sich Innenabstand, Hintergrund, Seitenverhältnis und Ausrichtung gleichzeitig ändern."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1222,6 +1434,12 @@
     },
     "Arrow": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfeil"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1250,6 +1468,12 @@
     },
     "Aspect Ratio": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenverhältnis"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1278,6 +1502,12 @@
     },
     "Aspect Ratios": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenverhältnisse"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1306,6 +1536,12 @@
     },
     "Aspect ratio": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenverhältnis"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1334,6 +1570,12 @@
     },
     "Author": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autor"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1362,6 +1604,12 @@
     },
     "Auto": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1390,6 +1638,12 @@
     },
     "Auto (fit page)": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch (an Seite anpassen)"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1418,6 +1672,12 @@
     },
     "Background": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hintergrund"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1446,6 +1706,12 @@
     },
     "Background Effects": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hintergrundeffekte"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1474,6 +1740,12 @@
     },
     "Batch Capture Complete": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stapelaufnahme abgeschlossen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1502,6 +1774,12 @@
     },
     "Batch capture failed: %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stapelaufnahme fehlgeschlagen: %@"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1530,6 +1808,12 @@
     },
     "Bendable arrows — select a Curved arrow and drag the new dot in the middle to shape the curve exactly how you want it.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biegbare Pfeile — wähle einen gebogenen Pfeil aus und ziehe an dem neuen Punkt in der Mitte, um die Krümmung genau so zu formen, wie du sie brauchst."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1558,6 +1842,12 @@
     },
     "Black": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schwarz"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1586,6 +1876,12 @@
     },
     "Blue": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blau"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1614,6 +1910,12 @@
     },
     "Bottom Left": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unten links"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1642,6 +1944,12 @@
     },
     "Bottom Right": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unten rechts"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1670,6 +1978,12 @@
     },
     "Bottom offset": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abstand von unten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1698,6 +2012,12 @@
     },
     "Brightness": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Helligkeit"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1726,6 +2046,12 @@
     },
     "Built-in": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Integriert"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1754,6 +2080,12 @@
     },
     "Cancel": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abbrechen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1782,6 +2114,12 @@
     },
     "Cannot access %@'s windows. Make sure Accessibility permission is granted.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Zugriff auf die Fenster von %@. Stelle sicher, dass die Berechtigung für Bedienungshilfen erteilt ist."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1810,6 +2148,12 @@
     },
     "Cannot get window ID for screenshot": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster-ID für das Bildschirmfoto konnte nicht ermittelt werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1838,6 +2182,12 @@
     },
     "Cannot read window state": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fensterstatus konnte nicht gelesen werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1866,6 +2216,12 @@
     },
     "Capture": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufnehmen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1894,6 +2250,12 @@
     },
     "Capture %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ aufnehmen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1922,6 +2284,12 @@
     },
     "Capture %@ in All Sizes": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ in allen Größen aufnehmen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1950,6 +2318,12 @@
     },
     "Capture All Widths": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Breiten aufnehmen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -1978,6 +2352,12 @@
     },
     "Capture Area": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereich aufnehmen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2006,6 +2386,12 @@
     },
     "Capture OCR": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text erkennen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2034,6 +2420,12 @@
     },
     "Capture Text from Image (OCR)": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text aus Bild erkennen (OCR)"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2062,6 +2454,12 @@
     },
     "Capture Window": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster aufnehmen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2090,6 +2488,12 @@
     },
     "Capture all widths": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Breiten aufnehmen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2118,6 +2522,12 @@
     },
     "Capture did not complete. Check the selected save folder and try again.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Aufnahme wurde nicht abgeschlossen. Überprüfe den ausgewählten Zielordner und versuche es erneut."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2146,6 +2556,12 @@
     },
     "Capture failed: %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufnahme fehlgeschlagen: %@"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2174,6 +2590,12 @@
     },
     "Carbon Steel": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karbonstahl"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2202,6 +2624,12 @@
     },
     "Check for Updates…": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Updates suchen…"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2230,6 +2658,12 @@
     },
     "Choose": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auswählen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2258,6 +2692,12 @@
     },
     "Choose Watermark Image": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wasserzeichenbild auswählen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2286,6 +2726,12 @@
     },
     "Choose a template to apply to your screenshots. Leave this off if you want screenshots saved as-is, without a background.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle eine Vorlage, die auf deine Bildschirmfotos angewendet wird. Lass diese Option aus, wenn Bildschirmfotos unverändert und ohne Hintergrund gesichert werden sollen."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2314,6 +2760,12 @@
     },
     "Choose where SimplShot should save screenshots.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle aus, wo SimplShot Bildschirmfotos sichern soll."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2342,6 +2794,12 @@
     },
     "Choose…": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auswählen…"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2370,6 +2828,12 @@
     },
     "Circle": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kreis"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2398,6 +2862,12 @@
     },
     "Click again to change style": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut klicken, um den Stil zu ändern"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2426,6 +2896,12 @@
     },
     "Click to Edit": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum Bearbeiten klicken"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2454,6 +2930,12 @@
     },
     "Close (Esc)": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen (Esc)"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2482,6 +2964,12 @@
     },
     "Close all images": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Bilder schließen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2510,6 +2998,12 @@
     },
     "Close the document": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokument schließen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2538,6 +3032,12 @@
     },
     "Close without saving": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Sichern schließen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2566,6 +3066,12 @@
     },
     "Collapse section": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereich zuklappen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2594,6 +3100,12 @@
     },
     "Color": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farbe"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2622,6 +3134,12 @@
     },
     "Color Picker": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farbwähler"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2650,6 +3168,12 @@
     },
     "Continue": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortfahren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2678,6 +3202,12 @@
     },
     "Continue Later": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Später fortfahren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2706,6 +3236,12 @@
     },
     "Continuous Scroll": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortlaufend scrollen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2734,6 +3270,12 @@
     },
     "Contrast": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontrast"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2762,6 +3304,12 @@
     },
     "Copy": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopieren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2790,6 +3338,12 @@
     },
     "Copy the image to your clipboard": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild in die Zwischenablage kopieren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2818,6 +3372,12 @@
     },
     "Coral Reef": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Korallenriff"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2846,6 +3406,12 @@
     },
     "Corner Radius": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eckenradius"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2874,6 +3440,12 @@
     },
     "Corners": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ecken"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2902,6 +3474,12 @@
     },
     "Could not find window for capture. It may have closed.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das aufzunehmende Fenster wurde nicht gefunden. Möglicherweise wurde es geschlossen."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2930,6 +3508,12 @@
     },
     "Could not get window ID for screenshot": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster-ID für das Bildschirmfoto konnte nicht ermittelt werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2958,6 +3542,12 @@
     },
     "Could not load the captured image for OCR.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das aufgenommene Bild konnte für die Texterkennung nicht geladen werden."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -2986,6 +3576,12 @@
     },
     "Crop": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zuschneiden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3014,6 +3610,12 @@
     },
     "Crop Image": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild zuschneiden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3042,6 +3644,12 @@
     },
     "Crop now reaches every edge — with an aspect ratio locked, dragging a handle no longer stalls just short of the right or bottom edge. Every handle now reaches its edge, whichever side you drag from.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Zuschneiden erreicht jetzt jeden Rand — bei gesperrtem Seitenverhältnis bleibt ein Aktivpunkt nicht mehr kurz vor dem rechten oder unteren Rand stehen. Jeder Aktivpunkt erreicht seinen Rand, egal von welcher Seite du ziehst."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3070,6 +3678,12 @@
     },
     "Crop, Rotate and Resize now sit together in Edit mode for a clearer, more consistent editing workflow.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„Zuschneiden“, „Drehen“ und „Größe ändern“ liegen jetzt gemeinsam im Bearbeitungsmodus — für einen klareren und einheitlicheren Arbeitsablauf."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3098,6 +3712,12 @@
     },
     "Curved": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gebogen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3126,6 +3746,12 @@
     },
     "Custom Color": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigene Farbe"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3154,6 +3780,12 @@
     },
     "Custom Image": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigenes Bild"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3182,6 +3814,12 @@
     },
     "Dark Ember": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dunkle Glut"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3210,6 +3848,12 @@
     },
     "Delete": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löschen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3238,6 +3882,12 @@
     },
     "Delete Screenshot": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmfoto löschen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3266,6 +3916,12 @@
     },
     "Delete Screenshot?": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmfoto löschen?"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3294,6 +3950,12 @@
     },
     "Delete Template?": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorlage löschen?"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3322,6 +3984,12 @@
     },
     "Delete selected template": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgewählte Vorlage löschen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3350,6 +4018,12 @@
     },
     "Detail": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3378,6 +4052,12 @@
     },
     "Dim Opacity": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deckkraft der Abdunklung"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3406,6 +4086,12 @@
     },
     "Discard": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwerfen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3434,6 +4120,12 @@
     },
     "Discard Edits?": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen verwerfen?"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3462,6 +4154,12 @@
     },
     "Display Pixel Dimensions": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pixelmaße anzeigen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3490,6 +4188,12 @@
     },
     "Document Info": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dokumentinformationen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3518,6 +4222,12 @@
     },
     "Don't ask me again": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht mehr fragen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3546,6 +4256,12 @@
     },
     "Done": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fertig"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3574,6 +4290,12 @@
     },
     "Double": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doppelt"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3602,6 +4324,12 @@
     },
     "Drag the handles to resize, or drag inside to reposition.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziehe an den Aktivpunkten, um die Größe zu ändern, oder ziehe innerhalb der Auswahl, um sie zu verschieben."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3630,6 +4358,12 @@
     },
     "Edge offset": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abstand vom Rand"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3658,6 +4392,12 @@
     },
     "Edit": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bearbeiten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3686,6 +4426,12 @@
     },
     "Edit & Annotate": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bearbeiten und anmerken"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3714,6 +4460,12 @@
     },
     "Edit & Annotate — %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bearbeiten und anmerken — %@"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3742,6 +4494,24 @@
     },
     "Edit & Annotate — %lld images": {
       "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Bearbeiten und anmerken — %lld Bild"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Bearbeiten und anmerken — %lld Bilder"
+                }
+              }
+            }
+          }
+        },
         "en": {
           "variations": {
             "plural": {
@@ -3836,6 +4606,12 @@
     },
     "Edit Aspect Ratio": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenverhältnis bearbeiten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3864,6 +4640,12 @@
     },
     "Edit Width Preset": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Breiten-Voreinstellung bearbeiten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3890,8 +4672,48 @@
         }
       }
     },
+    "Editor": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editor"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Éditeur"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エディタ"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Редактор"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑器"
+          }
+        }
+      }
+    },
     "Enable Screen Recording": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmaufnahme aktivieren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3920,6 +4742,12 @@
     },
     "Enjoying SimplShot?": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gefällt dir SimplShot?"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3948,6 +4776,12 @@
     },
     "Enter a name for this template.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gib einen Namen für diese Vorlage ein."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -3976,6 +4810,12 @@
     },
     "Even a tiny one-time tip goes a long way toward keeping this tool alive and improving. No subscription, no nag screens — just this one ask.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schon ein kleiner einmaliger Betrag hilft sehr dabei, dieses Werkzeug am Leben zu halten und weiterzuentwickeln. Kein Abo, keine ständigen Hinweisfenster — nur diese eine Bitte."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4004,6 +4844,12 @@
     },
     "Expand section": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereich aufklappen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4032,6 +4878,12 @@
     },
     "Exposure": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belichtung"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4060,6 +4912,12 @@
     },
     "Failed to capture window image. Make sure Screen Recording permission is granted, then restart SimplShot.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Fensterbild konnte nicht aufgenommen werden. Stelle sicher, dass die Berechtigung für Bildschirmaufnahmen erteilt ist, und starte SimplShot dann neu."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4088,6 +4946,12 @@
     },
     "Failed to create PDF graphics context": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF-Grafikkontext konnte nicht erstellt werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4116,6 +4980,12 @@
     },
     "Failed to create graphics context for annotation rendering": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grafikkontext zum Zeichnen der Anmerkungen konnte nicht erstellt werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4144,6 +5014,12 @@
     },
     "Failed to create graphics context for template rendering": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grafikkontext zum Rendern der Vorlage konnte nicht erstellt werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4172,6 +5048,12 @@
     },
     "Failed to create output image": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgabebild konnte nicht erstellt werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4200,6 +5082,12 @@
     },
     "Failed to create output image from template rendering": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgabebild konnte beim Rendern der Vorlage nicht erstellt werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4228,6 +5116,12 @@
     },
     "Failed to crop image": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild konnte nicht zugeschnitten werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4256,6 +5150,12 @@
     },
     "Failed to load custom wallpaper image at: %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigenes Hintergrundbild konnte nicht geladen werden: %@"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4284,6 +5184,12 @@
     },
     "Failed to prepare the clipboard image for editing.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Bild aus der Zwischenablage konnte nicht zum Bearbeiten vorbereitet werden."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4312,6 +5218,12 @@
     },
     "Failed to render PDF page": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF-Seite konnte nicht gerendert werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4340,6 +5252,12 @@
     },
     "Failed to resize %@'s windows.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Fenster von %@ konnten nicht in der Größe geändert werden."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4368,6 +5286,12 @@
     },
     "Failed to save clipboard image: %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild aus der Zwischenablage konnte nicht gesichert werden: %@"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4396,6 +5320,12 @@
     },
     "Failed to save screenshot to disk": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmfoto konnte nicht auf dem Volume gesichert werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4424,6 +5354,12 @@
     },
     "Feather": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiche Kante"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4452,6 +5388,12 @@
     },
     "File": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4480,6 +5422,12 @@
     },
     "File format:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateiformat:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4508,6 +5456,12 @@
     },
     "Fill": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Füllung"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4536,6 +5490,12 @@
     },
     "Fill Color": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Füllfarbe"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4564,6 +5524,12 @@
     },
     "Filled": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gefüllt"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4592,6 +5558,12 @@
     },
     "Find Next": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitersuchen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4620,6 +5592,12 @@
     },
     "Find Previous": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rückwärts suchen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4648,6 +5626,12 @@
     },
     "Find in document": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Dokument suchen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4676,6 +5660,12 @@
     },
     "Find…": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchen…"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4704,6 +5694,12 @@
     },
     "Fit": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anpassen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4732,6 +5728,12 @@
     },
     "Fit Page": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An Seite anpassen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4760,6 +5762,12 @@
     },
     "Fit Width": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An Breite anpassen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4788,6 +5796,12 @@
     },
     "Fixed missing drag handles on the Stroke, Font Size, Pixelation and Spotlight sliders — the knob now appears right away instead of only showing up once you'd clicked and dragged.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlende Regler bei „Kontur“, „Schriftgröße“, „Verpixelung“ und „Scheinwerfer“ wurden behoben — der Knopf erscheint jetzt sofort, statt erst nach dem Klicken und Ziehen."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4816,6 +5830,12 @@
     },
     "Flip any crop ratio between landscape and portrait — pick 3:2 and click the new orientation button to get 2:3, and the same for 4:3 and 16:9. The selection keeps its size as you flip, so you can switch back and forth freely. The separate 3:4 and 9:16 presets are gone; the button covers them for every ratio.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jedes Zuschnittverhältnis lässt sich zwischen Quer- und Hochformat umschalten — wähle 3:2 und klicke auf die neue Ausrichtungstaste, um 2:3 zu erhalten; ebenso bei 4:3 und 16:9. Die Auswahl behält beim Umschalten ihre Größe, sodass du frei hin und her wechseln kannst. Die separaten Voreinstellungen 3:4 und 9:16 entfallen — die Taste deckt sie für jedes Verhältnis ab."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4844,6 +5864,12 @@
     },
     "Font Size": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schriftgröße"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4872,6 +5898,12 @@
     },
     "Forest Mist": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waldnebel"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4900,6 +5932,12 @@
     },
     "Format:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4928,6 +5966,12 @@
     },
     "Free Drawing": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freihandzeichnen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4956,6 +6000,12 @@
     },
     "General": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allgemein"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -4984,6 +6034,12 @@
     },
     "Go": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gehe zu"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5012,6 +6068,12 @@
     },
     "Golden Hour": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Goldene Stunde"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5040,6 +6102,12 @@
     },
     "Gradients": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verläufe"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5068,6 +6136,12 @@
     },
     "Grant Accessibility": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bedienungshilfen erlauben"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5096,6 +6170,12 @@
     },
     "Granted": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erteilt"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5124,6 +6204,12 @@
     },
     "Grant…": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erlauben…"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5152,6 +6238,12 @@
     },
     "Gray": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grau"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5180,6 +6272,12 @@
     },
     "Green": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grün"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5211,6 +6309,12 @@
     },
     "Height:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Höhe:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5239,6 +6343,12 @@
     },
     "Highlights": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lichter"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5267,6 +6377,12 @@
     },
     "Incorrect Password": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falsches Passwort"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5295,6 +6411,12 @@
     },
     "Keep Editing": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiter bearbeiten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5323,6 +6445,12 @@
     },
     "Keyboard Shortcuts": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tastaturkurzbefehle"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5351,6 +6479,12 @@
     },
     "Label (optional):": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bezeichnung (optional):"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5379,6 +6513,12 @@
     },
     "Language:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprache:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5407,6 +6547,12 @@
     },
     "Large images no longer look like they failed to open — while a big file is being decoded the editor shows a loading indicator instead of briefly flashing “Unable to load image”.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Große Bilder wirken nicht mehr so, als ließen sie sich nicht öffnen — während eine große Datei dekodiert wird, zeigt der Editor eine Ladeanzeige, statt kurz „Bild kann nicht geladen werden“ aufblitzen zu lassen."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5435,6 +6581,12 @@
     },
     "Last Used": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zuletzt verwendet"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5463,6 +6615,12 @@
     },
     "Later": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Später"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5491,6 +6649,12 @@
     },
     "Launch at login": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Anmelden öffnen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5519,6 +6683,12 @@
     },
     "Left": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Links"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5547,6 +6717,12 @@
     },
     "Light": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Licht"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5575,6 +6751,12 @@
     },
     "Line": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linie"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5603,6 +6785,12 @@
     },
     "Loading image…": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild wird geladen…"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5631,6 +6819,12 @@
     },
     "Lock aspect ratio": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenverhältnis sperren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5659,6 +6853,12 @@
     },
     "Made by [Atle Mo](https://atle.co)": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erstellt von [Atle Mo](https://atle.co)"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5687,6 +6887,12 @@
     },
     "Maybe Later": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vielleicht später"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5715,6 +6921,12 @@
     },
     "Measurement": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maß"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5743,6 +6955,12 @@
     },
     "Metadata": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5771,6 +6989,12 @@
     },
     "Midnight Sky": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mitternachtshimmel"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5799,6 +7023,12 @@
     },
     "Mint Fresh": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frische Minze"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5827,6 +7057,12 @@
     },
     "Missing": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlt"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5855,6 +7091,12 @@
     },
     "More image formats — SimplShot can now open AVIF, HEIF, JPEG XL, JPEG 2000 and Photoshop (PSD) files, alongside the formats it already supported.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehr Bildformate — SimplShot öffnet jetzt zusätzlich zu den bisherigen Formaten auch AVIF-, HEIF-, JPEG-XL-, JPEG-2000- und Photoshop-Dateien (PSD)."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5883,6 +7125,12 @@
     },
     "My default": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mein Standardstil"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5911,6 +7159,12 @@
     },
     "My template": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meine Vorlage"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5939,6 +7193,12 @@
     },
     "Needed to capture screenshots.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erforderlich, um Bildschirmfotos aufzunehmen."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5967,6 +7227,12 @@
     },
     "Needed to resize and focus app windows for consistent captures.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erforderlich, um App-Fenster in der Größe zu ändern und zu aktivieren, damit Aufnahmen einheitlich ausfallen."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -5995,6 +7261,12 @@
     },
     "New Angle tool — measure angles like a protractor. Drag between two points, then pull the middle handle to the corner; SimplShot shows the angle in degrees with a neat arc.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neues Werkzeug „Winkel“ — miss Winkel wie mit einem Geodreieck. Ziehe zwischen zwei Punkten und dann den mittleren Aktivpunkt auf den Scheitelpunkt; SimplShot zeigt den Winkel in Grad mit einem sauberen Bogen an."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6023,6 +7295,12 @@
     },
     "New Double arrow style — arrowheads at both ends, straight by default and bendable via the same middle dot.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neuer Stil „Doppelt“ — Pfeilspitzen an beiden Enden, standardmäßig gerade und über denselben Punkt in der Mitte biegbar."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6051,6 +7329,12 @@
     },
     "New Tint control under Color, alongside Temperature, for finer colour correction.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neuer Regler „Farbstich“ im Bereich „Farbe“ neben „Farbtemperatur“ für eine feinere Farbkorrektur."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6079,6 +7363,12 @@
     },
     "New print options — the print dialog now has Rotation and Scale controls. Rotation can turn the page 90° clockwise or counterclockwise, and “Auto (fit page)” rotates only when that fills the paper better, so a landscape screenshot prints large on a portrait page without any fiddling. Scale offers 25 % to 200 %, with 100 % meaning fit to page. The preview updates as you change either.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Druckoptionen — das Druckfenster bietet jetzt Regler für Drehung und Skalierung. Die Drehung dreht die Seite um 90° im oder gegen den Uhrzeigersinn, und „Automatisch (an Seite anpassen)“ dreht nur dann, wenn das Papier so besser ausgefüllt wird. Ein Bildschirmfoto im Querformat wird dadurch ohne Umwege groß auf einer Hochformatseite gedruckt. Die Skalierung reicht von 25 % bis 200 %, wobei 100 % „an Seite anpassen“ bedeutet. Die Vorschau aktualisiert sich bei jeder Änderung."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6107,6 +7397,12 @@
     },
     "Next Page": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nächste Seite"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6135,6 +7431,12 @@
     },
     "Next match (⏎)": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nächster Treffer (⏎)"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6163,6 +7465,12 @@
     },
     "No Background": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Hintergrund"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6191,6 +7499,12 @@
     },
     "No Border": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Kontur"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6219,6 +7533,12 @@
     },
     "No Fill": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Füllung"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6247,6 +7567,12 @@
     },
     "No PDF source found for export": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine PDF-Quelle für den Export gefunden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6275,6 +7601,12 @@
     },
     "No application selected. Please select an application first.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine App ausgewählt. Bitte wähle zuerst eine App aus."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6303,6 +7635,12 @@
     },
     "No applications with windows": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Apps mit Fenstern"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6331,6 +7669,12 @@
     },
     "No image found on the clipboard. Copy an image first, then try again.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In der Zwischenablage wurde kein Bild gefunden. Kopiere zuerst ein Bild und versuche es dann erneut."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6359,6 +7703,12 @@
     },
     "No image selected": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Bild ausgewählt"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6387,6 +7737,12 @@
     },
     "No metadata available": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Metadaten verfügbar"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6415,6 +7771,12 @@
     },
     "No text was found in the selected area.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im ausgewählten Bereich wurde kein Text gefunden."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6443,6 +7805,12 @@
     },
     "No windows found for the application": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für diese App wurden keine Fenster gefunden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6471,6 +7839,12 @@
     },
     "Noise": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rauschen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6499,6 +7873,12 @@
     },
     "None": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6527,6 +7907,12 @@
     },
     "Not Now": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jetzt nicht"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6555,6 +7941,12 @@
     },
     "Not found": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht gefunden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6583,6 +7975,12 @@
     },
     "OCR capture failed: %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufnahme für die Texterkennung fehlgeschlagen: %@"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6611,6 +8009,12 @@
     },
     "OCR failed: %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texterkennung fehlgeschlagen: %@"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6639,6 +8043,12 @@
     },
     "OK": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6667,6 +8077,12 @@
     },
     "Ocean Dreams": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meeresträume"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6695,6 +8111,12 @@
     },
     "Only applies to single image captures": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gilt nur für Aufnahmen einzelner Bilder"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6723,6 +8145,12 @@
     },
     "Opacity": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deckkraft"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6751,6 +8179,12 @@
     },
     "Open Editor automatically": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editor automatisch öffnen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6779,6 +8213,12 @@
     },
     "Open File(s)": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien öffnen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6807,6 +8247,12 @@
     },
     "Open File(s)…": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien öffnen…"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6835,6 +8281,12 @@
     },
     "Open Screenshots Folder": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmfoto-Ordner öffnen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6863,6 +8315,12 @@
     },
     "Open Settings": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen öffnen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6891,6 +8349,12 @@
     },
     "Open from Clipboard": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus Zwischenablage öffnen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6919,6 +8383,12 @@
     },
     "Open images in:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilder öffnen in:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6947,6 +8417,12 @@
     },
     "Orange": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orange"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -6975,6 +8451,12 @@
     },
     "Original": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7001,36 +8483,14 @@
         }
       }
     },
-    "PDFs now open zoomed to fit the window — the page fills the available space instead of opening small, and the Fit button scales it up to fit, not just down.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les PDF s’ouvrent désormais à un zoom ajusté à la fenêtre — la page occupe tout l’espace disponible au lieu de s’afficher en petit, et le bouton Ajuster agrandit aussi bien qu’il réduit."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "PDFがウインドウに合わせたズームで開くようになりました — ページが小さく開かれる代わりに利用できる領域いっぱいに表示され、「フィット」ボタンは縮小だけでなく拡大もして合わせます。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "PDF теперь открываются по размеру окна — страница заполняет доступное пространство, а не открывается мелкой, и кнопка «Вписать» увеличивает её до нужного размера, а не только уменьшает."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "PDF 现在会以适合窗口的缩放比例打开——页面会填满可用空间，而不是以很小的尺寸打开；“适合”按钮既能缩小也能放大以适应窗口。"
-          }
-        }
-      }
-    },
     "Padding": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Innenabstand"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7059,6 +8519,12 @@
     },
     "Page %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seite %@"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7087,6 +8553,12 @@
     },
     "Page size": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitengröße"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7115,6 +8587,12 @@
     },
     "Pages": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seiten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7143,6 +8621,12 @@
     },
     "Password": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwort"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7171,6 +8655,12 @@
     },
     "Password Required": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwort erforderlich"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7199,6 +8689,12 @@
     },
     "Permissions Setup": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berechtigungen einrichten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7227,6 +8723,12 @@
     },
     "Permissions:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berechtigungen:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7255,6 +8757,12 @@
     },
     "Pink": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pink"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7283,6 +8791,12 @@
     },
     "Pixelate": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verpixeln"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7311,6 +8825,12 @@
     },
     "Pixelation": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verpixelung"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7339,6 +8859,12 @@
     },
     "Position": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Position"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7367,6 +8893,12 @@
     },
     "Preview:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorschau:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7395,6 +8927,12 @@
     },
     "Previous Page": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorherige Seite"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7423,6 +8961,12 @@
     },
     "Previous match (⇧⏎)": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorheriger Treffer (⇧⏎)"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7451,6 +8995,12 @@
     },
     "Print…": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drucken…"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7479,6 +9029,12 @@
     },
     "Purple": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Violett"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7507,6 +9063,12 @@
     },
     "Purple Haze": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Violetter Dunst"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7535,6 +9097,12 @@
     },
     "Quit SimplShot": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot beenden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7563,6 +9131,12 @@
     },
     "Rate SimplShot": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot bewerten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7591,6 +9165,12 @@
     },
     "Ratio": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verhältnis"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7619,6 +9199,12 @@
     },
     "Ready": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereit"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7647,6 +9233,12 @@
     },
     "Rectangle": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechteck"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7675,6 +9267,12 @@
     },
     "Red": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rot"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7703,6 +9301,12 @@
     },
     "Redesigned Edit mode — photo adjustments are now organised into tidy, collapsible Light, Color and Detail sections (inspired by Apple Photos), so the panel is much easier to scan.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu gestalteter Bearbeitungsmodus — die Fotoanpassungen sind jetzt in aufgeräumte, zuklappbare Bereiche „Licht“, „Farbe“ und „Details“ gegliedert (inspiriert von der Fotos-App), wodurch sich das Panel viel leichter erfassen lässt."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7731,6 +9335,12 @@
     },
     "Refresh Status": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status aktualisieren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7759,6 +9369,12 @@
     },
     "Remove %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ entfernen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7787,6 +9403,12 @@
     },
     "Remove the background to resize the image.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entferne den Hintergrund, um die Bildgröße zu ändern."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7815,6 +9437,12 @@
     },
     "Reset": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurücksetzen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7843,6 +9471,12 @@
     },
     "Reset All Adjustments": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Anpassungen zurücksetzen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7871,6 +9505,12 @@
     },
     "Reset Color": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farbe zurücksetzen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7899,6 +9539,12 @@
     },
     "Reset Detail": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details zurücksetzen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7927,6 +9573,12 @@
     },
     "Reset Light": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Licht zurücksetzen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7955,6 +9607,12 @@
     },
     "Reset Zoom": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom zurücksetzen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -7983,6 +9641,12 @@
     },
     "Resize": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größe ändern"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8011,6 +9675,12 @@
     },
     "Restart Now": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jetzt neu starten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8039,6 +9709,12 @@
     },
     "Restart Required": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neustart erforderlich"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8065,8 +9741,48 @@
         }
       }
     },
+    "Restore the default shortcut": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standardkurzbefehl wiederherstellen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rétablir le raccourci par défaut"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デフォルトのショートカットに戻す"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановить сочетание по умолчанию"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复默认快捷键"
+          }
+        }
+      }
+    },
     "Right": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechts"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8095,6 +9811,12 @@
     },
     "Rotate 90° clockwise": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um 90° im Uhrzeigersinn drehen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8123,6 +9845,12 @@
     },
     "Rotate 90° counter-clockwise": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um 90° gegen den Uhrzeigersinn drehen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8151,6 +9879,12 @@
     },
     "Rotate Left": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach links drehen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8179,6 +9913,12 @@
     },
     "Rotate Right": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach rechts drehen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8207,6 +9947,12 @@
     },
     "Rotate:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drehung:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8235,6 +9981,12 @@
     },
     "Saturation": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sättigung"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8263,6 +10015,12 @@
     },
     "Save": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8291,6 +10049,12 @@
     },
     "Save & Copy": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern und kopieren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8317,8 +10081,48 @@
         }
       }
     },
+    "Save & Copy now has a keyboard shortcut — press ⌘C in the editor to save your image, copy it to the clipboard and close the window, exactly like clicking the button. Prefer a different key? Settings › Shortcuts has a new Editor section where you can change it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„Sichern und kopieren“ hat jetzt einen Tastaturkurzbefehl — drücke im Editor ⌘C, um dein Bild zu sichern, in die Zwischenablage zu kopieren und das Fenster zu schließen, genau wie beim Klick auf den Knopf. Lieber eine andere Taste? Unter Einstellungen › Kurzbefehle gibt es dafür einen neuen Bereich „Editor“."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "« Enregistrer et copier » dispose désormais d’un raccourci clavier — appuyez sur ⌘C dans l’éditeur pour enregistrer votre image, la copier dans le presse-papiers et fermer la fenêtre, exactement comme en cliquant sur le bouton. Vous préférez une autre touche ? Réglages › Raccourcis contient une nouvelle section Éditeur pour la modifier."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「保存してコピー」にキーボードショートカットが加わりました — エディタで⌘Cを押すと、ボタンをクリックしたときとまったく同じように、画像を保存し、クリップボードにコピーして、ウインドウを閉じます。別のキーがよければ、設定 › ショートカットに新しい「エディタ」セクションが用意されています。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У команды «Сохранить и скопировать» появилось сочетание клавиш — нажмите ⌘C в редакторе, чтобы сохранить изображение, скопировать его в буфер обмена и закрыть окно, в точности как при нажатии кнопки. Нужна другая клавиша? В Настройках › Сочетания клавиш появился раздел «Редактор»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“存储并拷贝”现在有了键盘快捷键——在编辑器中按 ⌘C，即可像点击按钮一样存储图像、拷贝到剪贴板并关闭窗口。想换一个按键？设置 › 快捷键中新增了“编辑器”部分，可随时修改。"
+          }
+        }
+      }
+    },
     "Save All": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle sichern"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8347,6 +10151,12 @@
     },
     "Save As…": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern unter…"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8375,6 +10185,12 @@
     },
     "Save Failed": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern fehlgeschlagen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8403,6 +10219,12 @@
     },
     "Save Template": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorlage sichern"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8431,6 +10253,12 @@
     },
     "Save Template?": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorlage sichern?"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8459,6 +10287,12 @@
     },
     "Save a copy": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopie sichern"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8487,6 +10321,12 @@
     },
     "Save all open images and close": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle geöffneten Bilder sichern und schließen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8515,6 +10355,12 @@
     },
     "Save as new": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als neue Vorlage sichern"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8543,6 +10389,12 @@
     },
     "Save the current setup to \"%@\"?": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktuelle Einstellungen in „%@“ sichern?"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8571,6 +10423,12 @@
     },
     "Save, close and copy the image to your clipboard": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern, schließen und das Bild in die Zwischenablage kopieren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8599,6 +10457,12 @@
     },
     "Saving back to one of these formats just works: SimplShot keeps the original format where it can, and offers Save As when a format can only be opened, not written.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Sichern in diesen Formaten funktioniert ohne Umwege: SimplShot behält das Originalformat, wo es möglich ist, und bietet „Sichern unter“ an, wenn ein Format nur geöffnet, aber nicht geschrieben werden kann."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8627,6 +10491,12 @@
     },
     "Scale:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skalierung:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8655,6 +10525,12 @@
     },
     "Screen Recording": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmaufnahme"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8683,6 +10559,12 @@
     },
     "Screen Recording Permission Required": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berechtigung für Bildschirmaufnahme erforderlich"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8711,6 +10593,12 @@
     },
     "Screen Recording permission is not granted. Enable it in System Settings › Privacy & Security › Screen Recording, then restart SimplShot.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Berechtigung für Bildschirmaufnahmen wurde nicht erteilt. Aktiviere sie unter „Systemeinstellungen › Datenschutz & Sicherheit › Bildschirmaufnahme“ und starte SimplShot dann neu."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8739,6 +10627,12 @@
     },
     "Screen Recording permission was recently changed. Please restart SimplShot for it to take effect.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Berechtigung für Bildschirmaufnahmen wurde kürzlich geändert. Starte SimplShot neu, damit die Änderung wirksam wird."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8767,6 +10661,12 @@
     },
     "Screen Recording permission was recently changed. SimplShot needs to restart for it to take effect.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Berechtigung für Bildschirmaufnahmen wurde kürzlich geändert. SimplShot muss neu gestartet werden, damit sie wirksam wird."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8795,6 +10695,12 @@
     },
     "Screen Recording: Not Enabled": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmaufnahme: nicht aktiviert"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8823,6 +10729,12 @@
     },
     "Screenshot Copied": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmfoto kopiert"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8851,6 +10763,12 @@
     },
     "Screenshot location:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speicherort für Bildschirmfotos:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8879,6 +10797,12 @@
     },
     "Screenshots Saved": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmfotos gesichert"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8905,36 +10829,14 @@
         }
       }
     },
-    "Screenshots without a background again show with subtle rounded corners and a soft drop shadow, matching the look used for PDF pages.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les captures sans arrière-plan s’affichent à nouveau avec de discrets coins arrondis et une ombre portée douce, comme les pages PDF."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "背景なしのスクリーンショットが、PDFページと同じように、控えめな角丸とやわらかいドロップシャドウ付きで再び表示されるようになりました。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Снимки без фона снова отображаются с лёгким скруглением углов и мягкой тенью — так же, как страницы PDF."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不带背景的截图重新显示为带有淡淡圆角和柔和投影的样式，与 PDF 页面的外观保持一致。"
-          }
-        }
-      }
-    },
     "Select": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auswählen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8963,6 +10865,12 @@
     },
     "Select Application...": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App auswählen..."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -8991,6 +10899,12 @@
     },
     "Select Text": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text auswählen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9019,6 +10933,12 @@
     },
     "Set Up SimplShot": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot einrichten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9047,6 +10967,12 @@
     },
     "Settings…": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen…"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9075,6 +11001,12 @@
     },
     "Shadow": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schatten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9103,6 +11035,12 @@
     },
     "Shadows": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiefen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9131,6 +11069,12 @@
     },
     "Shapes": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9159,6 +11103,12 @@
     },
     "Sharpness": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schärfe"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9187,6 +11137,12 @@
     },
     "Shortcuts": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurzbefehle"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9215,6 +11171,12 @@
     },
     "Show in Finder": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Finder zeigen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9246,6 +11208,12 @@
     },
     "SimplShot captured the screenshot but could not save it to the selected folder. Re-select the folder in Settings and try again.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot hat das Bildschirmfoto aufgenommen, konnte es aber nicht im ausgewählten Ordner sichern. Wähle den Ordner in den Einstellungen erneut aus und versuche es noch einmal."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9274,6 +11242,12 @@
     },
     "SimplShot is free to use, and I do my best to keep it that way. But running it isn't entirely free — the Apple Developer Program, a small hosting bill, and the occasional weekend of debugging all add up.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot ist kostenlos, und ich gebe mein Bestes, dass es so bleibt. Der Betrieb ist allerdings nicht ganz umsonst: das Apple Developer Program, eine kleine Hosting-Rechnung und das eine oder andere Wochenende mit Fehlersuche summieren sich."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9302,6 +11276,12 @@
     },
     "SimplShot needs Accessibility permission to %@.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot benötigt die Berechtigung für Bedienungshilfen, um %@."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9330,6 +11310,12 @@
     },
     "SimplShot needs Screen Recording permission to %@.\n\nAfter enabling it in System Settings, you'll need to restart SimplShot.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot benötigt die Berechtigung für Bildschirmaufnahmen, um %@.\n\nNachdem du sie in den Systemeinstellungen aktiviert hast, muss SimplShot neu gestartet werden."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9358,6 +11344,12 @@
     },
     "SimplShot needs a macOS permission to capture screenshots. Granting it now avoids failed captures later.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot benötigt eine macOS-Berechtigung, um Bildschirmfotos aufzunehmen. Wenn du sie jetzt erteilst, schlagen spätere Aufnahmen nicht fehl."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9386,6 +11378,12 @@
     },
     "SimplShot needs to restart to change the language.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot muss neu gestartet werden, um die Sprache zu ändern."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9412,8 +11410,48 @@
         }
       }
     },
+    "SimplShot now speaks German — Deutsch joins English, French, Japanese, Russian and Simplified Chinese, so the whole interface, menus, alerts and these release notes are translated. Pick it in Settings › General, or let SimplShot follow your macOS language.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot spricht jetzt Deutsch — Deutsch gesellt sich zu Englisch, Französisch, Japanisch, Russisch und Chinesisch (vereinfacht), sodass die gesamte Oberfläche, Menüs, Hinweise und diese Versionshinweise übersetzt sind. Wähle es unter Einstellungen › Allgemein aus oder lass SimplShot der Sprache deines Mac folgen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot parle désormais allemand — l’allemand rejoint l’anglais, le français, le japonais, le russe et le chinois simplifié : toute l’interface, les menus, les alertes et ces notes de version sont traduits. Choisissez-le dans Réglages › Général, ou laissez SimplShot suivre la langue de votre Mac."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShotがドイツ語に対応しました — 英語、フランス語、日本語、ロシア語、簡体字中国語にドイツ語が加わり、インターフェイス全体、メニュー、警告、そしてこのリリースノートまで翻訳されています。設定 › 一般で選ぶか、macOSの言語設定に従わせることもできます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot заговорил по-немецки — немецкий присоединился к английскому, французскому, японскому, русскому и китайскому (упрощённому): переведены весь интерфейс, меню, предупреждения и эти заметки о выпуске. Выберите его в Настройках › Основные или позвольте SimplShot следовать языку macOS."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot 现已支持德语——德语加入英语、法语、日语、俄语和简体中文的行列，整个界面、菜单、提示对话框以及这份更新说明均已翻译。可在设置 › 通用中选择，也可让 SimplShot 跟随 macOS 的语言设置。"
+          }
+        }
+      }
+    },
     "SimplShot now speaks your language — the whole interface is available in English, French, Japanese, Russian and Simplified Chinese, and it follows your macOS language automatically. Menus, the editor, alerts and even these release notes are translated.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot spricht jetzt deine Sprache — die gesamte Oberfläche ist auf Englisch, Französisch, Japanisch, Russisch und Chinesisch (vereinfacht) verfügbar und folgt automatisch der Sprache deines Mac. Menüs, der Editor, Hinweise und sogar diese Versionshinweise sind übersetzt."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9442,6 +11480,12 @@
     },
     "Single Page View": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einzelseitenansicht"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9470,6 +11514,12 @@
     },
     "Size": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größe"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9498,6 +11548,12 @@
     },
     "Sizes": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9526,6 +11582,12 @@
     },
     "Sketch": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skizze"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9554,6 +11616,12 @@
     },
     "Sketch arrows got real character — they now render as a gritty, variable-width ink stroke that looks genuinely hand-drawn. Every arrow gets its own unique texture.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skizzenpfeile haben echten Charakter bekommen — sie werden jetzt als körniger Tuschestrich mit wechselnder Breite gezeichnet, der wirklich handgezeichnet aussieht. Jeder Pfeil erhält seine eigene Textur."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9582,6 +11650,12 @@
     },
     "Solid Colors": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einfarbig"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9610,6 +11684,12 @@
     },
     "Some captures failed:\n": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einige Aufnahmen sind fehlgeschlagen:\n"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9638,6 +11718,12 @@
     },
     "Spotlight": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scheinwerfer"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9666,6 +11752,12 @@
     },
     "Star": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stern"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9694,6 +11786,12 @@
     },
     "Startup:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9722,6 +11820,12 @@
     },
     "Steps": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nummerierung"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9750,6 +11854,12 @@
     },
     "Straighten": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausrichten"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9778,6 +11888,12 @@
     },
     "Straighten tool — while cropping, drag the new Straighten slider to level a tilted screenshot in 1° steps. The crop tightens automatically so you never get blank corners, and an alignment grid appears while you adjust to help you line things up.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Werkzeug „Ausrichten“ — ziehe beim Zuschneiden am neuen Regler „Ausrichten“, um ein schiefes Bildschirmfoto in 1°-Schritten gerade zu rücken. Der Zuschnitt wird automatisch enger gefasst, sodass nie leere Ecken entstehen, und während des Anpassens erscheint ein Raster als Hilfe beim Ausrichten."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9806,6 +11922,12 @@
     },
     "Stroke": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontur"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9834,6 +11956,12 @@
     },
     "Sunset Blaze": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loderndes Abendrot"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9862,6 +11990,12 @@
     },
     "Support SimplShot": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot unterstützen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9890,6 +12024,12 @@
     },
     "Support SimplShot ♥": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SimplShot unterstützen ♥"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9918,6 +12058,12 @@
     },
     "Switch to landscape": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu Querformat wechseln"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9946,6 +12092,12 @@
     },
     "Switch to portrait": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu Hochformat wechseln"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -9974,6 +12126,12 @@
     },
     "System": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10002,6 +12160,12 @@
     },
     "Takes effect after restarting SimplShot": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird nach einem Neustart von SimplShot wirksam"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10030,6 +12194,12 @@
     },
     "Temperature": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farbtemperatur"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10058,6 +12228,12 @@
     },
     "Template": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorlage"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10086,6 +12262,12 @@
     },
     "Template:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorlage:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10114,6 +12296,12 @@
     },
     "Templates": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorlagen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10142,6 +12330,12 @@
     },
     "Text": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10170,6 +12364,12 @@
     },
     "Text Copied": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text kopiert"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10198,6 +12398,12 @@
     },
     "The file will be moved to the Trash.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datei wird in den Papierkorb bewegt."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10226,6 +12432,12 @@
     },
     "The focus ring on the Annotate · Edit · View switch now follows the segment you actually clicked, instead of staying stuck on whichever one had it first.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Fokusrahmen im Umschalter „Anmerken · Bearbeiten · Ansicht“ folgt jetzt dem Segment, das du tatsächlich angeklickt hast, statt auf dem ersten hängen zu bleiben."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10254,6 +12466,12 @@
     },
     "The password for “%@” was incorrect. Please try again.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Passwort für „%@“ war falsch. Bitte versuche es erneut."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10282,6 +12500,12 @@
     },
     "This image format can be opened but not written. Use “Save As…” to choose a format.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Bildformat kann geöffnet, aber nicht geschrieben werden. Wähle über „Sichern unter…“ ein anderes Format."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10310,6 +12534,12 @@
     },
     "This replaces every other open image's background and effects with the current image's style. Annotations, crops and photo adjustments are kept.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Damit werden Hintergrund und Effekte aller anderen geöffneten Bilder durch den Stil des aktuellen Bildes ersetzt. Anmerkungen, Zuschnitte und Fotoanpassungen bleiben erhalten."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10336,36 +12566,14 @@
         }
       }
     },
-    "Thumbnails in the open-images strip now update live as you restyle an image, so they always match what you see.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les vignettes de la bande d’images ouvertes se mettent désormais à jour en direct lorsque vous modifiez le style d’une image, et correspondent donc toujours à ce que vous voyez."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開いている画像のストリップにあるサムネールが、スタイルを変更するたびにリアルタイムで更新され、常に表示内容と一致するようになりました。"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Миниатюры в полосе открытых изображений теперь обновляются на лету при изменении оформления, поэтому всегда совпадают с тем, что вы видите."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已打开图像栏中的缩略图现在会随着样式更改实时更新，始终与您看到的画面保持一致。"
-          }
-        }
-      }
-    },
     "Tint": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farbstich"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10394,6 +12602,12 @@
     },
     "Title": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10422,6 +12636,12 @@
     },
     "Toggle the switch for SimplShot in System Settings.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktiviere den Schalter für SimplShot in den Systemeinstellungen."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10450,6 +12670,12 @@
     },
     "Tools": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Werkzeuge"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10478,6 +12704,12 @@
     },
     "Top Left": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oben links"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10506,6 +12738,12 @@
     },
     "Top Right": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oben rechts"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10534,6 +12772,12 @@
     },
     "Transform": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transformieren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10562,6 +12806,12 @@
     },
     "Triangle": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dreieck"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10590,6 +12840,12 @@
     },
     "Unable to load image": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild kann nicht geladen werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10618,6 +12874,12 @@
     },
     "Undo": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Widerrufen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10646,6 +12908,12 @@
     },
     "Unlock": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entsperren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10674,6 +12942,12 @@
     },
     "Unlock aspect ratio": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenverhältnis entsperren"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10702,6 +12976,12 @@
     },
     "Use this background & effects for every open image": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diesen Hintergrund und diese Effekte für alle geöffneten Bilder verwenden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10730,6 +13010,12 @@
     },
     "Version %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10758,6 +13044,12 @@
     },
     "View": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ansicht"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10789,6 +13081,12 @@
     },
     "Want SimplShot in a different language than the rest of your Mac? Settings › General now opens with a Language picker. Each language is written in its own script, so you can always find your way back if you pick the wrong one by mistake. SimplShot restarts to apply the change.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du möchtest SimplShot in einer anderen Sprache als den Rest deines Macs? „Einstellungen › Allgemein“ beginnt jetzt mit einem Menü zur Sprachauswahl. Jede Sprache steht in ihrer eigenen Schrift, sodass du immer zurückfindest, falls du versehentlich die falsche wählst. SimplShot startet neu, um die Änderung anzuwenden."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10817,6 +13115,12 @@
     },
     "Watermark": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wasserzeichen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10845,6 +13149,12 @@
     },
     "We'd love your feedback — it helps us grow and make SimplShot even better!": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wir freuen uns über dein Feedback — es hilft uns, zu wachsen und SimplShot noch besser zu machen!"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10873,6 +13183,12 @@
     },
     "What's New": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Funktionen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10901,6 +13217,12 @@
     },
     "What's New in SimplShot": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Funktionen in SimplShot"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10929,6 +13251,12 @@
     },
     "White": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiß"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10957,6 +13285,12 @@
     },
     "Width": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Breite"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -10985,6 +13319,12 @@
     },
     "Width (pixels):": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Breite (Pixel):"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11013,6 +13353,12 @@
     },
     "Width Presets": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Breiten-Voreinstellungen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11041,6 +13387,12 @@
     },
     "Width:": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Breite:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11069,6 +13421,12 @@
     },
     "Window %lld: %@": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster %lld: %@"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11097,6 +13455,12 @@
     },
     "Window %lld: could not get ID": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster %lld: ID konnte nicht ermittelt werden"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11123,8 +13487,48 @@
         }
       }
     },
+    "Works only while an editor window is open, and never while you are editing text.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Funktioniert nur, solange ein Editor-Fenster geöffnet ist – und nie während der Texteingabe."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fonctionne uniquement lorsqu’une fenêtre d’éditeur est ouverte, et jamais pendant la saisie de texte."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エディタウィンドウが開いているときのみ有効です。テキスト入力中は動作しません。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Работает только при открытом окне редактора и никогда во время ввода текста."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅在编辑器窗口打开时有效，输入文本时不会触发。"
+          }
+        }
+      }
+    },
     "Yellow": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gelb"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11153,6 +13557,12 @@
     },
     "Zoom In": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einzoomen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11181,6 +13591,12 @@
     },
     "Zoom Out": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auszoomen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11209,6 +13625,12 @@
     },
     "Zoom presets": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom-Voreinstellungen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11237,6 +13659,12 @@
     },
     "Zoom to Fit": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf Fenstergröße zoomen"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11265,6 +13693,12 @@
     },
     "[KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) by Sindre Sorhus": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) von Sindre Sorhus"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11293,6 +13727,12 @@
     },
     "[Sparkle](https://sparkle-project.org) by the Sparkle Project": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[Sparkle](https://sparkle-project.org) vom Sparkle-Projekt"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
@@ -11324,6 +13764,12 @@
     },
     "“%@” is password protected. Enter the password to open it.": {
       "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ ist passwortgeschützt. Gib das Passwort ein, um die Datei zu öffnen."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",

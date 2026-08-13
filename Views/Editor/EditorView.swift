@@ -5,6 +5,7 @@ import AppKit
 import CoreImage
 import ImageIO
 import PDFKit
+import KeyboardShortcuts
 #if !APPSTORE
 import WebP
 #endif
@@ -2442,6 +2443,20 @@ struct EditorView: View {
         }
     }
 
+    /// Whether a PDF page in this window currently has text selected. ⌘C then
+    /// belongs to `_PDFPageNSView`'s text copy, so the image-copy shortcut steps
+    /// aside. The page view isn't necessarily first responder (it handles ⌘C via
+    /// `performKeyEquivalent`), hence the hierarchy walk — only reached on an
+    /// actual shortcut match, so it costs nothing in the common case.
+    private func pdfTextSelectionActive() -> Bool {
+        guard isPDFSession, let root = hostingWindow?.contentView else { return false }
+        func scan(_ view: NSView) -> Bool {
+            if let page = view as? _PDFPageNSView, page.hasTextSelection { return true }
+            return view.subviews.contains(where: scan)
+        }
+        return scan(root)
+    }
+
     private func installKeyMonitorIfNeeded() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -2464,6 +2479,20 @@ struct EditorView: View {
                 if firstResponder is NSTextView || firstResponder is NSTextField {
                     return event
                 }
+            }
+
+            // Save & Copy (⌘C by default, rebindable in Settings ▸ Shortcuts).
+            // Same action as the toolbar button. Handled here rather than as a
+            // KeyboardShortcuts handler on purpose: that would register a global
+            // Carbon hotkey and swallow ⌘C system-wide. A local monitor runs
+            // before main-menu key equivalents, so this also wins over the
+            // standard Edit ▸ Copy item.
+            if let win = hostingWindow, event.window === win,
+               let recorded = KeyboardShortcuts.getShortcut(for: .copyToClipboard),
+               KeyboardShortcuts.Shortcut(event: event) == recorded,
+               !pdfTextSelectionActive() {
+                saveOverwrite()
+                return nil
             }
 
             // Ignore when using command/option/control modified shortcuts.

@@ -37,6 +37,12 @@
             "value" : "SimplShot needs accessibility access to resize application windows."
           }
         },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot benötigt Bedienungshilfen-Zugriff, um die Fenster von Apps in der Größe zu ändern."
+          }
+        },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",

@@ -18,6 +18,10 @@ struct WhatsNewEntry {
 let maxWhatsNewEntries = 4
 
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.7.2", items: [
+        "Save & Copy now has a keyboard shortcut — press ⌘C in the editor to save your image, copy it to the clipboard and close the window, exactly like clicking the button. Prefer a different key? Settings › Shortcuts has a new Editor section where you can change it.",
+        "SimplShot now speaks German — Deutsch joins English, French, Japanese, Russian and Simplified Chinese, so the whole interface, menus, alerts and these release notes are translated. Pick it in Settings › General, or let SimplShot follow your macOS language.",
+    ]),
     WhatsNewEntry(version: "1.7.1", items: [
         "SimplShot now speaks your language — the whole interface is available in English, French, Japanese, Russian and Simplified Chinese, and it follows your macOS language automatically. Menus, the editor, alerts and even these release notes are translated.",
         "Want SimplShot in a different language than the rest of your Mac? Settings › General now opens with a Language picker. Each language is written in its own script, so you can always find your way back if you pick the wrong one by mistake. SimplShot restarts to apply the change.",
@@ -42,12 +46,6 @@ let whatsNewEntries: [WhatsNewEntry] = [
         "Redesigned Edit mode — photo adjustments are now organised into tidy, collapsible Light, Color and Detail sections (inspired by Apple Photos), so the panel is much easier to scan.",
         "New Tint control under Color, alongside Temperature, for finer colour correction.",
         "Crop, Rotate and Resize now sit together in Edit mode for a clearer, more consistent editing workflow.",
-    ]),
-    WhatsNewEntry(version: "1.6.8", items: [
-        "Apply one look to every open image at once — switch on “Apply to all images” in the editor sidebar to share the same background, padding, corner radius, shadow and alignment across all your open screenshots. If some images are already styled differently, SimplShot asks before replacing them.",
-        "PDFs now open zoomed to fit the window — the page fills the available space instead of opening small, and the Fit button scales it up to fit, not just down.",
-        "Screenshots without a background again show with subtle rounded corners and a soft drop shadow, matching the look used for PDF pages.",
-        "Thumbnails in the open-images strip now update live as you restyle an image, so they always match what you see.",
     ]),
 ]
 

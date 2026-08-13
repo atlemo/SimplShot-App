@@ -55,6 +55,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     // Ordered alphabetically by English language name.
     case english = "en"
     case french = "fr"
+    case german = "de"
     case japanese = "ja"
     case russian = "ru"
     case chineseSimplified = "zh-Hans"
@@ -70,6 +71,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .system:            return String(localized: "System")
         case .english:           return "English"
         case .french:            return "Français"
+        case .german:            return "Deutsch"
         case .japanese:          return "日本語"
         case .russian:           return "Русский"
         case .chineseSimplified: return "简体中文"

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-12 (1.7.2)
+
+### Customizable Save & Copy Shortcut
+The editor's Save & Copy button now has a keyboard shortcut, ⌘C by default: it saves the image, copies it to the clipboard and closes the window, exactly as clicking the button does. The binding lives in a new Editor section under Settings › Shortcuts and can be changed or cleared. It is matched by the editor window's own key monitor rather than registered as a global hotkey, so it only fires while an editor window is focused, never while you are editing text, and it steps aside for ⌘C when PDF text is selected.
+
+### German Localization
+German joins English, French, Japanese, Russian and Simplified Chinese. The whole interface — menus, the editor, alerts, Settings and the release notes — is translated, and Deutsch is selectable in Settings › General or picked up automatically from your macOS language preferences.
+
 ## 2026-07-07 (1.7.0)
 
 ### Bendable Curved Arrows
