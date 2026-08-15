@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-15 (1.7.3)
+
+### Fixed: ⌘C stopped working in other apps
+The Save & Copy shortcut introduced in 1.7.2 was registered as a system-wide hotkey by mistake, so while SimplShot was running it intercepted ⌘C in every other app — Copy would appear to do nothing at all. The shortcut is now confined to the editor window as intended, and Copy works normally everywhere else. Quitting SimplShot always released the key, so no cleanup is needed; simply update.
+
 ## 2026-08-12 (1.7.2)
 
 ### Customizable Save & Copy Shortcut

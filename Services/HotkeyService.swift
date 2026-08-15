@@ -13,11 +13,19 @@ extension KeyboardShortcuts.Name {
 
     /// Editor-window shortcut for the Save & Copy action (⌘C by default).
     ///
-    /// Deliberately NOT registered in `HotkeyService.register` — the moment a
-    /// handler is attached, KeyboardShortcuts installs a *global* Carbon hotkey
-    /// and ⌘C would be swallowed system-wide. `EditorView`'s local key monitor
-    /// matches the recorded shortcut itself, so it only fires in an editor
-    /// window and only when no text field has focus.
+    /// ⚠️ This name must NEVER hold a live global hotkey. `EditorView`'s local
+    /// key monitor matches the recorded shortcut itself, so the action only
+    /// fires in an editor window and only when no text field has focus.
+    ///
+    /// Attaching a `KeyboardShortcuts.onKeyDown` handler is not the only way to
+    /// get one: the library registers a **global Carbon hotkey inside
+    /// `setShortcut`**, whether or not any handler exists. Both
+    /// `Name(_:default:)` (on the first launch, when UserDefaults has no value
+    /// yet) and every recorder/reset write therefore install a system-wide ⌘C
+    /// that swallows Copy in *every* app for the rest of the process lifetime.
+    ///
+    /// `HotkeyService.unregisterEditorOnlyShortcuts()` undoes that, and must be
+    /// called after launch and after every write. See `ShortcutsSettingsView`.
     static let copyToClipboard = Self("copyToClipboard", default: .init(.c, modifiers: .command))
 }
 
@@ -33,6 +41,17 @@ class HotkeyService {
     private var onOpenScreenshotsFolder: (() -> Void)?
 
     init() {}
+
+    /// Tears down any global hotkey the library installed for editor-only
+    /// shortcut names (see `.copyToClipboard`). Referencing the name forces its
+    /// lazy `Name` initialization first, so the default-shortcut write on a
+    /// fresh install is registered and unregistered within this call rather
+    /// than leaking a system-wide ⌘C.
+    ///
+    /// Safe to call repeatedly; `disable` is a no-op when nothing is registered.
+    static func unregisterEditorOnlyShortcuts() {
+        KeyboardShortcuts.disable(.copyToClipboard)
+    }
 
 #if !APPSTORE
     func register(

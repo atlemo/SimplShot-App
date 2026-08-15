@@ -136,6 +136,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menuBuilder.menu
         menuBuilder.statusItem = statusItem
 
+        // Editor-only shortcuts must not become system-wide hotkeys — see
+        // `KeyboardShortcuts.Name.copyToClipboard`. Run this BEFORE the global
+        // registrations so a fresh install's default ⌘C never survives launch.
+        HotkeyService.unregisterEditorOnlyShortcuts()
+
         // Register global hotkeys
 #if !APPSTORE
         hotkeyService.register(

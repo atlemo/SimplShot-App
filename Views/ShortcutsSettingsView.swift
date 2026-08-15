@@ -67,7 +67,13 @@ struct ShortcutsSettingsView: View {
             if shortcut.defaultShortcut != nil {
                 ResetShortcutButton(name: shortcut)
             }
-            KeyboardShortcuts.Recorder("", name: shortcut)
+            // Recording writes through `setShortcut`, which installs a global
+            // Carbon hotkey for the new combination — fine for the capture
+            // shortcuts, fatal for the editor-only ones (a global ⌘C swallows
+            // Copy in every app). Undo it on every write.
+            KeyboardShortcuts.Recorder("", name: shortcut) { _ in
+                HotkeyService.unregisterEditorOnlyShortcuts()
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -84,6 +90,9 @@ private struct ResetShortcutButton: View {
     var body: some View {
         Button {
             KeyboardShortcuts.reset(name)
+            // `reset` goes through `setShortcut` too — same global-hotkey
+            // side effect as recording. See `shortcutRow`.
+            HotkeyService.unregisterEditorOnlyShortcuts()
             current = name.shortcut
         } label: {
             Image(systemName: "arrow.uturn.backward")
