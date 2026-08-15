@@ -5794,6 +5794,40 @@
         }
       }
     },
+    "Fixed a serious problem introduced in the last update: SimplShot was reserving ⌘C across the whole system, so pressing Copy in any other app quietly did nothing while SimplShot was running. The Save & Copy shortcut now stays inside the editor window where it belongs, and Copy works normally everywhere else again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein schwerwiegendes Problem aus dem letzten Update wurde behoben: SimplShot hat ⌘C systemweit belegt, sodass „Kopieren“ in allen anderen Apps wirkungslos blieb, solange SimplShot lief. Der Kurzbefehl „Sichern und kopieren“ bleibt jetzt dort, wo er hingehört — im Editorfenster — und „Kopieren“ funktioniert überall sonst wieder wie gewohnt."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un problème sérieux apparu dans la dernière mise à jour a été corrigé : SimplShot réservait ⌘C dans tout le système, si bien que « Copier » restait sans effet dans les autres apps tant que SimplShot était lancé. Le raccourci « Enregistrer et copier » reste désormais dans la fenêtre de l’éditeur, à sa place, et « Copier » fonctionne de nouveau normalement partout ailleurs."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前回のアップデートで生じた重大な問題を修正しました。SimplShotが⌘Cをシステム全体で占有していたため、SimplShotの起動中は他のアプリで「コピー」を押しても何も起こりませんでした。「保存してコピー」のショートカットは本来の場所であるエディタウインドウ内だけで働くようになり、他のどのアプリでも「コピー」がこれまでどおり使えます。"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исправлена серьёзная проблема, появившаяся в прошлом обновлении: SimplShot занимал сочетание ⌘C во всей системе, поэтому, пока приложение было запущено, команда «Копировать» в других программах просто не срабатывала. Теперь сочетание «Сохранить и скопировать» действует только в окне редактора, а «Копировать» снова работает как обычно везде."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修复了上次更新引入的一个严重问题：SimplShot 在整个系统范围内占用了 ⌘C，因此只要 SimplShot 在运行，在其他 App 中按“拷贝”就毫无反应。“存储并拷贝”快捷键现已回到它应有的位置——仅在编辑器窗口中生效，其他地方的“拷贝”也恢复正常。"
+          }
+        }
+      }
+    },
     "Fixed missing drag handles on the Stroke, Font Size, Pixelation and Spotlight sliders — the knob now appears right away instead of only showing up once you'd clicked and dragged.": {
       "localizations": {
         "de": {

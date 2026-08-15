@@ -18,6 +18,9 @@ struct WhatsNewEntry {
 let maxWhatsNewEntries = 4
 
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.7.3", items: [
+        "Fixed a serious problem introduced in the last update: SimplShot was reserving ⌘C across the whole system, so pressing Copy in any other app quietly did nothing while SimplShot was running. The Save & Copy shortcut now stays inside the editor window where it belongs, and Copy works normally everywhere else again.",
+    ]),
     WhatsNewEntry(version: "1.7.2", items: [
         "Save & Copy now has a keyboard shortcut — press ⌘C in the editor to save your image, copy it to the clipboard and close the window, exactly like clicking the button. Prefer a different key? Settings › Shortcuts has a new Editor section where you can change it.",
         "SimplShot now speaks German — Deutsch joins English, French, Japanese, Russian and Simplified Chinese, so the whole interface, menus, alerts and these release notes are translated. Pick it in Settings › General, or let SimplShot follow your macOS language.",
@@ -40,12 +43,6 @@ let whatsNewEntries: [WhatsNewEntry] = [
         "New Angle tool — measure angles like a protractor. Drag between two points, then pull the middle handle to the corner; SimplShot shows the angle in degrees with a neat arc.",
         "More image formats — SimplShot can now open AVIF, HEIF, JPEG XL, JPEG 2000 and Photoshop (PSD) files, alongside the formats it already supported.",
         "Saving back to one of these formats just works: SimplShot keeps the original format where it can, and offers Save As when a format can only be opened, not written.",
-    ]),
-    WhatsNewEntry(version: "1.6.9", items: [
-        "Straighten tool — while cropping, drag the new Straighten slider to level a tilted screenshot in 1° steps. The crop tightens automatically so you never get blank corners, and an alignment grid appears while you adjust to help you line things up.",
-        "Redesigned Edit mode — photo adjustments are now organised into tidy, collapsible Light, Color and Detail sections (inspired by Apple Photos), so the panel is much easier to scan.",
-        "New Tint control under Color, alongside Temperature, for finer colour correction.",
-        "Crop, Rotate and Resize now sit together in Edit mode for a clearer, more consistent editing workflow.",
     ]),
 ]
 
