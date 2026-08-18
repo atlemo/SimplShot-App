@@ -678,6 +678,13 @@ private final class StatusItemDragView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         guard let menu = statusItem?.menu else { return }
+        // popUpContextMenu(_:with:for:) makes the menu inherit THIS view's
+        // effective appearance, and the status-bar window follows the *menu bar*
+        // (dark whenever the wallpaper behind it is dark) — not the system
+        // Light/Dark setting. Without this the menu renders dark in Light Mode
+        // while every other status-bar menu is light. Pin it to the app
+        // appearance, which is what a statusItem.button-driven menu would get.
+        menu.appearance = NSApp.effectiveAppearance
         NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
 
