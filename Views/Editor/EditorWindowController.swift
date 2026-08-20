@@ -594,19 +594,35 @@ final class CaptureHistoryService {
         guard let raw = session.rawImage,
               let rawCG = raw.cgImage(forProposedRect: nil, context: nil, hints: nil)
         else { return }
+        // The background closure must not capture the (MainActor-owned,
+        // non-Sendable) session — only Sendable values. The result is routed
+        // back by session id and re-resolved against the current entries.
         let pointSize = raw.size
+        let sessionID = session.id
         DispatchQueue.global(qos: .utility).async {
             let data = NSBitmapImageRep(cgImage: rawCG)
                 .representation(using: .png, properties: [:])
-            DispatchQueue.main.async {
-                // If the entry was restored (or evicted and reopened) while we
-                // were encoding, the editor owns the session again — leave its
-                // bitmap alone.
-                guard session.isHistoryRestore, let data else { return }
-                session.rawImageData = data
-                session.rawImagePointSize = pointSize
-                session.rawImage = nil
+            guard let data else { return }
+            Task { @MainActor in
+                CaptureHistoryService.shared.applyCompressedRawImage(
+                    data, pointSize: pointSize, sessionID: sessionID
+                )
             }
+        }
+    }
+
+    /// Completion for the background PNG encode: swap the session's raw bitmap
+    /// for the compressed bytes. Looking the session up in the CURRENT entries
+    /// is the ownership check — if the entry was restored or evicted while the
+    /// encode ran, the session is no longer here and its bitmap is left alone.
+    private func applyCompressedRawImage(_ data: Data, pointSize: CGSize, sessionID: UUID) {
+        for entry in entries {
+            guard let session = entry.sessions?.first(where: { $0.id == sessionID }) else { continue }
+            guard session.isHistoryRestore else { return }
+            session.rawImageData = data
+            session.rawImagePointSize = pointSize
+            session.rawImage = nil
+            return
         }
     }
 

@@ -8,7 +8,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "SimplShot"
+            "value" : ""
           }
         }
       },
@@ -31,16 +31,16 @@
       "comment" : "Shown by macOS when SimplShot asks for Accessibility access.",
       "extractionState" : "manual",
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SimplShot needs accessibility access to resize application windows."
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SimplShot benötigt Bedienungshilfen-Zugriff, um die Fenster von Apps in der Größe zu ändern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot needs accessibility access to resize application windows."
           }
         },
         "fr" : {
