@@ -638,9 +638,7 @@ class TemplateRenderer {
     ) {
         guard watermark.isEnabled,
               let path = watermark.imagePath,
-              // Cached bytes → fresh NSImage per call (safe to draw off-main, e.g.
-              // capture-time template compositing), avoids re-reading from disk.
-              let nsImage = WatermarkImageCache.image(atPath: path)
+              let aspect = WatermarkImageCache.aspect(atPath: path)
         else { return }
 
         // Watermark dimensions are image-pixel units, consistent with the editor
@@ -649,13 +647,13 @@ class TemplateRenderer {
         let marginH = CGFloat(watermark.edgeOffset)
         let marginV = CGFloat(watermark.bottomOffset)
         let targetW = max(1, CGFloat(watermark.widthPx))
-        let rawSize = nsImage.size
-        let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
         let targetH = max(1, targetW / aspect)
 
-        guard let wmCG = rasterize(nsImage, size: CGSize(width: targetW, height: targetH)) else {
-            return
-        }
+        // Cached raster — the CGImage is immutable, so it's safe to reuse across
+        // renders and threads (capture-time compositing runs off-main).
+        guard let wmCG = WatermarkImageCache.rasterized(
+            atPath: path, size: CGSize(width: targetW, height: targetH)
+        ) else { return }
 
         let x: CGFloat
         let y: CGFloat
@@ -678,30 +676,5 @@ class TemplateRenderer {
         context.setAlpha(CGFloat(watermark.opacity))
         context.draw(wmCG, in: CGRect(x: x, y: y, width: targetW, height: targetH))
         context.restoreGState()
-    }
-
-    /// Renders an NSImage (SVG, PNG, JPG) into a CGImage at exactly `size` pixels.
-    private func rasterize(_ nsImage: NSImage, size: CGSize) -> CGImage? {
-        guard size.width > 0, size.height > 0 else { return nil }
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: nil,
-            width: Int(size.width),
-            height: Int(size.height),
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-
-        let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: false)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = nsCtx
-        nsImage.draw(in: NSRect(origin: .zero, size: size),
-                     from: .zero,
-                     operation: .copy,
-                     fraction: 1.0)
-        NSGraphicsContext.restoreGraphicsState()
-        return ctx.makeImage()
     }
 }

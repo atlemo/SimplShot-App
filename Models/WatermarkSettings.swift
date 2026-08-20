@@ -23,10 +23,90 @@ enum WatermarkImageCache {
         return (image?.isValid == true) ? image : nil
     }
 
-    private static func data(atPath path: String) -> Data? {
+    /// Native aspect ratio (width / height) of the watermark image, or nil when
+    /// it can't be loaded. Falls back to 1 for a degenerate (zero-height) image,
+    /// matching the renderers' previous inline computation.
+    static func aspect(atPath path: String) -> CGFloat? {
+        guard let image = image(atPath: path) else { return nil }
+        let size = image.size
+        return size.height > 0 ? size.width / size.height : 1.0
+    }
+
+    // Rasterized watermark cache. Unlike `image(atPath:)` — which hands out a
+    // fresh NSImage each call precisely so nothing is shared across threads —
+    // a CGImage is immutable and safe to share, so the expensive rasterization
+    // (a full CGContext draw, and for SVG a vector render) is done once per
+    // path+size instead of on every template render. A padding-slider drag
+    // re-composites the canvas every frame and used to redo this each time.
+    private static var rasterCache: [String: CGImage] = [:]
+    private static let rasterLock = NSLock()
+
+    /// Renders the watermark at `path` into a CGImage of exactly `size` pixels,
+    /// reusing the previous result when the path, file mtime, and size all match.
+    /// Only the most recent size per path is retained (a width-slider drag
+    /// replaces rather than accumulates).
+    static func rasterized(atPath path: String, size: CGSize) -> CGImage? {
+        guard size.width > 0, size.height > 0 else { return nil }
+        let key = "\(cacheKey(forPath: path))|\(Int(size.width.rounded()))x\(Int(size.height.rounded()))"
+
+        rasterLock.lock()
+        if let cached = rasterCache[key] {
+            rasterLock.unlock()
+            return cached
+        }
+        rasterLock.unlock()
+
+        // Rasterize outside the lock — a concurrent miss may duplicate the work,
+        // which is harmless, but holding a lock across an NSImage draw is not.
+        guard let image = image(atPath: path),
+              let rendered = rasterize(image, size: size) else { return nil }
+
+        rasterLock.lock()
+        // Drop any other size/mtime for this path so the cache stays bounded.
+        let stalePrefix = "\(path)|"
+        for staleKey in rasterCache.keys where staleKey.hasPrefix(stalePrefix) && staleKey != key {
+            rasterCache.removeValue(forKey: staleKey)
+        }
+        rasterCache[key] = rendered
+        rasterLock.unlock()
+        return rendered
+    }
+
+    /// Renders an NSImage (SVG, PNG, JPG) into a CGImage at exactly `size` pixels.
+    /// Going through NSGraphicsContext ensures vector sources rasterize at the
+    /// target resolution rather than their intrinsic one.
+    private static func rasterize(_ nsImage: NSImage, size: CGSize) -> CGImage? {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: nil,
+            width: Int(size.width),
+            height: Int(size.height),
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: false)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = nsCtx
+        nsImage.draw(in: NSRect(origin: .zero, size: size),
+                     from: .zero,
+                     operation: .copy,
+                     fraction: 1.0)
+        NSGraphicsContext.restoreGraphicsState()
+        return ctx.makeImage()
+    }
+
+    /// Path + modification date, so replacing the file invalidates its entries.
+    private static func cacheKey(forPath path: String) -> String {
         let attrs = try? FileManager.default.attributesOfItem(atPath: path)
         let mtime = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let key = "\(path)|\(mtime)"
+        return "\(path)|\(mtime)"
+    }
+
+    private static func data(atPath path: String) -> Data? {
+        let key = cacheKey(forPath: path)
 
         lock.lock()
         if let cached = cache[key] {

@@ -274,6 +274,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         for url in items where url.lastPathComponent.contains(".sb-") {
             try? FileManager.default.removeItem(at: url)
         }
+        cleanupOldPastedImages()
+    }
+
+    /// Prunes the PNGs that "Copy" writes to the temp directory so recipient apps
+    /// can derive a filename (see `EditorView.copyToClipboardSilent`). Each copy
+    /// writes a uniquely-named file that nothing ever deletes, so they accumulate
+    /// until the OS purges temp — which can take days.
+    ///
+    /// Only files older than a day are removed: the pasteboard outlives the app,
+    /// so a URL copied in a recent session may still be pasted after a relaunch.
+    /// Runs off the main thread — it's disk I/O on a directory we don't own and
+    /// must not add launch latency.
+    private func cleanupOldPastedImages() {
+        let tempDir = FileManager.default.temporaryDirectory
+        DispatchQueue.global(qos: .utility).async {
+            guard let items = try? FileManager.default.contentsOfDirectory(
+                at: tempDir,
+                includingPropertiesForKeys: [.contentModificationDateKey]
+            ) else { return }
+            let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+            for url in items where url.lastPathComponent.hasPrefix("SimplShot_pasted_") {
+                let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate
+                guard let modified, modified < cutoff else { continue }
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
     }
 
     private func donateSpotlightItem() {

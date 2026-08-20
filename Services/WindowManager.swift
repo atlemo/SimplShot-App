@@ -20,8 +20,11 @@ class WindowManager {
             kAXFocusedWindowAttribute as CFString,
             &value
         )
-        if focusedResult == .success {
-            return (value as! AXUIElement)
+        // A `.success` result doesn't guarantee the payload's type — a
+        // misbehaving app's AX tree can hand back something else, and a forced
+        // cast there would crash the whole app. Check before casting.
+        if focusedResult == .success, let element = value, CFGetTypeID(element) == AXUIElementGetTypeID() {
+            return (element as! AXUIElement)
         }
 
         // Fall back to first window in list
@@ -64,18 +67,18 @@ class WindowManager {
         // Set size first
         _ = setSize(of: window, to: targetSize)
 
-        // Find which screen the window is on
+        // Find which screen the window is on. With no screen at all (all displays
+        // asleep) there's nothing to nudge onto — the resize itself still stands.
         let windowRect = CGRect(origin: currentState.position, size: targetSize)
-        let screen = NSScreen.screenContaining(axRect: windowRect) ?? NSScreen.main!
-        let screenFrame = screen.frameInAXCoordinates
-
-        // Nudge position to keep window on screen
-        let nudgedOrigin = nudgeOntoScreen(
-            windowOrigin: currentState.position,
-            windowSize: targetSize,
-            screenFrame: screenFrame
-        )
-        _ = setPosition(of: window, to: nudgedOrigin)
+        if let screen = NSScreen.screenContaining(axRect: windowRect) ?? NSScreen.main {
+            // Nudge position to keep window on screen
+            let nudgedOrigin = nudgeOntoScreen(
+                windowOrigin: currentState.position,
+                windowSize: targetSize,
+                screenFrame: screen.frameInAXCoordinates
+            )
+            _ = setPosition(of: window, to: nudgedOrigin)
+        }
 
         // Set size again (macOS sometimes constrains on first attempt)
         _ = setSize(of: window, to: targetSize)
@@ -87,7 +90,8 @@ class WindowManager {
     func centerOnScreen(_ window: AXUIElement) {
         guard let state = getWindowState(window) else { return }
         let windowRect = CGRect(origin: state.position, size: state.size)
-        let screen = NSScreen.screenContaining(axRect: windowRect) ?? NSScreen.main!
+        guard let screen = NSScreen.screenContaining(axRect: windowRect) ?? NSScreen.main
+        else { return }
         let screenFrame = screen.frameInAXCoordinates
 
         let centeredOrigin = CGPoint(
@@ -142,7 +146,9 @@ class WindowManager {
             else { continue }
 
             var bounds = CGRect.zero
-            guard CGRectMakeWithDictionaryRepresentation(boundsRef as! CFDictionary, &bounds) else { continue }
+            guard CFGetTypeID(boundsRef) == CFDictionaryGetTypeID(),
+                  CGRectMakeWithDictionaryRepresentation((boundsRef as! CFDictionary), &bounds)
+            else { continue }
 
             if abs(bounds.origin.x - position.x) <= 2 &&
                abs(bounds.origin.y - position.y) <= 2 &&
@@ -222,11 +228,11 @@ class WindowManager {
 
     private func getPosition(of element: AXUIElement) -> CGPoint? {
         var value: AnyObject?
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &value) == .success else {
-            return nil
-        }
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &value) == .success,
+              let raw = value, CFGetTypeID(raw) == AXValueGetTypeID()
+        else { return nil }
         var point = CGPoint.zero
-        AXValueGetValue(value as! AXValue, .cgPoint, &point)
+        guard AXValueGetValue((raw as! AXValue), .cgPoint, &point) else { return nil }
         return point
     }
 
@@ -238,11 +244,11 @@ class WindowManager {
 
     private func getSize(of element: AXUIElement) -> CGSize? {
         var value: AnyObject?
-        guard AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &value) == .success else {
-            return nil
-        }
+        guard AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &value) == .success,
+              let raw = value, CFGetTypeID(raw) == AXValueGetTypeID()
+        else { return nil }
         var size = CGSize.zero
-        AXValueGetValue(value as! AXValue, .cgSize, &size)
+        guard AXValueGetValue((raw as! AXValue), .cgSize, &size) else { return nil }
         return size
     }
 

@@ -51,16 +51,14 @@ class AnnotationRenderer {
     /// - Parameters:
     ///   - image: The base screenshot (at full pixel resolution).
     ///   - annotations: Annotations with coordinates in image-pixel space.
-    ///   - backingScale: The display backing scale factor (e.g. 2.0 on Retina, 3.0 on 3×).
-    ///     Annotation style values (strokeWidth, fontSize) are in logical points and get
-    ///     multiplied by this factor to match the image's pixel density.
+    ///     Style values (strokeWidth, fontSize) are scaled by `styleScale` —
+    ///     set that before calling for high-DPI images.
     ///   - cropRect: Optional crop rect in image-pixel space. `nil` means no crop.
     ///   - watermark: Watermark settings. Applied on top of all annotations.
     /// - Returns: The composited CGImage.
     func render(
         image: CGImage,
         annotations: [Annotation],
-        backingScale: CGFloat,
         cropRect: CGRect?,
         watermark: WatermarkSettings = WatermarkSettings()
     ) throws -> CGImage {
@@ -103,18 +101,14 @@ class AnnotationRenderer {
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: 1, y: -1)
 
-        // 3. Pixelate renders before spotlight so it appears as image content being dimmed.
-        for annotation in annotations where annotation.tool == .pixelate {
-            drawAnnotation(annotation, backingScale: backingScale, drawingHeight: CGFloat(height), in: context)
-        }
-
+        // 3. Spotlight dim first (pixelate was already drawn before the flip,
+        //    so it appears as image content being dimmed).
         let spotlightAnnotations = annotations.filter { $0.tool == .spotlight }
         if !spotlightAnnotations.isEmpty {
             drawSpotlights(
                 spotlightAnnotations,
                 imageWidth: width,
                 imageHeight: height,
-                backingScale: backingScale,
                 in: context
             )
         }
@@ -122,24 +116,24 @@ class AnnotationRenderer {
         // 4. Draw remaining annotations on top of the spotlight dim.
         for annotation in annotations {
             if annotation.tool == .spotlight || annotation.tool == .pixelate { continue }
-            drawAnnotation(annotation, backingScale: backingScale, drawingHeight: CGFloat(height), in: context)
+            drawAnnotation(annotation, drawingHeight: CGFloat(height), in: context)
         }
 
         // 4. Draw watermark on top of all annotations.
         //    Context is in flipped/top-left space, so CGImage drawing needs a local unflip.
         if watermark.isEnabled, let path = watermark.imagePath,
-           let nsImage = WatermarkImageCache.image(atPath: path) {
+           let aspect = WatermarkImageCache.aspect(atPath: path) {
             // Offsets and width are image-pixel units (matching the canvas
             // preview's `* scale`); the context is image-pixel space already, so
             // no backing-scale multiplier — same convention as strokeWidth/fontSize.
             let marginH = CGFloat(watermark.edgeOffset)
             let marginV = CGFloat(watermark.bottomOffset)
             let targetW = max(1, CGFloat(watermark.widthPx))
-            let rawSize = nsImage.size
-            let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
             let targetH = max(1, targetW / aspect)
 
-            if let wmCG = rasterize(nsImage, size: CGSize(width: targetW, height: targetH)) {
+            if let wmCG = WatermarkImageCache.rasterized(
+                atPath: path, size: CGSize(width: targetW, height: targetH)
+            ) {
                 let x: CGFloat
                 let y: CGFloat
                 switch watermark.position {
@@ -224,7 +218,6 @@ class AnnotationRenderer {
                 spotlightAnnotations,
                 imageWidth: widthPx,
                 imageHeight: heightPx,
-                backingScale: backingScale,
                 in: context
             )
         }
@@ -232,22 +225,22 @@ class AnnotationRenderer {
         for annotation in annotations {
             if annotation.tool == .spotlight { continue }
             if annotation.tool == .pixelate { continue }  // unsupported in vector mode
-            drawAnnotation(annotation, backingScale: backingScale, drawingHeight: CGFloat(heightPx), in: context)
+            drawAnnotation(annotation, drawingHeight: CGFloat(heightPx), in: context)
         }
 
         if watermark.isEnabled, let path = watermark.imagePath,
-           let nsImage = WatermarkImageCache.image(atPath: path) {
+           let aspect = WatermarkImageCache.aspect(atPath: path) {
             // Image-pixel units, matching the raster path and canvas preview.
             // The vector context is pre-scaled to image-pixel space (see the
             // `1/backingScale` above), so no backing-scale multiplier here either.
             let marginH = CGFloat(watermark.edgeOffset)
             let marginV = CGFloat(watermark.bottomOffset)
             let targetW = max(1, CGFloat(watermark.widthPx))
-            let rawSize = nsImage.size
-            let aspect = rawSize.height > 0 ? rawSize.width / rawSize.height : 1.0
             let targetH = max(1, targetW / aspect)
 
-            if let wmCG = rasterize(nsImage, size: CGSize(width: targetW, height: targetH)) {
+            if let wmCG = WatermarkImageCache.rasterized(
+                atPath: path, size: CGSize(width: targetW, height: targetH)
+            ) {
                 let x: CGFloat
                 let y: CGFloat
                 switch watermark.position {
@@ -331,7 +324,7 @@ class AnnotationRenderer {
     /// `context.height`: that property is the *bitmap* pixel height, which differs
     /// from drawing space when the context is scaled (native-resolution PDF raster)
     /// and is 0 for non-bitmap contexts (vector PDF export).
-    private func drawAnnotation(_ annotation: Annotation, backingScale: CGFloat, drawingHeight: CGFloat, in context: CGContext) {
+    private func drawAnnotation(_ annotation: Annotation, drawingHeight: CGFloat, in context: CGContext) {
         let color = annotation.style.cgStrokeColor
         // Style values (strokeWidth, fontSize) are interpreted in image-pixel
         // units and multiplied by `styleScale` for high-DPI images. The live
@@ -368,7 +361,7 @@ class AnnotationRenderer {
         case .line:
             drawLine(from: annotation.startPoint, to: annotation.endPoint, in: context)
         case .rectangle:
-            drawRectangle(annotation.boundingRect, fillColor: annotation.style.cgFillColor, color: color, backingScale: backingScale, in: context)
+            drawRectangle(annotation.boundingRect, fillColor: annotation.style.cgFillColor, color: color, in: context)
         case .circle:
             drawEllipse(in: annotation.boundingRect, fillColor: annotation.style.cgFillColor, color: color, in: context)
         case .triangle:
@@ -376,11 +369,11 @@ class AnnotationRenderer {
         case .star:
             drawStar(annotation.boundingRect, fillColor: annotation.style.cgFillColor, color: color, in: context)
         case .text:
-            drawText(annotation.text, at: annotation.startPoint, style: annotation.style, backingScale: backingScale, drawingHeight: drawingHeight, in: context)
+            drawText(annotation.text, at: annotation.startPoint, style: annotation.style, drawingHeight: drawingHeight, in: context)
         case .spotlight:
             break
         case .numberedStep:
-            drawNumberedStep(annotation.stepNumber, at: annotation.startPoint, style: annotation.style, backingScale: backingScale, in: context)
+            drawNumberedStep(annotation.stepNumber, at: annotation.startPoint, style: annotation.style, in: context)
         case .select, .textSelect, .crop, .pixelate:
             break // Not drawn here (.pixelate is handled before the coordinate flip)
         }
@@ -681,7 +674,7 @@ class AnnotationRenderer {
         return out
     }
 
-    private func drawRectangle(_ rect: CGRect, fillColor: CGColor?, color: CGColor, backingScale: CGFloat, in context: CGContext) {
+    private func drawRectangle(_ rect: CGRect, fillColor: CGColor?, color: CGColor, in context: CGContext) {
         // Corner radius in image-pixel units × styleScale (matching the preview's
         // `6 * scale * dpiScaleFactor`) — same convention as strokeWidth/fontSize.
         let cornerRadius: CGFloat = 6 * styleScale
@@ -785,7 +778,6 @@ class AnnotationRenderer {
         _ annotations: [Annotation],
         imageWidth: Int,
         imageHeight: Int,
-        backingScale: CGFloat,
         in context: CGContext
     ) {
         guard let strongestOpacity = annotations.map(\.style.spotlightOpacity).max() else { return }
@@ -859,7 +851,7 @@ class AnnotationRenderer {
         context.restoreGState()
     }
 
-    private func drawText(_ text: String, at point: CGPoint, style: AnnotationStyle, backingScale: CGFloat, drawingHeight: CGFloat, in context: CGContext) {
+    private func drawText(_ text: String, at point: CGPoint, style: AnnotationStyle, drawingHeight: CGFloat, in context: CGContext) {
         guard !text.isEmpty else { return }
 
         // Text bubbles are NOT scaled by styleScale: their box geometry and the
@@ -988,35 +980,7 @@ class AnnotationRenderer {
         }
     }
 
-    // MARK: - Watermark Helpers
-
-    /// Renders an NSImage (SVG, PNG, JPG) into a CGImage at exactly `size` pixels.
-    /// Using NSGraphicsContext ensures SVG is rasterized at the target resolution.
-    private func rasterize(_ nsImage: NSImage, size: CGSize) -> CGImage? {
-        guard size.width > 0, size.height > 0 else { return nil }
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: nil,
-            width: Int(size.width),
-            height: Int(size.height),
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-
-        let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: false)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = nsCtx
-        nsImage.draw(in: NSRect(origin: .zero, size: size),
-                     from: .zero,
-                     operation: .copy,
-                     fraction: 1.0)
-        NSGraphicsContext.restoreGraphicsState()
-        return ctx.makeImage()
-    }
-
-    private func drawNumberedStep(_ number: Int, at point: CGPoint, style: AnnotationStyle, backingScale: CGFloat, in context: CGContext) {
+    private func drawNumberedStep(_ number: Int, at point: CGPoint, style: AnnotationStyle, in context: CGContext) {
         // Not scaled by styleScale (see drawText) — geometry is font-derived and
         // the badge is sized directly via the font control.
         let fontSize = style.fontSize

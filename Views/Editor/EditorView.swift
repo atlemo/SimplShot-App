@@ -3701,7 +3701,6 @@ struct EditorView: View {
         return try? renderer.render(
             image: cg,
             annotations: annotations,
-            backingScale: displayBackingScale,
             cropRect: nil,
             watermark: watermark
         )
@@ -3844,7 +3843,6 @@ struct EditorView: View {
         let outputImage = try renderer.render(
             image: cgImage,
             annotations: session.annotations,
-            backingScale: displayBackingScale,
             cropRect: nil,
             watermark: session.watermarkSettings
         )
@@ -3990,7 +3988,6 @@ struct EditorView: View {
         let outputImage = try renderer.render(
             image: cgImage,
             annotations: annotations,
-            backingScale: displayBackingScale,
             cropRect: nil,
             watermark: watermarkSettings
         )
