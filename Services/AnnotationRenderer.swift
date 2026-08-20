@@ -748,29 +748,53 @@ class AnnotationRenderer {
         return path
     }
 
-    /// Extracts a region of `sourceImage`, pixelates it with CIPixellate, and draws it back.
+    /// Extracts a region of `sourceImage`, pixelates it, and draws it back.
     /// `annotationRect` is in top-left image-pixel coordinates (matching annotation storage).
     /// The context must be in its default native (bottom-left origin) CG space — call before flipping.
+    ///
+    /// Uses the same mosaic algorithm as the editor preview (`PixelatePreviewView`):
+    /// box-average downscale to one pixel per block, then nearest-neighbor upscale,
+    /// with the block grid anchored at the region's top-left corner. Do NOT swap
+    /// this back to CIPixellate — that filter point-samples each cell (no averaging)
+    /// and anchors its grid at `inputCenter`, so the exported blocks land in
+    /// different places with different colors than the preview showed.
     private func drawPixelate(annotationRect: CGRect, scale: CGFloat, from sourceImage: CGImage, imageHeight: Int, in context: CGContext) {
         let imageBounds = CGRect(x: 0, y: 0, width: sourceImage.width, height: sourceImage.height)
         let pixelRect = annotationRect.intersection(imageBounds)
         guard !pixelRect.isEmpty else { return }
 
-        // CIImage uses bottom-left origin; convert annotation rect from top-left coords.
-        let ciY = CGFloat(imageHeight) - pixelRect.maxY
-        let ciRect = CGRect(x: pixelRect.minX, y: ciY, width: pixelRect.width, height: pixelRect.height)
+        // CGImage.cropping uses the image's own top-left-origin space — same as
+        // the annotation rect, no flip needed.
+        guard let cropped = sourceImage.cropping(to: pixelRect) else { return }
 
-        guard let filter = CIFilter(name: "CIPixellate") else { return }
-        let ciImage = CIImage(cgImage: sourceImage).cropped(to: ciRect)
-        filter.setValue(ciImage, forKey: kCIInputImageKey)
-        filter.setValue(CIVector(x: ciRect.midX, y: ciRect.midY), forKey: kCIInputCenterKey)
-        filter.setValue(max(2.0, scale) as NSNumber, forKey: kCIInputScaleKey)
+        // One pixel per mosaic block — identical formula to the preview.
+        let blockSize = max(2, scale)
+        let smallW = max(1, Int(pixelRect.width / blockSize))
+        let smallH = max(1, Int(pixelRect.height / blockSize))
+        guard let smallCtx = CGContext(
+            data: nil,
+            width: smallW,
+            height: smallH,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return }
+        smallCtx.interpolationQuality = .high
+        smallCtx.draw(cropped, in: CGRect(x: 0, y: 0, width: smallW, height: smallH))
+        guard let smallImage = smallCtx.makeImage() else { return }
 
-        guard let outputCI = filter.outputImage,
-              let cgOut = ciContext.createCGImage(outputCI, from: ciRect)
-        else { return }
-
-        context.draw(cgOut, in: CGRect(x: pixelRect.minX, y: ciY, width: pixelRect.width, height: pixelRect.height))
+        // Scale back up with interpolation off so the blocks stay sharp.
+        let destY = CGFloat(imageHeight) - pixelRect.maxY
+        context.saveGState()
+        context.interpolationQuality = .none
+        context.draw(smallImage, in: CGRect(
+            x: pixelRect.minX,
+            y: destY,
+            width: pixelRect.width,
+            height: pixelRect.height
+        ))
+        context.restoreGState()
     }
 
     /// Draws a single dimming overlay with one clear cutout per spotlight annotation.

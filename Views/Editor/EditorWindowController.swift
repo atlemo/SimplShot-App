@@ -1,4 +1,6 @@
 import AppKit
+import ImageIO
+import PDFKit
 import SwiftUI
 
 extension Notification.Name {
@@ -86,6 +88,9 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
     ) {
         guard !imageURLs.isEmpty else { return }
         let open = {
+            for url in imageURLs {
+                CaptureHistoryService.shared.recordCapture(fileURL: url)
+            }
             let controller = EditorWindowController(
                 imageURLs: imageURLs,
                 template: template,
@@ -201,6 +206,10 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
     ) {
         guard !sessions.isEmpty else { return }
         let open = {
+            var seenURLs = Set<URL>()
+            for session in sessions where seenURLs.insert(session.imageURL).inserted {
+                CaptureHistoryService.shared.recordCapture(fileURL: session.imageURL)
+            }
             let controller = EditorWindowController(
                 sessions: sessions,
                 appSettings: appSettings
@@ -232,9 +241,16 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
         )
         let fileName = sessions.first?.imageURL.deletingPathExtension().lastPathComponent ?? "PDF"
         let pageCount = sessions.count
-        window.title = pageCount > 1
-            ? String(localized: "Annotate — \(fileName).pdf (\(pageCount) pages)")
-            : String(localized: "Annotate — \(fileName).pdf")
+        if sessions.first?.isPDF == true {
+            window.title = pageCount > 1
+                ? String(localized: "Annotate — \(fileName).pdf (\(pageCount) pages)")
+                : String(localized: "Annotate — \(fileName).pdf")
+        } else {
+            // Raster sessions restored from Capture History.
+            window.title = pageCount > 1
+                ? String(localized: "Edit & Annotate — \(pageCount) images")
+                : String(localized: "Edit & Annotate — \(sessions[0].imageURL.lastPathComponent)")
+        }
         window.minSize = NSSize(width: 600, height: 500)
         window.isReleasedWhenClosed = false
 
@@ -424,5 +440,437 @@ class EditorWindowController: NSWindowController, NSWindowDelegate {
             width: max(min(contentWidth, maxWidth), 600),
             height: max(min(contentHeight, maxHeight), 500)
         )
+    }
+}
+
+// MARK: - Capture History
+
+/// Keeps the last `maxEntries` captured screenshots / edited files for the
+/// "Capture History" film strip. Entries recorded when an editor window closes
+/// carry the live `ImageSession` objects, so restoring reopens the editor with
+/// every annotation, crop and template setting still editable. Entries recorded
+/// at capture/open time (or reloaded from a previous launch) are URL-only and
+/// restore by reopening the file from disk.
+@MainActor
+final class CaptureHistoryService {
+    static let shared = CaptureHistoryService()
+
+    struct Entry: Identifiable {
+        let id = UUID()
+        var fileURL: URL
+        var date: Date
+        var isPDF: Bool
+        /// Live editable editor state (in-memory only — annotations aren't
+        /// persisted to disk, so this is lost on quit).
+        var sessions: [ImageSession]?
+        var thumbnail: NSImage?
+    }
+
+    /// Newest first, capped at `maxEntries`.
+    private(set) var entries: [Entry] = []
+    private let maxEntries = 10
+    private static let defaultsKey = "captureHistoryPaths"
+
+    var isEmpty: Bool { entries.isEmpty }
+
+    private init() {
+        loadPersisted()
+    }
+
+    /// Record a captured or opened file. Dedupes by path: an existing entry is
+    /// bumped to the front, keeping any live sessions it already carries.
+    func recordCapture(fileURL: URL) {
+        let path = fileURL.standardizedFileURL.path
+        var entry: Entry
+        if let idx = entries.firstIndex(where: { $0.fileURL.standardizedFileURL.path == path }) {
+            entry = entries.remove(at: idx)
+            entry.date = Date()
+        } else {
+            entry = Entry(
+                fileURL: fileURL,
+                date: Date(),
+                isPDF: fileURL.pathExtension.lowercased() == "pdf",
+                sessions: nil,
+                thumbnail: nil
+            )
+        }
+        entries.insert(entry, at: 0)
+        trimAndPersist()
+    }
+
+    /// Record the full session state of a closing editor. PDF pages sharing a
+    /// `pdfGroupID` collapse into one entry (the whole document restores
+    /// together); every other session becomes its own entry.
+    func recordSessions(_ sessions: [ImageSession]) {
+        var handledGroups: Set<UUID> = []
+        for session in sessions {
+            if let groupID = session.pdfGroupID {
+                guard handledGroups.insert(groupID).inserted else { continue }
+                let pages = sessions.filter { $0.pdfGroupID == groupID }
+                insertSessionEntry(fileURL: session.imageURL, sessions: pages, isPDF: true)
+            } else if session.image != nil {
+                insertSessionEntry(fileURL: session.imageURL, sessions: [session], isPDF: false)
+            } else {
+                // Never activated in the editor — no state worth keeping.
+                recordCapture(fileURL: session.imageURL)
+            }
+        }
+    }
+
+    private func insertSessionEntry(fileURL: URL, sessions: [ImageSession], isPDF: Bool) {
+        for session in sessions { Self.trimForHistory(session) }
+        let path = fileURL.standardizedFileURL.path
+        entries.removeAll { $0.fileURL.standardizedFileURL.path == path }
+        // Note: deliberately NOT seeding from `sessions.first?.thumbnail` — the
+        // editor regenerates that asynchronously, so at window-close time it can
+        // still show a pre-edit state. `loadThumbnail` renders from the composed
+        // display image instead, which always reflects the latest edits.
+        let entry = Entry(fileURL: fileURL, date: Date(), isPDF: isPDF, sessions: sessions, thumbnail: nil)
+        entries.insert(entry, at: 0)
+        trimAndPersist()
+    }
+
+    /// Drop the heavyweight, restore-irrelevant parts of a session so ten
+    /// history entries can't pin an unbounded amount of memory — every undo
+    /// snapshot holds full-size bitmaps. The decoded images themselves are
+    /// kept: reloading from disk would reset the crop rect (see `applyLoaded`).
+    private static func trimForHistory(_ session: ImageSession) {
+        session.undoStack = []
+        session.preCropSnapshot = nil
+        session.selectedAnnotationID = nil
+        session.isCropping = false
+    }
+
+    /// Reopen an entry in the editor. Live sessions restore with all state; the
+    /// entry is removed first so a second Restore can't open the same mutable
+    /// session objects twice (the editor re-records them when it closes).
+    func restore(_ entry: Entry, appSettings: AppSettings?) {
+        if let sessions = entry.sessions, !sessions.isEmpty {
+            entries.removeAll { $0.id == entry.id }
+            trimAndPersist()
+            EditorWindowController.openEditor(sessions: sessions, appSettings: appSettings)
+        } else if entry.isPDF {
+            let sessions = PDFService.loadPages(from: entry.fileURL)
+            guard !sessions.isEmpty else { return }
+            EditorWindowController.openEditor(sessions: sessions, appSettings: appSettings)
+        } else {
+            EditorWindowController.openEditor(imageURL: entry.fileURL, appSettings: appSettings)
+        }
+    }
+
+    // MARK: Thumbnails
+
+    /// Async thumbnail for a strip cell. Session entries render from the
+    /// composed display image (so photo adjustments, crop and background are
+    /// visible); URL-only entries decode a small preview from disk. Both run
+    /// off the main thread and cache the result on the entry.
+    func loadThumbnail(for entryID: UUID, completion: @escaping (NSImage?) -> Void) {
+        guard let idx = entries.firstIndex(where: { $0.id == entryID }) else {
+            completion(nil)
+            return
+        }
+        if let cached = entries[idx].thumbnail {
+            completion(cached)
+            return
+        }
+        let displayImage = entries[idx].sessions?.first?.image
+        let url = entries[idx].fileURL
+        let isPDF = entries[idx].isPDF
+        DispatchQueue.global(qos: .userInitiated).async {
+            let thumb: NSImage?
+            if let displayImage {
+                thumb = Self.downscaledThumbnail(from: displayImage)
+            } else {
+                thumb = Self.diskThumbnail(for: url, isPDF: isPDF)
+            }
+            DispatchQueue.main.async {
+                if let i = self.entries.firstIndex(where: { $0.id == entryID }) {
+                    self.entries[i].thumbnail = thumb
+                }
+                completion(thumb)
+            }
+        }
+    }
+
+    /// Downscale a session's composed display image for the strip.
+    private nonisolated static func downscaledThumbnail(from image: NSImage) -> NSImage? {
+        guard let cgSource = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        let pixelW = CGFloat(cgSource.width)
+        let pixelH = CGFloat(cgSource.height)
+        guard pixelW > 0, pixelH > 0 else { return nil }
+        let scale = min(320 / pixelW, 320 / pixelH, 1.0)
+        let renderW = max(Int((pixelW * scale).rounded()), 1)
+        let renderH = max(Int((pixelH * scale).rounded()), 1)
+        guard let ctx = CGContext(
+            data: nil,
+            width: renderW,
+            height: renderH,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.interpolationQuality = .high
+        ctx.draw(cgSource, in: CGRect(x: 0, y: 0, width: renderW, height: renderH))
+        guard let cgThumb = ctx.makeImage() else { return nil }
+        return NSImage(cgImage: cgThumb, size: NSSize(width: renderW, height: renderH))
+    }
+
+    private nonisolated static func diskThumbnail(for url: URL, isPDF: Bool) -> NSImage? {
+        if isPDF {
+            guard let document = PDFDocument(url: url), let page = document.page(at: 0) else { return nil }
+            let pageSize = page.rotatedMediaBoxSize
+            guard pageSize.width > 0, pageSize.height > 0 else { return nil }
+            let scale = 320 / max(pageSize.width, pageSize.height)
+            return page.thumbnail(
+                of: CGSize(width: pageSize.width * scale, height: pageSize.height * scale),
+                for: .mediaBox
+            )
+        }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 320
+        ]
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let cgThumb = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        else { return nil }
+        return NSImage(cgImage: cgThumb, size: NSSize(width: cgThumb.width, height: cgThumb.height))
+    }
+
+    // MARK: Persistence (file paths only — sessions are in-memory)
+
+    private struct PersistedEntry: Codable {
+        let path: String
+        let date: Date
+    }
+
+    private func loadPersisted() {
+        guard let data = UserDefaults.standard.data(forKey: Self.defaultsKey),
+              let stored = try? JSONDecoder().decode([PersistedEntry].self, from: data)
+        else { return }
+        entries = stored.compactMap { item in
+            guard FileManager.default.fileExists(atPath: item.path) else { return nil }
+            let url = URL(fileURLWithPath: item.path)
+            return Entry(
+                fileURL: url,
+                date: item.date,
+                isPDF: url.pathExtension.lowercased() == "pdf",
+                sessions: nil,
+                thumbnail: nil
+            )
+        }
+    }
+
+    private func trimAndPersist() {
+        if entries.count > maxEntries {
+            entries.removeLast(entries.count - maxEntries)
+        }
+        let stored = entries.map {
+            PersistedEntry(path: $0.fileURL.standardizedFileURL.path, date: $0.date)
+        }
+        if let data = try? JSONEncoder().encode(stored) {
+            UserDefaults.standard.set(data, forKey: Self.defaultsKey)
+        }
+    }
+}
+
+/// Borderless panel for the film strip: can become key so it receives ESC
+/// (via `cancelOperation`) despite having no title bar.
+private final class CaptureHistoryPanel: NSPanel {
+    var onCancel: (() -> Void)?
+
+    override var canBecomeKey: Bool { true }
+
+    override func cancelOperation(_ sender: Any?) {
+        onCancel?()
+    }
+
+    // Some first responders swallow cancelOperation — catch raw ESC too.
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 {
+            onCancel?()
+            return
+        }
+        super.keyDown(with: event)
+    }
+}
+
+/// Shows the Capture History film strip in a floating panel above all windows.
+/// Dismissed by ESC, by clicking anywhere outside the strip, or by restoring
+/// an entry.
+@MainActor
+final class CaptureHistoryPanelController {
+    static let shared = CaptureHistoryPanelController()
+
+    private var panel: CaptureHistoryPanel?
+    private var localClickMonitor: Any?
+    private var globalClickMonitor: Any?
+
+    private init() {}
+
+    func show(appSettings: AppSettings?) {
+        dismiss()
+        let entries = CaptureHistoryService.shared.entries
+        guard !entries.isEmpty else { return }
+
+        // The screen with the mouse — where the user opened the status-bar menu.
+        let mouseLocation = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(mouseLocation) }
+            ?? NSScreen.main
+        let visible = screen?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+
+        let strip = CaptureHistoryStripView(
+            entries: entries,
+            onRestore: { entry in
+                // Open the editor BEFORE dismissing the panel: the panel is the
+                // app's only key window, and ordering out the last window of an
+                // active accessory app deactivates it — the freshly opened
+                // editor would then land behind other apps' windows.
+                CaptureHistoryService.shared.restore(entry, appSettings: appSettings)
+                CaptureHistoryPanelController.shared.dismiss()
+            }
+        )
+        let hosting = NSHostingView(rootView: strip)
+        // Ten thumbnails outgrow a small laptop screen — clamp the panel and
+        // let the strip's internal ScrollView take over.
+        let fitting = hosting.fittingSize
+        let size = NSSize(
+            width: min(fitting.width, visible.width - 40),
+            height: fitting.height
+        )
+
+        let panel = CaptureHistoryPanel(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.onCancel = { [weak self] in self?.dismiss() }
+        panel.contentView = hosting
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.level = .statusBar
+        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        panel.isReleasedWhenClosed = false
+        panel.hidesOnDeactivate = false
+
+        // Centered horizontally, just below the menu bar.
+        panel.setFrameOrigin(NSPoint(
+            x: visible.midX - size.width / 2,
+            y: visible.maxY - size.height - 10
+        ))
+
+        self.panel = panel
+        // Activate so the panel actually receives key events (ESC) — as a menu
+        // bar app we're usually not the active application when this opens.
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+
+        // Click inside any other window of ours → dismiss.
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] event in
+            if event.window !== self?.panel {
+                self?.dismiss()
+            }
+            return event
+        }
+        // Click anywhere outside the app → dismiss.
+        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] _ in
+            Task { @MainActor in self?.dismiss() }
+        }
+    }
+
+    func dismiss() {
+        if let monitor = localClickMonitor {
+            NSEvent.removeMonitor(monitor)
+            localClickMonitor = nil
+        }
+        if let monitor = globalClickMonitor {
+            NSEvent.removeMonitor(monitor)
+            globalClickMonitor = nil
+        }
+        panel?.orderOut(nil)
+        panel = nil
+    }
+}
+
+/// The film strip content: a horizontal row of thumbnails, newest first.
+/// Hovering a thumbnail reveals a Restore button.
+private struct CaptureHistoryStripView: View {
+    let entries: [CaptureHistoryService.Entry]
+    let onRestore: (CaptureHistoryService.Entry) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(entries) { entry in
+                    CaptureHistoryThumbView(entry: entry) {
+                        onRestore(entry)
+                    }
+                }
+            }
+            .padding(12)
+        }
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(.separator.opacity(0.5), lineWidth: 1)
+        )
+        .padding(2)
+    }
+}
+
+private struct CaptureHistoryThumbView: View {
+    let entry: CaptureHistoryService.Entry
+    let onRestore: () -> Void
+
+    @State private var isHovering = false
+    @State private var thumbnail: NSImage?
+
+    var body: some View {
+        ZStack {
+            if let thumbnail {
+                Image(nsImage: thumbnail)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Rectangle()
+                    .fill(.quaternary)
+                Image(systemName: entry.isPDF ? "doc.richtext" : "photo")
+                    .font(.title2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(width: 120, height: 84)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            if isHovering {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.black.opacity(0.35))
+                Button(action: onRestore) {
+                    Text("Restore")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(.separator.opacity(0.6), lineWidth: 1)
+        )
+        .onHover { isHovering = $0 }
+        .help(entry.fileURL.lastPathComponent)
+        .onAppear {
+            CaptureHistoryService.shared.loadThumbnail(for: entry.id) { image in
+                thumbnail = image
+            }
+        }
     }
 }

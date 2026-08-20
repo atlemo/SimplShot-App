@@ -230,6 +230,13 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // --- Open existing image ---
+        let historyItem = NSMenuItem(title: String(localized: "Capture History"), action: #selector(showCaptureHistoryAction), keyEquivalent: "")
+        historyItem.target = self
+        historyItem.isEnabled = !CaptureHistoryService.shared.isEmpty
+        historyItem.image = NSImage(systemSymbolName: "photo.stack", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+        menu.addItem(historyItem)
+
         let clipboardItem = NSMenuItem(title: String(localized: "Open from Clipboard"), action: #selector(openFromClipboardAction), keyEquivalent: "")
         clipboardItem.target = self
         clipboardItem.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)?
@@ -413,6 +420,9 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
             await MainActor.run { [self] in
                 if !capturedFiles.isEmpty {
+                    for url in capturedFiles {
+                        CaptureHistoryService.shared.recordCapture(fileURL: url)
+                    }
                     if capturedFiles.count == 1, appSettings.openEditorAfterCapture {
                         EditorWindowController.openEditor(imageURL: capturedFiles[0], template: template, appSettings: appSettings)
                     } else if capturedFiles.count == 1, !appSettings.openEditorAfterCapture {
@@ -590,6 +600,9 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                         rawURL = finalURL
                     }
                     applyTemplateAndCopy(fileURL: finalURL, template: template)
+                    // The raw copy is the editable one — that's what a history
+                    // restore (like the notification click) should open.
+                    CaptureHistoryService.shared.recordCapture(fileURL: rawURL)
                     showSystemNotification(title: String(localized: "Screenshot Copied"), body: String(localized: "Click to Edit"), imageURL: rawURL)
                 }
                 onScreenshotsTaken?(1)
@@ -648,6 +661,12 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                 await MainActor.run { self.showAlert(String(localized: "OCR failed: \(error.localizedDescription)")) }
             }
         }
+    }
+
+    @objc func showCaptureHistoryAction() {
+        // Close the menu so the film strip isn't fighting menu tracking.
+        menu.cancelTracking()
+        CaptureHistoryPanelController.shared.show(appSettings: appSettings)
     }
 
     @objc func openFromClipboardAction() {
@@ -773,6 +792,9 @@ class MenuBuilder: NSObject, NSMenuDelegate {
                     template: template
                 )
                 await MainActor.run {
+                    for url in urls {
+                        CaptureHistoryService.shared.recordCapture(fileURL: url)
+                    }
                     showNotification(
                         title: String(localized: "Batch Capture Complete"),
                         body: String(localized: "\(urls.count) screenshots saved")

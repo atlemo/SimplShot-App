@@ -429,6 +429,20 @@ struct EditorView: View {
     private var bodyBase: some View {
         navigationContent
             .onAppear {
+            if let active = activeSession, active.image != nil {
+                // Session restored from Capture History — the full editor state
+                // (annotations, crop, template, zoom) lives in the session.
+                // Don't re-apply the default template or reload from disk:
+                // `applyLoaded` would reset the crop rect and a template
+                // re-apply would shift the annotations.
+                restoreSessionState(from: active)
+                updateFitScale(viewSize: lastViewSize)
+                preloadThumbnails()
+                installKeyMonitorIfNeeded()
+                onModeChange(editorMode)
+                onEditModeAvailabilityChange(!isPDFSession)
+                return
+            }
             if let appSettings {
                 editorPadding = template.padding
                 editorCornerRadius = template.cornerRadius
@@ -471,6 +485,17 @@ struct EditorView: View {
                   let action = notification.userInfo?["action"] as? String
             else { return }
             handleMenuAction(action)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
+            // Record this editor's sessions into Capture History so they can be
+            // restored with annotations still editable. Flush + save first so
+            // the recorded state matches what's on screen.
+            guard hostingWindow != nil,
+                  notification.object as? NSWindow === hostingWindow
+            else { return }
+            flushPendingDisplayRender()
+            saveActiveSessionState()
+            CaptureHistoryService.shared.recordSessions(sessions)
         }
         .onDisappear {
             removeKeyMonitor()
