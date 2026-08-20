@@ -248,6 +248,24 @@ class ImageSession: Identifiable, ObservableObject {
     // Undo
     var undoStack: [EditorSnapshot] = []
 
+    /// True when this session was recorded into Capture History. On reopen the
+    /// editor must restore state from the session (skip the default-template
+    /// apply and the fresh-load path) even though the display bitmaps were
+    /// dropped to save memory — they re-derive from `rawImage` / the PDF page.
+    /// The editor clears this on restore.
+    var isHistoryRestore: Bool = false
+
+    /// Losslessly-compressed (PNG) raw image, used by Capture History so a
+    /// resting entry holds ~5–15% of the decoded bitmap's memory. `rawImage`
+    /// and this are alternatives: history encodes then drops the bitmap;
+    /// restore decodes and repopulates it. Invalidated whenever `rawImage`
+    /// changes identity (e.g. a destructive resize).
+    var rawImageData: Data?
+    /// Point size of the NSImage `rawImageData` was encoded from, so the
+    /// decoded image keeps the original point dimensions (PNG carries no
+    /// reliable DPI back).
+    var rawImagePointSize: CGSize = .zero
+
     // Per-session renderer so flattenNativeCorners cache is isolated
     var templateRenderer = TemplateRenderer()
 

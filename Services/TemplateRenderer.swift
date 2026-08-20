@@ -127,8 +127,17 @@ class TemplateRenderer {
         // so scale the logical-point values to match.
         let padding = Int(CGFloat(template.padding) * backingScale)
 
-        let baseCanvasWidth = screenshotWidth + padding * 2
-        let baseCanvasHeight = screenshotHeight + padding * 2
+        // Per-side padding: an edge-aligned side sits flush (no padding) and
+        // the canvas shrinks by that side's padding, so the remaining sides
+        // keep an even gap. Center keeps padding on both sides.
+        // (Must stay in sync with EditorView.screenshotOriginInTemplatedCanvas.)
+        let padLeft   = alignment.horizontalFraction == 0 ? 0 : padding
+        let padRight  = alignment.horizontalFraction == 1 ? 0 : padding
+        let padTop    = alignment.verticalFraction   == 0 ? 0 : padding
+        let padBottom = alignment.verticalFraction   == 1 ? 0 : padding
+
+        let baseCanvasWidth = screenshotWidth + padLeft + padRight
+        let baseCanvasHeight = screenshotHeight + padTop + padBottom
         let (canvasWidth, canvasHeight) = canvasSize(
             baseWidth: baseCanvasWidth,
             baseHeight: baseCanvasHeight,
@@ -181,10 +190,11 @@ class TemplateRenderer {
             cachedBackgroundKey = bgKey
         }
 
-        // 2. Screenshot placement rect — position within canvas using alignment.
-        //    The full remaining space is distributed by the alignment fraction:
-        //    at an edge the screenshot sits flush (zero margin on that side);
-        //    at center it gets equal margins; fraction handles the continuum.
+        // 2. Screenshot placement rect — the free space is distributed by the
+        //    alignment fraction: an edge alignment sits flush on that side
+        //    (its padding was already removed from the canvas above, so the
+        //    other sides stay even), and any extra space a forced aspect
+        //    ratio added goes to the opposite side.
         let totalSpaceX = CGFloat(canvasWidth) - CGFloat(screenshotWidth)
         let totalSpaceY = CGFloat(canvasHeight) - CGFloat(screenshotHeight)
         let screenshotRect = CGRect(

@@ -518,27 +518,96 @@ final class CaptureHistoryService {
     }
 
     private func insertSessionEntry(fileURL: URL, sessions: [ImageSession], isPDF: Bool) {
-        for session in sessions { Self.trimForHistory(session) }
         let path = fileURL.standardizedFileURL.path
         entries.removeAll { $0.fileURL.standardizedFileURL.path == path }
-        // Note: deliberately NOT seeding from `sessions.first?.thumbnail` — the
-        // editor regenerates that asynchronously, so at window-close time it can
-        // still show a pre-edit state. `loadThumbnail` renders from the composed
-        // display image instead, which always reflects the latest edits.
         let entry = Entry(fileURL: fileURL, date: Date(), isPDF: isPDF, sessions: sessions, thumbnail: nil)
         entries.insert(entry, at: 0)
         trimAndPersist()
+
+        // Render the strip thumbnail NOW — annotations composited over the
+        // composed display image, same recipe as `writeSession` — because
+        // `trimForHistory` below drops the display bitmap it needs. (Not seeded
+        // from `session.thumbnail`: the editor regenerates that asynchronously,
+        // so at window-close time it can still show a pre-edit state.)
+        // The captured CGImage reference keeps the bitmap alive only until this
+        // render completes.
+        if let first = sessions.first,
+           let baseCG = first.currentDisplayCGImage
+               ?? first.image?.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            let annotations = first.annotations
+            let watermark = first.watermarkSettings
+            let styleScale = first.dpiScaleFactor
+            let entryID = entry.id
+            DispatchQueue.global(qos: .userInitiated).async {
+                let renderer = AnnotationRenderer()
+                renderer.styleScale = styleScale
+                let composited = (try? renderer.render(
+                    image: baseCG,
+                    annotations: annotations,
+                    cropRect: nil,
+                    watermark: watermark
+                )) ?? baseCG
+                let thumb = Self.downscaledThumbnail(from: composited)
+                DispatchQueue.main.async {
+                    if let i = self.entries.firstIndex(where: { $0.id == entryID }) {
+                        self.entries[i].thumbnail = thumb
+                    }
+                }
+            }
+        }
+
+        for session in sessions { Self.trimForHistory(session) }
     }
 
-    /// Drop the heavyweight, restore-irrelevant parts of a session so ten
-    /// history entries can't pin an unbounded amount of memory — every undo
-    /// snapshot holds full-size bitmaps. The decoded images themselves are
-    /// kept: reloading from disk would reset the crop rect (see `applyLoaded`).
+    /// Drop everything re-derivable from a session so ten history entries stay
+    /// cheap while remaining fully editable on restore:
+    /// - undo snapshots and the pre-crop snapshot hold full-size bitmaps;
+    /// - the display image + its CGImage rebuild from `rawImage` + the session's
+    ///   settings (loadImage's in-memory branch / `renderSessionDisplay`);
+    /// - the TemplateRenderer's caches (background canvas, shadow sprite,
+    ///   corner-flattening source) rebuild on the next render;
+    /// - PDF pages re-render from the in-memory `PDFDocument`, so even the raw
+    ///   raster can go.
+    /// Raster sessions must KEEP `rawImage`: a save-overwrite bakes annotations
+    /// into the disk file, so disk is not a trustworthy raw source.
     private static func trimForHistory(_ session: ImageSession) {
         session.undoStack = []
         session.preCropSnapshot = nil
         session.selectedAnnotationID = nil
         session.isCropping = false
+        session.image = nil
+        session.currentDisplayCGImage = nil
+        session.thumbnail = nil
+        session.templateRenderer = TemplateRenderer()
+        session.isHistoryRestore = true
+        if session.isPDF {
+            session.rawImage = nil
+            return
+        }
+        // Raster: swap the decoded raw bitmap for lossless PNG bytes (~5–15%
+        // of the RGBA size). If a valid compressed copy already exists (from a
+        // previous record of this session), drop the bitmap immediately.
+        if session.rawImageData != nil {
+            session.rawImage = nil
+            return
+        }
+        guard let raw = session.rawImage,
+              let rawCG = raw.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return }
+        let pointSize = raw.size
+        DispatchQueue.global(qos: .utility).async {
+            let data = NSBitmapImageRep(cgImage: rawCG)
+                .representation(using: .png, properties: [:])
+            DispatchQueue.main.async {
+                // If the entry was restored (or evicted and reopened) while we
+                // were encoding, the editor owns the session again — leave its
+                // bitmap alone.
+                guard session.isHistoryRestore, let data else { return }
+                session.rawImageData = data
+                session.rawImagePointSize = pointSize
+                session.rawImage = nil
+            }
+        }
     }
 
     /// Reopen an entry in the editor. Live sessions restore with all state; the
@@ -560,10 +629,12 @@ final class CaptureHistoryService {
 
     // MARK: Thumbnails
 
-    /// Async thumbnail for a strip cell. Session entries render from the
-    /// composed display image (so photo adjustments, crop and background are
-    /// visible); URL-only entries decode a small preview from disk. Both run
-    /// off the main thread and cache the result on the entry.
+    /// Async thumbnail for a strip cell. Session entries composite the
+    /// annotations over the composed display image — the same recipe as
+    /// `writeSession` — so the thumbnail shows exactly what a restore/export
+    /// produces (adjustments, crop, background, annotations incl. pixelation).
+    /// URL-only entries decode a small preview from disk. Both run off the
+    /// main thread and cache the result on the entry.
     func loadThumbnail(for entryID: UUID, completion: @escaping (NSImage?) -> Void) {
         guard let idx = entries.firstIndex(where: { $0.id == entryID }) else {
             completion(nil)
@@ -573,16 +644,40 @@ final class CaptureHistoryService {
             completion(cached)
             return
         }
-        let displayImage = entries[idx].sessions?.first?.image
+
+        // Session entry: snapshot the render inputs on the main thread (the
+        // annotations array and watermark are value types; the CGImage is
+        // immutable), then render + downscale in the background.
+        if let session = entries[idx].sessions?.first,
+           let baseCG = session.currentDisplayCGImage
+               ?? session.image?.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            let annotations = session.annotations
+            let watermark = session.watermarkSettings
+            let styleScale = session.dpiScaleFactor
+            DispatchQueue.global(qos: .userInitiated).async {
+                let renderer = AnnotationRenderer()
+                renderer.styleScale = styleScale
+                let composited = (try? renderer.render(
+                    image: baseCG,
+                    annotations: annotations,
+                    cropRect: nil,
+                    watermark: watermark
+                )) ?? baseCG
+                let thumb = Self.downscaledThumbnail(from: composited)
+                DispatchQueue.main.async {
+                    if let i = self.entries.firstIndex(where: { $0.id == entryID }) {
+                        self.entries[i].thumbnail = thumb
+                    }
+                    completion(thumb)
+                }
+            }
+            return
+        }
+
         let url = entries[idx].fileURL
         let isPDF = entries[idx].isPDF
         DispatchQueue.global(qos: .userInitiated).async {
-            let thumb: NSImage?
-            if let displayImage {
-                thumb = Self.downscaledThumbnail(from: displayImage)
-            } else {
-                thumb = Self.diskThumbnail(for: url, isPDF: isPDF)
-            }
+            let thumb = Self.diskThumbnail(for: url, isPDF: isPDF)
             DispatchQueue.main.async {
                 if let i = self.entries.firstIndex(where: { $0.id == entryID }) {
                     self.entries[i].thumbnail = thumb
@@ -592,9 +687,8 @@ final class CaptureHistoryService {
         }
     }
 
-    /// Downscale a session's composed display image for the strip.
-    private nonisolated static func downscaledThumbnail(from image: NSImage) -> NSImage? {
-        guard let cgSource = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+    /// Downscale a rendered image for the strip.
+    private nonisolated static func downscaledThumbnail(from cgSource: CGImage) -> NSImage? {
         let pixelW = CGFloat(cgSource.width)
         let pixelH = CGFloat(cgSource.height)
         guard pixelW > 0, pixelH > 0 else { return nil }
@@ -835,6 +929,26 @@ private struct CaptureHistoryThumbView: View {
     @State private var thumbnail: NSImage?
 
     var body: some View {
+        VStack(spacing: 4) {
+            thumbnailContent
+            // Relative timestamp ("2 minutes ago") — localized by the system
+            // formatter, so no catalog entry needed.
+            Text(entry.date, format: .relative(presentation: .named))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(width: 120)
+        }
+        .onHover { isHovering = $0 }
+        .help(entry.fileURL.lastPathComponent)
+        .onAppear {
+            CaptureHistoryService.shared.loadThumbnail(for: entry.id) { image in
+                thumbnail = image
+            }
+        }
+    }
+
+    private var thumbnailContent: some View {
         ZStack {
             if let thumbnail {
                 Image(nsImage: thumbnail)
@@ -865,12 +979,5 @@ private struct CaptureHistoryThumbView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(.separator.opacity(0.6), lineWidth: 1)
         )
-        .onHover { isHovering = $0 }
-        .help(entry.fileURL.lastPathComponent)
-        .onAppear {
-            CaptureHistoryService.shared.loadThumbnail(for: entry.id) { image in
-                thumbnail = image
-            }
-        }
     }
 }

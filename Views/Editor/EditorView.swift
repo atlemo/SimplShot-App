@@ -429,14 +429,22 @@ struct EditorView: View {
     private var bodyBase: some View {
         navigationContent
             .onAppear {
-            if let active = activeSession, active.image != nil {
+            if let active = activeSession, active.isHistoryRestore || active.image != nil {
                 // Session restored from Capture History — the full editor state
                 // (annotations, crop, template, zoom) lives in the session.
-                // Don't re-apply the default template or reload from disk:
-                // `applyLoaded` would reset the crop rect and a template
-                // re-apply would shift the annotations.
+                // Don't apply the default template (it would shift annotations).
+                // The display bitmaps were dropped when the entry was recorded;
+                // loadImage rebuilds them from the in-memory raw image (raster)
+                // or the in-memory PDFDocument (PDF pages).
+                // Clear the flags: the editor owns these sessions now, and the
+                // history encode-in-flight guard must stop touching them.
+                for session in sessions { session.isHistoryRestore = false }
                 restoreSessionState(from: active)
-                updateFitScale(viewSize: lastViewSize)
+                if active.image == nil {
+                    loadImage()
+                } else {
+                    updateFitScale(viewSize: lastViewSize)
+                }
                 preloadThumbnails()
                 installKeyMonitorIfNeeded()
                 onModeChange(editorMode)
@@ -1184,10 +1192,13 @@ struct EditorView: View {
                     session.rawImage = decoded.nsImage
                     session.metadata = metadata
                     session.dpiScaleFactor = metadata.dpiScaleFactor
-                    let (sw, sh) = Self.rotatedDims(width: CGFloat(decoded.cgImage.width),
-                                                    height: CGFloat(decoded.cgImage.height),
-                                                    steps: session.rotationSteps)
-                    session.screenshotCropRect = CGRect(x: 0, y: 0, width: sw, height: sh)
+                    // Same guard as applyLoaded: don't clobber a restored crop.
+                    if session.screenshotCropRect.isEmpty {
+                        let (sw, sh) = Self.rotatedDims(width: CGFloat(decoded.cgImage.width),
+                                                        height: CGFloat(decoded.cgImage.height),
+                                                        steps: session.rotationSteps)
+                        session.screenshotCropRect = CGRect(x: 0, y: 0, width: sw, height: sh)
+                    }
                     // Produce session.image + thumbnail via the non-active-session renderer.
                     renderSessionDisplay(session)
                 }
@@ -1508,6 +1519,41 @@ struct EditorView: View {
         // (`applyLoaded` / `applyLoadFailure`) are reported back on main.
         imageLoadState = .loading
 
+        // Restored Capture History session: the raw image is still in memory
+        // (as a decoded bitmap or lossless PNG bytes) — rebuild the display
+        // from it instead of re-decoding from disk. The disk file is NOT a
+        // valid raw source here: a save-overwrite bakes annotations into it,
+        // so reloading it would double-apply them.
+        if !session.isPDF, let raw = session.rawImage,
+           let rawCG = raw.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            let metadata = session.metadata ?? ImageMetadata.load(from: session.imageURL)
+            applyLoaded(image: raw, cgImage: rawCG, metadata: metadata, sessionID: currentID)
+            return
+        }
+        if !session.isPDF, let data = session.rawImageData {
+            let pointSize = session.rawImagePointSize
+            let sessionMetadata = session.metadata
+            let url = session.imageURL
+            Self.imageLoadQueue.async {
+                guard let rep = NSBitmapImageRep(data: data),
+                      let cg = rep.cgImage
+                else {
+                    DispatchQueue.main.async { applyLoadFailure(sessionID: currentID) }
+                    return
+                }
+                let size = pointSize == .zero
+                    ? NSSize(width: cg.width, height: cg.height)
+                    : NSSize(width: pointSize.width, height: pointSize.height)
+                let nsImage = NSImage(size: size)
+                nsImage.addRepresentation(NSBitmapImageRep(cgImage: cg))
+                let metadata = sessionMetadata ?? ImageMetadata.load(from: url)
+                DispatchQueue.main.async {
+                    applyLoaded(image: nsImage, cgImage: cg, metadata: metadata, sessionID: currentID)
+                }
+            }
+            return
+        }
+
         // PDF path
         if let pdfSource = session.pdfPageSource {
             let sourceURL = pdfSource.sourceURL
@@ -1571,10 +1617,15 @@ struct EditorView: View {
         originalSession.rawImage = nsImage
         originalSession.metadata = metadata
         originalSession.dpiScaleFactor = metadata.dpiScaleFactor
-        let (sw, sh) = Self.rotatedDims(width: CGFloat(cgImage.width),
-                                        height: CGFloat(cgImage.height),
-                                        steps: originalSession.rotationSteps)
-        originalSession.screenshotCropRect = CGRect(x: 0, y: 0, width: sw, height: sh)
+        // Initialize the crop to the full (rotated) image — but only for fresh
+        // sessions. A session restored from Capture History arrives here with
+        // its saved crop; resetting it would discard the user's crop.
+        if originalSession.screenshotCropRect.isEmpty {
+            let (sw, sh) = Self.rotatedDims(width: CGFloat(cgImage.width),
+                                            height: CGFloat(cgImage.height),
+                                            steps: originalSession.rotationSteps)
+            originalSession.screenshotCropRect = CGRect(x: 0, y: 0, width: sw, height: sh)
+        }
 
         if activeSessionID == sessionID {
             // Reflect into @State and trigger the active display pipeline.
@@ -2288,8 +2339,16 @@ struct EditorView: View {
         let screenshotH = screenshotPixelSize.height
         let paddingPixels = CGFloat(padding) * displayBackingScale
 
-        let baseW = screenshotW + paddingPixels * 2
-        let baseH = screenshotH + paddingPixels * 2
+        // Per-side padding: an edge-aligned side sits flush (no padding) and
+        // the canvas shrinks by that side's padding so the other sides stay
+        // even. Mirror of TemplateRenderer.applyTemplate — keep in sync.
+        let padLeft   = alignment.horizontalFraction == 0 ? 0 : paddingPixels
+        let padRight  = alignment.horizontalFraction == 1 ? 0 : paddingPixels
+        let padTop    = alignment.verticalFraction   == 0 ? 0 : paddingPixels
+        let padBottom = alignment.verticalFraction   == 1 ? 0 : paddingPixels
+
+        let baseW = screenshotW + padLeft + padRight
+        let baseH = screenshotH + padTop + padBottom
 
         var canvasW = baseW
         var canvasH = baseH
@@ -3540,6 +3599,12 @@ struct EditorView: View {
     private func saveActiveSessionState() {
         guard let session = activeSession else { return }
         session.image = image
+        // A new raw image (e.g. destructive resize) invalidates the compressed
+        // copy Capture History may have cached — it encodes the OLD pixels.
+        if session.rawImage !== rawImage {
+            session.rawImageData = nil
+            session.rawImagePointSize = .zero
+        }
         session.rawImage = rawImage
         session.currentDisplayCGImage = currentDisplayCGImage
         session.metadata = imageMetadata
