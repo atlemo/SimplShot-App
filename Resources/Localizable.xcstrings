@@ -1054,6 +1054,40 @@
         }
       }
     },
+    "Alignment now keeps padding even — aligning to an edge puts the screenshot flush against it while the other sides keep their exact padding, instead of doubling the gap on the opposite side." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Ausrichtung hält den Abstand jetzt gleichmäßig — bei Ausrichtung an einer Kante liegt das Bildschirmfoto bündig an, während die übrigen Seiten ihren exakten Abstand behalten, statt die Lücke auf der Gegenseite zu verdoppeln."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'alignement conserve désormais des marges régulières — aligner sur un bord place la capture au ras de celui-ci tandis que les autres côtés gardent leur marge exacte, au lieu de doubler l'espace du côté opposé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整列時の余白が均等になりました — 端に整列するとスクリーンショットはその端にぴったり付き、他の辺は正確な余白を保ちます。反対側の余白が倍になることはもうありません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выравнивание теперь сохраняет равные отступы — при выравнивании по краю снимок прижимается к нему вплотную, а остальные стороны сохраняют точный отступ вместо удвоенного зазора с противоположной стороны."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对齐现在保持四周边距均匀 — 对齐到某一边时截图会紧贴该边，其余各边保持精确的边距，不再在对侧留下双倍空隙。"
+          }
+        }
+      }
+    },
     "All unsaved annotations and adjustments will be lost." : {
       "localizations" : {
         "de" : {
@@ -1910,40 +1944,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "批量截图失败：%@"
-          }
-        }
-      }
-    },
-    "Bendable arrows — select a Curved arrow and drag the new dot in the middle to shape the curve exactly how you want it." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Biegbare Pfeile — wähle einen gebogenen Pfeil aus und ziehe an dem neuen Punkt in der Mitte, um die Krümmung genau so zu formen, wie du sie brauchst."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Flèches déformables — sélectionnez une flèche courbe et faites glisser le nouveau point central pour donner à la courbe exactement la forme voulue."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "曲げられる矢印 — 曲線の矢印を選択し、中央に追加された点をドラッグすると、カーブを思いどおりの形にできます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Гибкие стрелки — выберите изогнутую стрелку и потяните новую точку посередине, чтобы задать изгиб именно таким, как нужно."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可弯曲的箭头——选择曲线箭头，拖移中间新增的圆点，即可将弧度调整成您想要的形状。"
           }
         }
       }
@@ -7266,40 +7266,6 @@
         }
       }
     },
-    "More image formats — SimplShot can now open AVIF, HEIF, JPEG XL, JPEG 2000 and Photoshop (PSD) files, alongside the formats it already supported." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mehr Bildformate — SimplShot öffnet jetzt zusätzlich zu den bisherigen Formaten auch AVIF-, HEIF-, JPEG-XL-, JPEG-2000- und Photoshop-Dateien (PSD)."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Davantage de formats d’image — SimplShot peut désormais ouvrir les fichiers AVIF, HEIF, JPEG XL, JPEG 2000 et Photoshop (PSD), en plus des formats déjà pris en charge."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "対応画像フォーマットが増えました — これまでのフォーマットに加えて、AVIF、HEIF、JPEG XL、JPEG 2000、Photoshop（PSD）ファイルを開けるようになりました。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Больше форматов изображений — SimplShot теперь открывает файлы AVIF, HEIF, JPEG XL, JPEG 2000 и Photoshop (PSD) в дополнение к уже поддерживаемым."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "支持更多图像格式——除已支持的格式外，SimplShot 现在还能打开 AVIF、HEIF、JPEG XL、JPEG 2000 和 Photoshop（PSD）文件。"
-          }
-        }
-      }
-    },
     "My default" : {
       "localizations" : {
         "de" : {
@@ -7436,74 +7402,6 @@
         }
       }
     },
-    "New Angle tool — measure angles like a protractor. Drag between two points, then pull the middle handle to the corner; SimplShot shows the angle in degrees with a neat arc." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neues Werkzeug „Winkel“ — miss Winkel wie mit einem Geodreieck. Ziehe zwischen zwei Punkten und dann den mittleren Aktivpunkt auf den Scheitelpunkt; SimplShot zeigt den Winkel in Grad mit einem sauberen Bogen an."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouvel outil Angle — mesurez des angles comme avec un rapporteur. Faites glisser entre deux points, puis amenez la poignée centrale sur le sommet : SimplShot affiche l’angle en degrés avec un arc soigné."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新しい「角度」ツール — 分度器のように角度を測れます。2点間をドラッグし、中央のハンドルを頂点まで引くと、SimplShotがきれいな円弧とともに角度を度数で表示します。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новый инструмент «Угол» — измеряйте углы как транспортиром. Протяните между двумя точками, затем подтяните среднюю ручку к вершине; SimplShot покажет угол в градусах с аккуратной дугой."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全新的“角度”工具——像量角器一样测量角度。在两点之间拖移，再把中间的控制柄拉到顶点，SimplShot 便会用一段简洁的圆弧标出角度数值。"
-          }
-        }
-      }
-    },
-    "New Double arrow style — arrowheads at both ends, straight by default and bendable via the same middle dot." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neuer Stil „Doppelt“ — Pfeilspitzen an beiden Enden, standardmäßig gerade und über denselben Punkt in der Mitte biegbar."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau style de flèche double — des pointes aux deux extrémités, droite par défaut et déformable via le même point central."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新しい「両矢印」スタイル — 両端に矢じりが付きます。標準では直線で、同じ中央の点で曲げられます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новый стиль «Двойная стрелка» — наконечники с обоих концов; по умолчанию прямая, изгибается той же средней точкой."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增“双向”箭头样式——两端都有箭头，默认为直线，也可通过同一个中间圆点弯曲。"
-          }
-        }
-      }
-    },
     "New print options — the print dialog now has Rotation and Scale controls. Rotation can turn the page 90° clockwise or counterclockwise, and “Auto (fit page)” rotates only when that fills the paper better, so a landscape screenshot prints large on a portrait page without any fiddling. Scale offers 25 % to 200 %, with 100 % meaning fit to page. The preview updates as you change either." : {
       "localizations" : {
         "de" : {
@@ -7569,6 +7467,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“颜色”下新增“色调”控制，与“色温”并列，可进行更精细的色彩校正。"
+          }
+        }
+      }
+    },
+    "New: Capture History — open it from the menu bar to see your last 10 captures and edited files as a film strip. Hover a thumbnail and click Restore to reopen an image with every annotation still editable." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Aufnahmeverlauf — öffne ihn über die Menüleiste, um deine letzten 10 Aufnahmen und bearbeiteten Dateien als Filmstreifen zu sehen. Fahre über ein Vorschaubild und klicke auf „Wiederherstellen“, um ein Bild mit allen weiterhin bearbeitbaren Anmerkungen erneut zu öffnen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : Historique des captures — ouvrez-le depuis la barre des menus pour voir vos 10 dernières captures et fichiers modifiés sous forme de pellicule. Survolez une vignette et cliquez sur « Restaurer » pour rouvrir une image avec toutes ses annotations encore modifiables."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能: キャプチャ履歴 — メニューバーから開くと、最近の10件のキャプチャや編集ファイルがフィルムストリップで表示されます。サムネイルにカーソルを合わせて「復元」をクリックすると、注釈をすべて編集可能なままで画像を開き直せます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: История снимков — откройте её из строки меню, чтобы увидеть последние 10 снимков и отредактированных файлов в виде киноплёнки. Наведите курсор на миниатюру и нажмите «Восстановить», чтобы снова открыть изображение со всеми аннотациями, доступными для редактирования."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新功能：截图历史 — 从菜单栏打开，即可以胶片条形式查看最近 10 张截图和编辑过的文件。将鼠标悬停在缩略图上并点击“恢复”，即可重新打开图片，所有标注仍可编辑。"
           }
         }
       }
@@ -9031,6 +8963,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "像素化"
+          }
+        }
+      }
+    },
+    "Pixelation now exports exactly as previewed — saved and copied images use the same soft mosaic blocks you see in the editor." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verpixelung wird jetzt exakt wie in der Vorschau exportiert — gespeicherte und kopierte Bilder verwenden dieselben weichen Mosaikblöcke wie im Editor."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La pixellisation est maintenant exportée exactement comme dans l'aperçu — les images enregistrées et copiées utilisent la même mosaïque douce que celle affichée dans l'éditeur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピクセレートの書き出しがプレビューと完全に一致するようになりました — 保存やコピーした画像も、エディタで見えるのと同じ柔らかなモザイクになります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пикселизация теперь экспортируется точно как в предпросмотре — сохранённые и скопированные изображения используют ту же мягкую мозаику, что и в редакторе."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "像素化导出效果现在与预览完全一致 — 保存和复制的图片使用与编辑器中所见相同的柔和马赛克。"
           }
         }
       }
@@ -10668,40 +10634,6 @@
         }
       }
     },
-    "Saving back to one of these formats just works: SimplShot keeps the original format where it can, and offers Save As when a format can only be opened, not written." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das Sichern in diesen Formaten funktioniert ohne Umwege: SimplShot behält das Originalformat, wo es möglich ist, und bietet „Sichern unter“ an, wenn ein Format nur geöffnet, aber nicht geschrieben werden kann."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L’enregistrement dans ces formats fonctionne simplement : SimplShot conserve le format d’origine lorsque c’est possible, et propose « Enregistrer sous » quand un format peut seulement être ouvert et non écrit."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "これらのフォーマットへの保存もそのまま行えます。SimplShotは可能なかぎり元のフォーマットを保ち、開くことしかできないフォーマットの場合は「別名で保存」を提示します。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сохранение обратно в эти форматы просто работает: SimplShot по возможности сохраняет исходный формат, а когда формат можно только открыть, предлагает «Сохранить как»."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "存储回这些格式也毫无障碍：SimplShot 会尽可能保留原始格式；若某种格式只能打开而无法写入，则会提供“存储为”。"
-          }
-        }
-      }
-    },
     "Scale:" : {
       "localizations" : {
         "de" : {
@@ -11691,6 +11623,40 @@
         }
       }
     },
+    "SimplShot uses much less memory — closed editing sessions are kept compressed in the background, so the app stays fast even after a long day of captures." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot braucht deutlich weniger Speicher — geschlossene Bearbeitungssitzungen werden komprimiert vorgehalten, damit die App auch nach einem langen Tag voller Aufnahmen schnell bleibt."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot consomme beaucoup moins de mémoire — les sessions d'édition fermées sont conservées compressées, pour que l'app reste rapide même après une longue journée de captures."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShotのメモリ使用量が大幅に減りました — 閉じた編集セッションは圧縮して保持されるため、一日中キャプチャしてもアプリは快適なままです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot использует значительно меньше памяти — закрытые сеансы редактирования хранятся в сжатом виде, поэтому приложение остаётся быстрым даже после долгого дня со снимками."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot 的内存占用大幅降低 — 已关闭的编辑会话以压缩形式保存，即使截图一整天，应用也依然流畅。"
+          }
+        }
+      }
+    },
     "Single Page View" : {
       "localizations" : {
         "de" : {
@@ -11823,40 +11789,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "手绘"
-          }
-        }
-      }
-    },
-    "Sketch arrows got real character — they now render as a gritty, variable-width ink stroke that looks genuinely hand-drawn. Every arrow gets its own unique texture." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Skizzenpfeile haben echten Charakter bekommen — sie werden jetzt als körniger Tuschestrich mit wechselnder Breite gezeichnet, der wirklich handgezeichnet aussieht. Jeder Pfeil erhält seine eigene Textur."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les flèches croquis ont pris du caractère — elles s’affichent désormais comme un trait d’encre granuleux et d’épaisseur variable, véritablement dessiné à la main. Chaque flèche possède sa propre texture."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スケッチ矢印に本物らしさが加わりました — 手描きらしい、かすれた太さの変わるインクの線で描画されます。矢印ごとに独自の質感が生まれます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Стрелки-наброски обрели характер — теперь это шероховатый штрих переменной ширины, который выглядит по-настоящему нарисованным от руки. У каждой стрелки своя неповторимая фактура."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "手绘箭头更有味道了——现在会以粗粝、粗细不均的墨迹笔触呈现，看上去真像是手绘的。每一支箭头都有自己独特的纹理。"
           }
         }
       }

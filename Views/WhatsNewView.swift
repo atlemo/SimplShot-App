@@ -18,6 +18,12 @@ struct WhatsNewEntry {
 let maxWhatsNewEntries = 4
 
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.7.4", items: [
+        "New: Capture History — open it from the menu bar to see your last 10 captures and edited files as a film strip. Hover a thumbnail and click Restore to reopen an image with every annotation still editable.",
+        "Alignment now keeps padding even — aligning to an edge puts the screenshot flush against it while the other sides keep their exact padding, instead of doubling the gap on the opposite side.",
+        "Pixelation now exports exactly as previewed — saved and copied images use the same soft mosaic blocks you see in the editor.",
+        "SimplShot uses much less memory — closed editing sessions are kept compressed in the background, so the app stays fast even after a long day of captures.",
+    ]),
     WhatsNewEntry(version: "1.7.3", items: [
         "Fixed a serious problem introduced in the last update: SimplShot was reserving ⌘C across the whole system, so pressing Copy in any other app quietly did nothing while SimplShot was running. The Save & Copy shortcut now stays inside the editor window where it belongs, and Copy works normally everywhere else again.",
     ]),
@@ -35,14 +41,6 @@ let whatsNewEntries: [WhatsNewEntry] = [
         "Applying a saved template no longer nudges your annotations out of place — they keep their position relative to the screenshot when the padding, background, aspect ratio and alignment all change at once.",
         "Fixed missing drag handles on the Stroke, Font Size, Pixelation and Spotlight sliders — the knob now appears right away instead of only showing up once you'd clicked and dragged.",
         "The focus ring on the Annotate · Edit · View switch now follows the segment you actually clicked, instead of staying stuck on whichever one had it first.",
-    ]),
-    WhatsNewEntry(version: "1.7.0", items: [
-        "Bendable arrows — select a Curved arrow and drag the new dot in the middle to shape the curve exactly how you want it.",
-        "New Double arrow style — arrowheads at both ends, straight by default and bendable via the same middle dot.",
-        "Sketch arrows got real character — they now render as a gritty, variable-width ink stroke that looks genuinely hand-drawn. Every arrow gets its own unique texture.",
-        "New Angle tool — measure angles like a protractor. Drag between two points, then pull the middle handle to the corner; SimplShot shows the angle in degrees with a neat arc.",
-        "More image formats — SimplShot can now open AVIF, HEIF, JPEG XL, JPEG 2000 and Photoshop (PSD) files, alongside the formats it already supported.",
-        "Saving back to one of these formats just works: SimplShot keeps the original format where it can, and offers Save As when a format can only be opened, not written.",
     ]),
 ]
 
