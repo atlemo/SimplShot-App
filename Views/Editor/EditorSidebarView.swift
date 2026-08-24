@@ -54,6 +54,9 @@ struct EditorSidebarView: View {
     var onCancelCrop: () -> Void
     /// Called in Edit mode when the user taps the Crop button — enters crop mode.
     var onEnterCrop: () -> Void = {}
+    /// Called from the crop panel to mirror the image left↔right / top↔bottom.
+    var onFlipHorizontal: () -> Void = {}
+    var onFlipVertical: () -> Void = {}
     /// Called in Edit mode when the user taps rotate-left (90° CCW).
     var onRotateLeft: () -> Void = {}
     /// Called in Edit mode when the user taps rotate-right (90° CW).
@@ -95,7 +98,6 @@ struct EditorSidebarView: View {
     private enum SidebarSection: String, Hashable {
         case templates
         case tools
-        case crop
         case backgrounds
         case shadowCorners
         case alignmentRatio
@@ -177,25 +179,37 @@ struct EditorSidebarView: View {
         // from the other, so there's no empty gap in the layout during the swap.
         // .clipped() prevents the in-flight views from drawing outside the sidebar bounds.
         ZStack {
-            if editorMode == .edit {
+            if isCropping {
+                // Crop replaces the entire sidebar in BOTH modes — one panel with
+                // every crop control, rather than a section bolted onto each mode.
+                CropSidebarPanel(
+                    aspectPreset: $cropAspectPreset,
+                    aspectPortrait: $cropAspectPortrait,
+                    straightenAngle: $straightenDialAngle,
+                    isAdjustingCrop: $isAdjustingCrop,
+                    straightenAvailable: selectedWallpaper == nil && !isPDFSession,
+                    flipAvailable: !isPDFSession,
+                    onFlipHorizontal: onFlipHorizontal,
+                    onFlipVertical: onFlipVertical,
+                    onRotateLeft: onRotateLeft,
+                    onRotateRight: onRotateRight,
+                    onApply: onApplyCrop,
+                    onCancel: onCancelCrop
+                )
+                .transition(.opacity)
+            } else if editorMode == .edit {
                 // Photo adjustment sliders + crop shortcut
                 PhotoEditSidebarSection(
                     adjustments: $photoAdjustments,
                     metadata: imageMetadata,
-                    isCropping: isCropping,
-                    cropAspectPreset: $cropAspectPreset,
-                    cropAspectPortrait: $cropAspectPortrait,
-                    straightenDialAngle: $straightenDialAngle,
-                    isAdjustingCrop: $isAdjustingCrop,
-                    straightenAvailable: selectedWallpaper == nil && !isPDFSession,
                     imagePixelSize: imagePixelSize,
                     resizeDisabled: selectedWallpaper != nil,
                     onEnterCrop: onEnterCrop,
-                    onApplyCrop: onApplyCrop,
-                    onCancelCrop: onCancelCrop,
                     onResizeImage: onResizeImage,
                     onRotateLeft: onRotateLeft,
-                    onRotateRight: onRotateRight
+                    onRotateRight: onRotateRight,
+                    onFlipHorizontal: onFlipHorizontal,
+                    onFlipVertical: onFlipVertical
                 )
                 // Edit slides in from / out to the right edge.
                 .transition(.move(edge: .trailing))
@@ -208,6 +222,7 @@ struct EditorSidebarView: View {
         }
         .clipped()
         .animation(.easeInOut(duration: 0.25), value: editorMode)
+        .animation(.easeInOut(duration: 0.18), value: isCropping)
     }
 
     /// The annotation-mode sidebar content (full tool palette + template controls).
@@ -225,10 +240,6 @@ struct EditorSidebarView: View {
                         }
                         toolsSection
                         sectionDivider
-                        if isCropping {
-                            cropSection
-                            sectionDivider
-                        }
                         if hasTemplate {
                             backgroundsSection
                             sectionDivider
@@ -329,28 +340,6 @@ struct EditorSidebarView: View {
                         sizePicker
                         Spacer()
                     }
-                }
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-    }
-
-    private var cropSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            groupHeader("Crop", section: .crop)
-            if !isCollapsed(.crop) {
-                sectionLabel("Aspect ratio")
-                CropAspectPickerRow(preset: $cropAspectPreset, portrait: $cropAspectPortrait)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 2)
-                HStack(spacing: 8) {
-                    Button("Apply", action: onApplyCrop)
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                    Button("Cancel", action: onCancelCrop)
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
                 }
             }
         }

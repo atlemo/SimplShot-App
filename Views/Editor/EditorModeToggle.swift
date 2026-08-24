@@ -12,6 +12,10 @@ struct EditorModeToggle: View {
     @Binding var editorMode: EditorMode
     /// When true, the "Edit" mode is hidden — photo adjustments don't apply to PDFs.
     var isPDFSession: Bool = false
+    /// Disabled while the crop tool is live: crop mode owns the sidebar and, with
+    /// a template, an expanded canvas, so switching modes underneath it would
+    /// strand both. Apply or Cancel first.
+    var isDisabled: Bool = false
 
     @AppStorage("debugSimulateSonomaAppearance") private var simulateSonoma = false
 
@@ -32,13 +36,25 @@ struct EditorModeToggle: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        let pill = HStack(spacing: 0) {
             ForEach(availableModes) { mode in
                 segment(mode)
             }
         }
         .padding(3)
         .pillBackground(useGlass: useGlass)
+        .opacity(isDisabled ? 0.45 : 1)
+        .disabled(isDisabled)
+        .animation(.easeInOut(duration: 0.15), value: isDisabled)
+
+        // The tooltip is applied in a branch rather than with a ternary: a
+        // ternary mixing literals types as String and would not be extracted
+        // into the string catalog.
+        if isDisabled {
+            pill.help("Finish or cancel the crop to switch modes")
+        } else {
+            pill
+        }
     }
 
     @ViewBuilder

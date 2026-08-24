@@ -8,6 +8,414 @@
     ":" : {
       "shouldTranslate" : false
     },
+    "Cropping now takes over the whole sidebar — Straighten, Flip, Rotate and every aspect ratio sit in one panel instead of behind a pop-up menu, in both Annotate and Edit mode. A locked ratio survives flipping and rotating too, so your selection keeps its shape." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Zuschneiden übernimmt jetzt die gesamte Seitenleiste — Ausrichten, Spiegeln, Drehen und alle Seitenverhältnisse liegen in einem Bereich statt in einem Aufklappmenü, sowohl im Modus „Anmerken“ als auch „Bearbeiten“. Ein festgelegtes Seitenverhältnis bleibt auch beim Spiegeln und Drehen erhalten, sodass die Auswahl ihre Form behält."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le rognage occupe désormais toute la barre latérale — Redresser, Retourner, Faire pivoter et tous les formats sont réunis dans un seul panneau au lieu d'un menu déroulant, en mode Annoter comme en mode Modifier. Un format verrouillé est conservé lors d'un retournement ou d'une rotation, si bien que la sélection garde sa forme."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トリミングがサイドバー全体を使うようになりました — 傾き補正、反転、回転、そしてすべてのアスペクト比が、ポップアップメニューではなく一つのパネルにまとまります。注釈モードでも編集モードでも同じです。固定したアスペクト比は反転や回転をしても保たれるので、選択範囲の形はそのままです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кадрирование теперь занимает всю боковую панель — выравнивание, отражение, поворот и все соотношения сторон собраны в одной панели, а не спрятаны во всплывающем меню, и так в режимах «Аннотации» и «Правка». Закреплённое соотношение сохраняется при отражении и повороте, поэтому выделение не меняет форму."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "裁剪现在占据整个边栏 — 校正、翻转、旋转和所有宽高比集中在一个面板中，不再藏在弹出菜单里，标注模式和编辑模式都是如此。锁定的宽高比在翻转和旋转后依然保留，选区形状保持不变。"
+          }
+        }
+      }
+    },
+    "Finish or cancel the crop to switch modes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuschneiden abschließen oder abbrechen, um den Modus zu wechseln"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminez ou annulez le rognage pour changer de mode"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モードを切り替えるにはトリミングを適用またはキャンセルしてください"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завершите или отмените кадрирование, чтобы сменить режим"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成或取消裁剪后才能切换模式"
+          }
+        }
+      }
+    },
+    "Flip" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spiegeln"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retourner"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "反転"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отразить"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻转"
+          }
+        }
+      }
+    },
+    "Flip horizontally" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horizontal spiegeln"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retourner horizontalement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "左右反転"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отразить по горизонтали"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "水平翻转"
+          }
+        }
+      }
+    },
+    "Flip vertically" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vertikal spiegeln"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retourner verticalement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上下反転"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отразить по вертикали"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "垂直翻转"
+          }
+        }
+      }
+    },
+    "Free" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frei"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フリー"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свободно"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自由"
+          }
+        }
+      }
+    },
+    "Horizontal" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horizontal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horizontal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "左右"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По горизонтали"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "水平"
+          }
+        }
+      }
+    },
+    "Landscape" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Querformat"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paysage"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "横向き"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Альбомная"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "横向"
+          }
+        }
+      }
+    },
+    "New: Flip — mirror a screenshot left to right or top to bottom from the crop panel. Like rotating and straightening, it is non-destructive: annotations stay glued to the image, and you can flip back at any time." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Spiegeln — spiegle ein Bildschirmfoto im Zuschneidebereich horizontal oder vertikal. Wie Drehen und Ausrichten ist das nicht destruktiv: Anmerkungen bleiben am Bild haften und lassen sich jederzeit zurückspiegeln."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : Retourner — retournez une capture horizontalement ou verticalement depuis le panneau de rognage. Comme la rotation et le redressement, l'opération n'est pas destructive : les annotations restent solidaires de l'image et vous pouvez revenir en arrière à tout moment."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：反転 — トリミングパネルからスクリーンショットを左右または上下に反転できます。回転や傾き補正と同じく非破壊的で、注釈は画像に貼り付いたままになり、いつでも元に戻せます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: отражение — отразите снимок по горизонтали или вертикали прямо на панели кадрирования. Как поворот и выравнивание, это неразрушающее действие: аннотации остаются привязанными к изображению, а отражение можно отменить в любой момент."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：翻转 — 在裁剪面板中将截图左右或上下镜像。与旋转和校正一样，翻转是非破坏性的：标注始终贴合图像，随时可以翻转回来。"
+          }
+        }
+      }
+    },
+    "Portrait" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hochformat"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portrait"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "縦向き"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Книжная"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "纵向"
+          }
+        }
+      }
+    },
+    "Rotate" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drehen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faire pivoter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回転"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повернуть"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旋转"
+          }
+        }
+      }
+    },
+    "Vertical" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vertikal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vertical"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上下"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По вертикали"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "垂直"
+          }
+        }
+      }
+    },
     "“%@” is password protected. Enter the password to open it." : {
       "localizations" : {
         "de" : {
@@ -1536,40 +1944,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "应用到所有已打开的图像？"
-          }
-        }
-      }
-    },
-    "Applying a saved template no longer nudges your annotations out of place — they keep their position relative to the screenshot when the padding, background, aspect ratio and alignment all change at once." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das Anwenden einer gesicherten Vorlage verschiebt deine Anmerkungen nicht mehr — sie behalten ihre Position relativ zum Bildschirmfoto, selbst wenn sich Innenabstand, Hintergrund, Seitenverhältnis und Ausrichtung gleichzeitig ändern."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L’application d’un modèle enregistré ne décale plus vos annotations : elles conservent leur position par rapport à la capture, même lorsque la marge, l’arrière-plan, le format et l’alignement changent tous en même temps."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存したテンプレートを適用しても注釈がずれなくなりました — 余白、背景、アスペクト比、配置が一度に変わっても、注釈はスクリーンショットに対する位置を保ちます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Применение сохранённого шаблона больше не смещает аннотации — они сохраняют положение относительно снимка, даже когда отступы, фон, пропорции и выравнивание меняются одновременно."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "应用已存储的模板不会再让标注偏移——即使边距、背景、宽高比和对齐方式同时改变，标注仍会保持相对于截图的位置。"
           }
         }
       }
@@ -3784,40 +4158,6 @@
         }
       }
     },
-    "Crop now reaches every edge — with an aspect ratio locked, dragging a handle no longer stalls just short of the right or bottom edge. Every handle now reaches its edge, whichever side you drag from." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das Zuschneiden erreicht jetzt jeden Rand — bei gesperrtem Seitenverhältnis bleibt ein Aktivpunkt nicht mehr kurz vor dem rechten oder unteren Rand stehen. Jeder Aktivpunkt erreicht seinen Rand, egal von welcher Seite du ziehst."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le rognage atteint désormais tous les bords — avec un format verrouillé, faire glisser une poignée ne s’arrête plus juste avant le bord droit ou inférieur. Chaque poignée atteint son bord, quel que soit le côté depuis lequel vous la déplacez."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "トリミングがすべての端まで届くようになりました — アスペクト比を固定した状態でも、ハンドルが右端や下端の手前で止まらなくなりました。どの方向からドラッグしても、各ハンドルが端まで届きます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кадрирование теперь достаёт до всех краёв — при зафиксированных пропорциях маркер больше не останавливается чуть раньше правого или нижнего края. Каждый маркер доходит до своего края, с какой бы стороны вы ни тянули."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "裁剪现在可以触及每一条边——锁定宽高比后，拖移控制柄不会再在距离右边缘或下边缘一点点的位置停住。无论从哪一侧拖移，每个控制柄都能到达对应的边缘。"
-          }
-        }
-      }
-    },
     "Crop, Rotate and Resize now sit together in Edit mode for a clearer, more consistent editing workflow." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5971,74 +6311,6 @@
         }
       }
     },
-    "Fixed missing drag handles on the Stroke, Font Size, Pixelation and Spotlight sliders — the knob now appears right away instead of only showing up once you'd clicked and dragged." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fehlende Regler bei „Kontur“, „Schriftgröße“, „Verpixelung“ und „Scheinwerfer“ wurden behoben — der Knopf erscheint jetzt sofort, statt erst nach dem Klicken und Ziehen."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Correction des poignées manquantes sur les curseurs Contour, Corps, Pixellisation et Projecteur — le bouton apparaît désormais immédiatement au lieu de ne s’afficher qu’après un clic et un glissement."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「線幅」「フォントサイズ」「モザイク」「スポットライト」のスライダでつまみが表示されない問題を修正しました — クリックしてドラッグするまで表示されなかったつまみが、最初から表示されます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Исправлены пропадавшие ползунки у «Обводки», «Размера шрифта», «Пикселизации» и «Подсветки» — бегунок появляется сразу, а не только после нажатия и перетаскивания."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修复了“线宽”“字体大小”“像素化”和“聚光”滑块上缺失拖移滑钮的问题——滑钮现在会立即显示，而不是要等到点按并拖移后才出现。"
-          }
-        }
-      }
-    },
-    "Flip any crop ratio between landscape and portrait — pick 3:2 and click the new orientation button to get 2:3, and the same for 4:3 and 16:9. The selection keeps its size as you flip, so you can switch back and forth freely. The separate 3:4 and 9:16 presets are gone; the button covers them for every ratio." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jedes Zuschnittverhältnis lässt sich zwischen Quer- und Hochformat umschalten — wähle 3:2 und klicke auf die neue Ausrichtungstaste, um 2:3 zu erhalten; ebenso bei 4:3 und 16:9. Die Auswahl behält beim Umschalten ihre Größe, sodass du frei hin und her wechseln kannst. Die separaten Voreinstellungen 3:4 und 9:16 entfallen — die Taste deckt sie für jedes Verhältnis ab."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Basculez n’importe quel format de rognage entre paysage et portrait — choisissez 3:2 et cliquez sur le nouveau bouton d’orientation pour obtenir 2:3, et de même pour 4:3 et 16:9. La sélection conserve sa taille lors du basculement, vous pouvez donc alterner librement. Les préréglages distincts 3:4 et 9:16 ont disparu : le bouton les remplace pour tous les formats."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "トリミング比を横向きと縦向きで切り替えられます — 3:2を選んで新しい向きボタンをクリックすると2:3になります。4:3や16:9でも同様です。切り替えても選択範囲のサイズは保たれるので、自由に行き来できます。個別の3:4と9:16のプリセットは廃止され、このボタンがすべての比率で役割を担います。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Переключайте любое соотношение кадра между альбомным и книжным — выберите 3:2 и нажмите новую кнопку ориентации, чтобы получить 2:3; то же работает для 4:3 и 16:9. При переключении размер выделения сохраняется, поэтому можно свободно переключаться туда и обратно. Отдельные пресеты 3:4 и 9:16 убраны — кнопка заменяет их для всех соотношений."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "任意裁剪比例都可在横向和纵向之间切换——选择 3:2 并点按新增的方向按钮即可得到 2:3，4:3 和 16:9 同理。切换时选区大小保持不变，因此可以自由来回切换。原有的 3:4 和 9:16 预设已移除，该按钮已涵盖所有比例。"
-          }
-        }
-      }
-    },
     "Font Size" : {
       "localizations" : {
         "de" : {
@@ -6722,40 +6994,6 @@
         }
       }
     },
-    "Large images no longer look like they failed to open — while a big file is being decoded the editor shows a loading indicator instead of briefly flashing “Unable to load image”." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Große Bilder wirken nicht mehr so, als ließen sie sich nicht öffnen — während eine große Datei dekodiert wird, zeigt der Editor eine Ladeanzeige, statt kurz „Bild kann nicht geladen werden“ aufblitzen zu lassen."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les grandes images ne semblent plus avoir échoué à s’ouvrir — pendant le décodage d’un fichier volumineux, l’éditeur affiche un indicateur de chargement au lieu de faire brièvement apparaître « Impossible de charger l’image »."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "大きな画像が開けなかったように見えることがなくなりました — 大きいファイルのデコード中は、「画像を読み込めません」が一瞬表示される代わりに、読み込みインジケータが表示されます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Большие изображения больше не выглядят так, будто их не удалось открыть — пока крупный файл декодируется, редактор показывает индикатор загрузки вместо мелькающей надписи «Не удалось загрузить изображение»."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "大尺寸图像不会再看起来像是打开失败——在解码大文件时，编辑器会显示载入指示器，而不是短暂闪现“无法载入图像”。"
-          }
-        }
-      }
-    },
     "Last Used" : {
       "localizations" : {
         "de" : {
@@ -7398,40 +7636,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用于调整 App 窗口的大小并将其置于最前，以获得一致的截图效果。"
-          }
-        }
-      }
-    },
-    "New print options — the print dialog now has Rotation and Scale controls. Rotation can turn the page 90° clockwise or counterclockwise, and “Auto (fit page)” rotates only when that fills the paper better, so a landscape screenshot prints large on a portrait page without any fiddling. Scale offers 25 % to 200 %, with 100 % meaning fit to page. The preview updates as you change either." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neue Druckoptionen — das Druckfenster bietet jetzt Regler für Drehung und Skalierung. Die Drehung dreht die Seite um 90° im oder gegen den Uhrzeigersinn, und „Automatisch (an Seite anpassen)“ dreht nur dann, wenn das Papier so besser ausgefüllt wird. Ein Bildschirmfoto im Querformat wird dadurch ohne Umwege groß auf einer Hochformatseite gedruckt. Die Skalierung reicht von 25 % bis 200 %, wobei 100 % „an Seite anpassen“ bedeutet. Die Vorschau aktualisiert sich bei jeder Änderung."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouvelles options d’impression — la zone de dialogue d’impression propose désormais des réglages de rotation et d’échelle. La rotation fait pivoter la page de 90° dans un sens ou dans l’autre, et « Auto (ajuster à la page) » ne pivote que si cela remplit mieux le papier : une capture en paysage s’imprime donc en grand sur une page portrait, sans manipulation. L’échelle va de 25 % à 200 %, 100 % signifiant « ajuster à la page ». L’aperçu se met à jour à chaque modification."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新しいプリントオプション — プリントダイアログに「回転」と「拡大縮小」が追加されました。回転ではページを時計回りまたは反時計回りに90°回転でき、「自動（ページに合わせる）」は用紙をより広く使える場合にのみ回転します。横向きのスクリーンショットも、手間をかけずに縦向きの用紙へ大きくプリントできます。拡大縮小は25 %から200 %まで指定でき、100 %はページに合わせるという意味です。どちらを変更してもプレビューが更新されます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новые параметры печати — в диалоге печати появились элементы «Поворот» и «Масштаб». Поворот разворачивает страницу на 90° по часовой стрелке или против неё, а «Авто (по странице)» поворачивает её только тогда, когда так лучше заполняется лист, — альбомный снимок печатается крупно на книжной странице без лишней возни. Масштаб — от 25 % до 200 %, где 100 % означает «по размеру страницы». Предпросмотр обновляется при изменении любого из параметров."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全新的打印选项——打印对话框现在提供“旋转”和“缩放”控制。“旋转”可将页面顺时针或逆时针转动 90°，而“自动（适合页面）”仅在这样能更充分地利用纸张时才旋转，因此横向截图无需任何调整就能在纵向页面上大幅打印。“缩放”可在 25 % 到 200 % 之间选择，其中 100 % 表示适合页面。更改任一项时，预览都会随之更新。"
           }
         }
       }
@@ -11589,40 +11793,6 @@
         }
       }
     },
-    "SimplShot now speaks your language — the whole interface is available in English, French, Japanese, Russian and Simplified Chinese, and it follows your macOS language automatically. Menus, the editor, alerts and even these release notes are translated." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SimplShot spricht jetzt deine Sprache — die gesamte Oberfläche ist auf Englisch, Französisch, Japanisch, Russisch und Chinesisch (vereinfacht) verfügbar und folgt automatisch der Sprache deines Mac. Menüs, der Editor, Hinweise und sogar diese Versionshinweise sind übersetzt."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SimplShot parle désormais votre langue — toute l’interface est disponible en anglais, français, japonais, russe et chinois simplifié, et suit automatiquement la langue de votre Mac. Les menus, l’éditeur, les alertes et même ces notes de version sont traduits."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SimplShotがあなたの言語に対応しました — インターフェイス全体を英語、フランス語、日本語、ロシア語、簡体字中国語で利用でき、macOSの言語設定に自動的に従います。メニュー、エディタ、警告、そしてこのリリースノートまで翻訳されています。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Теперь SimplShot говорит на вашем языке — весь интерфейс доступен на английском, французском, японском, русском и китайском (упрощённом) и автоматически следует языку macOS. Переведено всё: меню, редактор, предупреждения и даже эти заметки о выпуске."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SimplShot 现在会说您的语言——整个界面提供英语、法语、日语、俄语和简体中文，并会自动跟随 macOS 的语言设置。菜单、编辑器、提示对话框，乃至这份更新说明，全都已翻译。"
-          }
-        }
-      }
-    },
     "SimplShot uses much less memory — closed editing sessions are kept compressed in the background, so the app stays fast even after a long day of captures." : {
       "localizations" : {
         "de" : {
@@ -12576,40 +12746,6 @@
         }
       }
     },
-    "The focus ring on the Annotate · Edit · View switch now follows the segment you actually clicked, instead of staying stuck on whichever one had it first." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Der Fokusrahmen im Umschalter „Anmerken · Bearbeiten · Ansicht“ folgt jetzt dem Segment, das du tatsächlich angeklickt hast, statt auf dem ersten hängen zu bleiben."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L’anneau de focus du sélecteur Annoter · Modifier · Visualiser suit désormais le segment sur lequel vous avez réellement cliqué, au lieu de rester bloqué sur le premier qui l’avait obtenu."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「注釈・編集・表示」スイッチのフォーカスリングが、最初にフォーカスを得たセグメントに留まらず、実際にクリックしたセグメントへ移動するようになりました。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Рамка фокуса на переключателе «Аннотации · Правка · Просмотр» теперь следует за сегментом, по которому вы нажали, а не остаётся на том, который получил её первым."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“标注 · 编辑 · 查看”切换控件上的聚焦框现在会跟随您实际点按的分段，而不再停留在最先获得聚焦的那一个上。"
-          }
-        }
-      }
-    },
     "The password for “%@” was incorrect. Please try again." : {
       "localizations" : {
         "de" : {
@@ -13224,40 +13360,6 @@
     },
     "W" : {
       "shouldTranslate" : false
-    },
-    "Want SimplShot in a different language than the rest of your Mac? Settings › General now opens with a Language picker. Each language is written in its own script, so you can always find your way back if you pick the wrong one by mistake. SimplShot restarts to apply the change." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Du möchtest SimplShot in einer anderen Sprache als den Rest deines Macs? „Einstellungen › Allgemein“ beginnt jetzt mit einem Menü zur Sprachauswahl. Jede Sprache steht in ihrer eigenen Schrift, sodass du immer zurückfindest, falls du versehentlich die falsche wählst. SimplShot startet neu, um die Änderung anzuwenden."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vous voulez SimplShot dans une autre langue que le reste de votre Mac ? Réglages › Général commence désormais par un menu Langue. Chaque langue est écrite dans sa propre graphie, ce qui vous permet toujours de revenir en arrière en cas d’erreur. SimplShot redémarre pour appliquer le changement."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mac全体とは別の言語でSimplShotを使いたいときは、「設定 › 一般」の先頭に言語の選択項目が追加されました。各言語はそれぞれの文字で表記されているので、間違って選んでしまっても必ず元に戻せます。変更を適用するためにSimplShotが再起動します。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Хотите, чтобы SimplShot был на другом языке, чем остальная система? Раздел «Настройки › Основные» теперь начинается с выбора языка. Каждый язык записан своим письмом, поэтому вы всегда сможете вернуться обратно, если случайно выберете не тот. Для применения изменения SimplShot перезапустится."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "希望 SimplShot 使用与 Mac 其余部分不同的语言？“设置 › 通用”现在以语言选项开头。每种语言都以其自身的文字书写，因此即使误选也总能找回原来的语言。SimplShot 将重新启动以应用更改。"
-          }
-        }
-      }
     },
     "Watermark" : {
       "localizations" : {

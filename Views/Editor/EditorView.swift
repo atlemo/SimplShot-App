@@ -186,6 +186,11 @@ struct EditorView: View {
     /// crop in the display pipeline. screenshotCropRect and annotations live in
     /// the resulting straightened coordinate space.
     @State private var straightenAngle: Double = 0
+    /// Mirror flags, applied after the straighten and before the crop.
+    /// `screenshotCropRect` and annotations live in the flipped space — see
+    /// `toggleFlip(horizontal:)`, which mirrors them when a flag changes.
+    @State private var flipHorizontal: Bool = false
+    @State private var flipVertical: Bool = false
     /// Shared Core Image context for photo adjustments. Created once, reused every frame.
     @State private var ciContext: CIContext = CIContext()
 
@@ -484,7 +489,8 @@ struct EditorView: View {
             guard notification.object as? NSWindow === hostingWindow,
                   let rawMode = notification.userInfo?["mode"] as? String,
                   let mode = EditorMode(rawValue: rawMode),
-                  mode != .edit || !isPDFSession
+                  mode != .edit || !isPDFSession,
+                  !isCropping          // crop owns the sidebar — finish it first
             else { return }
             editorMode = mode
         }
@@ -758,6 +764,8 @@ struct EditorView: View {
             onApplyCrop: applyCrop,
             onCancelCrop: cancelCrop,
             onEnterCrop: { isCropping = true; currentTool = .crop },
+            onFlipHorizontal: flipImageHorizontally,
+            onFlipVertical: flipImageVertically,
             onRotateLeft: rotateLeft,
             onRotateRight: rotateRight,
             onUndo: undo,
@@ -829,7 +837,7 @@ struct EditorView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Centre — mode toggle (draws its own glass pill)
-                EditorModeToggle(editorMode: $editorMode, isPDFSession: isPDFSession)
+                EditorModeToggle(editorMode: $editorMode, isPDFSession: isPDFSession, isDisabled: isCropping)
 
                 // Trailing — Save / Copy (primary)
                 Group {
@@ -1456,6 +1464,15 @@ struct EditorView: View {
             cgSource = straightened
         }
 
+        // Mirror before the crop (same order as composeDisplayImage).
+        if session.flipHorizontal || session.flipVertical,
+           let flipped = Self.flipCGImage(cgSource,
+                                          horizontal: session.flipHorizontal,
+                                          vertical: session.flipVertical,
+                                          ciContext: ciContext) {
+            cgSource = flipped
+        }
+
         var croppedCG = cgSource
         if !session.screenshotCropRect.isEmpty {
             let fullBounds = CGRect(x: 0, y: 0,
@@ -1671,6 +1688,8 @@ struct EditorView: View {
     private struct DisplayRenderSpec {
         var rotationSteps: Int
         var straightenAngle: Double
+        var flipHorizontal: Bool
+        var flipVertical: Bool
         var screenshotCropRect: CGRect
         var photoAdjustments: PhotoAdjustments
         var wallpaper: WallpaperSource?
@@ -1686,6 +1705,8 @@ struct EditorView: View {
         DisplayRenderSpec(
             rotationSteps: rotationSteps,
             straightenAngle: straightenAngle,
+            flipHorizontal: flipHorizontal,
+            flipVertical: flipVertical,
             screenshotCropRect: screenshotCropRect,
             photoAdjustments: photoAdjustments,
             wallpaper: isPDFSession ? nil : selectedWallpaper,
@@ -1810,6 +1831,18 @@ struct EditorView: View {
             cgSource = straightened
         }
 
+        // Mirror before the crop, so screenshotCropRect and annotations keep a
+        // 1:1 (unmirrored) mapping to what is displayed — `toggleFlip` mirrors
+        // them once when a flag changes, and every consumer downstream, applyCrop
+        // included, can go on treating display space as source space.
+        if spec.flipHorizontal || spec.flipVertical,
+           let flipped = flipCGImage(cgSource,
+                                     horizontal: spec.flipHorizontal,
+                                     vertical: spec.flipVertical,
+                                     ciContext: ciContext) {
+            cgSource = flipped
+        }
+
         // Apply non-destructive crop to the (rotated) raw screenshot before compositing.
         var croppedCG = cgSource
         if !spec.screenshotCropRect.isEmpty {
@@ -1861,7 +1894,20 @@ struct EditorView: View {
         image = nsImage
         currentDisplayCGImage = displayCG
         imagePixelSize = size
-        cropRect = CGRect(origin: .zero, size: size)
+        // A render that lands while the crop tool is live must not stamp the full
+        // canvas over the user's pending selection: with a wallpaper the canvas is
+        // bigger than the croppable screenshot region, so the selection would jump
+        // outside its own bounds (background included) until the next handle drag
+        // re-clamped it. Keep it — the transform paths (toggleFlip / rotate) each
+        // re-apply their own mapped selection immediately after this returns, and
+        // the paths that *end* a crop set cropRect explicitly.
+        let canvas = CGRect(origin: .zero, size: size)
+        if isCropping {
+            let kept = cropRect.intersection(canvas)
+            cropRect = kept.isEmpty ? canvas : kept
+        } else {
+            cropRect = canvas
+        }
         updateFitScale(viewSize: lastViewSize)
         // Keep the active image's own thumbnail in step with its live display,
         // so the strip updates while you stay on the image (e.g. changing the
@@ -1988,6 +2034,8 @@ struct EditorView: View {
         }
 
         isCropping = false
+        // The crop is committed — the selection covers the whole new canvas again.
+        cropRect = CGRect(origin: .zero, size: imagePixelSize)
         currentTool = .select
     }
 
@@ -2005,7 +2053,14 @@ struct EditorView: View {
     /// where `c'` is the rotated image of `C`'s center.
     private func applyStraightenCrop(rawCG: CGImage, rawImg: NSImage) {
         let dial = straightenDialAngle
-        let newAngle = straightenAngle + dial
+        // The mirror is applied AFTER the straighten, and mirror ∘ rotate(φ) ==
+        // rotate(−φ) ∘ mirror. So under a single-axis flip the dial the user
+        // scrubbed clockwise has to be *stored* counter-clockwise, or the baked
+        // pixels tilt the opposite way from the live preview. Two flips are a
+        // 180° rotation, which preserves handedness. Everything below stays in
+        // display space and is unaffected — only the stored angle conjugates.
+        let mirrored = flipHorizontal != flipVertical
+        let newAngle = straightenAngle + (mirrored ? -dial : dial)
 
         let D = imagePixelSize
         let dCenter = CGPoint(x: D.width / 2, y: D.height / 2)
@@ -2069,6 +2124,7 @@ struct EditorView: View {
         straightenDialAngle = 0
         isAdjustingCrop = false
         isCropping = false
+        cropRect = CGRect(origin: .zero, size: imagePixelSize)
         currentTool = .select
     }
 
@@ -2102,7 +2158,9 @@ struct EditorView: View {
             screenshotCropRect: screenshotCropRect,
             photoAdjustments: photoAdjustments,
             rotationSteps: rotationSteps,
-            straightenAngle: straightenAngle
+            straightenAngle: straightenAngle,
+            flipHorizontal: flipHorizontal,
+            flipVertical: flipVertical
         )
 
         // Remember the current crop so cancel can restore it.
@@ -2599,7 +2657,7 @@ struct EditorView: View {
                 case 20: index = 2
                 default: index = -1
                 }
-                if index >= 0 && index < modes.count {
+                if index >= 0 && index < modes.count, !isCropping {
                     editorMode = modes[index]
                     return nil
                 }
@@ -3320,16 +3378,80 @@ struct EditorView: View {
             )
         }
 
-        rotationSteps = ((rotationSteps + d) % 4 + 4) % 4
+        // Rotating *inside* crop mode: carry the pending selection through the turn
+        // in display space, so the user's framing (and a locked aspect) survives.
+        // It has to be re-applied AFTER the re-render — commitDisplayImage resets
+        // cropRect to the full canvas.
+        var rotatedSelection: CGRect? = nil
+        let previousSelectionSize = cropRect.size
+        if isCropping, !cropRect.isEmpty {
+            let screenshotRelative = cropRect.offsetBy(dx: -oldGradientOffset.x, dy: -oldGradientOffset.y)
+            let rotated = Self.rotateRect90(screenshotRelative, steps: d, in: oldScreenshotSize)
+            rotatedSelection = rotated.offsetBy(dx: newGradientOffset.x, dy: newGradientOffset.y)
+        }
+
+        // The rect Cancel restores lives in the old orientation too, so it rotates
+        // with the rest (same transform, same dims).
+        if isCropping, !preCropScreenshotCropRect.isEmpty,
+           let cg = rawImage?.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            let (oldRotW, oldRotH) = Self.rotatedDims(width: CGFloat(cg.width),
+                                                      height: CGFloat(cg.height),
+                                                      steps: rotationSteps)
+            preCropScreenshotCropRect = Self.rotateRect90(
+                preCropScreenshotCropRect, steps: d,
+                in: CGSize(width: oldRotW, height: oldRotH)
+            )
+        }
+
+        // Same mirror conjugation as the straighten bake: the 90° rotation runs
+        // before the mirror, so under a single-axis flip a clockwise turn on
+        // screen is stored counter-clockwise. The remaps above are all in
+        // display space and stay as they are.
+        let mirroredSteps = (flipHorizontal != flipVertical) ? -d : d
+        rotationSteps = ((rotationSteps + mirroredSteps) % 4 + 4) % 4
 
         if let rawImg = rawImage {
             applyDisplayImage(from: rawImg)
+        }
+        if isCropping {
+            // previousSelectionSize is captured pre-render: commitDisplayImage has
+            // already reset cropRect to the full canvas by this point.
+            cropRect = Self.rotatedCropSelection(
+                rotatedSelection,
+                previousSize: previousSelectionSize,
+                ratio: cropAspectPreset.ratio(portrait: cropAspectPortrait),
+                bounds: screenshotBoundsInDisplay
+            )
         }
         saveActiveSessionState()
     }
 
     private func rotateLeft()  { rotate(deltaSteps: 3) }  // 90° CCW = +3 mod 4
     private func rotateRight() { rotate(deltaSteps: 1) }  // 90° CW
+
+    /// Where the crop selection lands after a 90° turn.
+    ///
+    /// A quarter-turn transposes the selection, so under a locked aspect the
+    /// rotated rect no longer matches the preset (2:3 would come out 3:2). Keep
+    /// the locked *shape* — the preset is a deliberate choice and the panel still
+    /// shows it — and only take the rotated rect's centre. Freeform selections
+    /// rotate as-is, which is what following the content means with no lock.
+    static func rotatedCropSelection(
+        _ rotated: CGRect?,
+        previousSize: CGSize,
+        ratio: CGFloat?,
+        bounds: CGRect
+    ) -> CGRect {
+        guard let rotated, !rotated.isEmpty else { return bounds }
+        guard let ratio else {
+            let clamped = rotated.intersection(bounds)
+            return clamped.isEmpty ? bounds : clamped
+        }
+        let keptShape = CGRect(x: rotated.midX - previousSize.width / 2,
+                               y: rotated.midY - previousSize.height / 2,
+                               width: previousSize.width, height: previousSize.height)
+        return CropGeometry.fitRect(keptShape, ratio: ratio, bounds: bounds)
+    }
 
     /// Rotates the active PDF page by `delta` × 90° clockwise. Unlike the raster
     /// `rotate(deltaSteps:)`, this drives the live VECTOR view (and export) via
@@ -3441,6 +3563,120 @@ struct EditorView: View {
         }
     }
 
+    // MARK: - Flip (mirror)
+
+    /// Mirrors the image about its horizontal or vertical centre line.
+    ///
+    /// Non-destructive, like the rotation and straighten: only the `flipHorizontal`
+    /// / `flipVertical` flags change, and `composeDisplayImage` mirrors the source
+    /// after the straighten and **before** the crop. Because the crop happens in
+    /// the already-mirrored source, `screenshotCropRect` has to mirror with it —
+    /// and once both mirror, the visible window stays exactly where it was with
+    /// its content flipped, so display-space geometry (annotations, the live crop
+    /// selection) mirrors within the screenshot's rect on the canvas.
+    private func toggleFlip(horizontal: Bool) {
+        guard let rawImg = rawImage,
+              let cg = rawImg.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return }
+
+        flushPendingDisplayRender()
+        pushUndo()
+        selectedAnnotationID = nil
+
+        let h = horizontal, v = !horizontal
+
+        // Capture the display-space content rect BEFORE mutating screenshotCropRect
+        // (the mirror preserves its size, so this is the same rect either way —
+        // reading it first just keeps that independent of screenshotBoundsInDisplay).
+        let contentRect = screenshotBoundsInDisplay
+
+        // Source space: the raw image after the 90° rotation, expanded to the
+        // straighten's bounding box — the extent composeDisplayImage crops from.
+        let (rotW, rotH) = Self.rotatedDims(width: CGFloat(cg.width),
+                                            height: CGFloat(cg.height),
+                                            steps: rotationSteps)
+        var srcSize = CGSize(width: rotW, height: rotH)
+        if straightenAngle != 0 {
+            srcSize = Self.rotatedBoundingBoxSize(srcSize, degrees: straightenAngle)
+        }
+        let srcBounds = CGRect(origin: .zero, size: srcSize)
+
+        if !screenshotCropRect.isEmpty {
+            screenshotCropRect = Self.mirrorRect(screenshotCropRect, in: srcBounds,
+                                                 horizontal: h, vertical: v)
+        }
+        if isCropping, !preCropScreenshotCropRect.isEmpty {
+            preCropScreenshotCropRect = Self.mirrorRect(preCropScreenshotCropRect, in: srcBounds,
+                                                        horizontal: h, vertical: v)
+        }
+
+        annotations = annotations.map { ann in
+            var a = ann
+            a.startPoint = Self.mirrorPoint(ann.startPoint, in: contentRect, horizontal: h, vertical: v)
+            a.endPoint = Self.mirrorPoint(ann.endPoint, in: contentRect, horizontal: h, vertical: v)
+            if !ann.points.isEmpty {
+                a.points = ann.points.map {
+                    Self.mirrorPoint($0, in: contentRect, horizontal: h, vertical: v)
+                }
+            }
+            // Curvature is stored in the start→end local frame, whose perpendicular
+            // axis changes handedness under a single-axis mirror — negate the bow
+            // so a curved/double arrow keeps hugging the same side of its shaft.
+            if let c = ann.curvature {
+                a.curvature = CGVector(dx: c.dx, dy: -c.dy)
+            }
+            return a
+        }
+        // The pending selection mirrors too — but only after the re-render, since
+        // commitDisplayImage resets cropRect to the full canvas. Mirroring keeps
+        // its size, so a locked aspect ratio survives untouched.
+        let mirroredSelection: CGRect? = isCropping
+            ? Self.mirrorRect(cropRect, in: contentRect, horizontal: h, vertical: v)
+            : nil
+
+        if horizontal { flipHorizontal.toggle() } else { flipVertical.toggle() }
+
+        applyDisplayImage(from: rawImg)
+        if let mirroredSelection {
+            cropRect = mirroredSelection
+        }
+        saveActiveSessionState()
+    }
+
+    private func flipImageHorizontally() { toggleFlip(horizontal: true) }
+    private func flipImageVertically()   { toggleFlip(horizontal: false) }
+
+    // MARK: - Flip helpers (pure, static)
+
+    /// Mirrors a CGImage about its centre. Both flags = a 180° rotation.
+    static func flipCGImage(_ image: CGImage, horizontal: Bool, vertical: Bool,
+                            ciContext: CIContext) -> CGImage? {
+        guard horizontal || vertical else { return image }
+        let orientation: CGImagePropertyOrientation
+        switch (horizontal, vertical) {
+        case (true, false): orientation = .upMirrored     // mirror left↔right
+        case (false, true): orientation = .downMirrored   // mirror top↔bottom
+        default:            orientation = .down           // both = 180°
+        }
+        let ci = CIImage(cgImage: image).oriented(orientation)
+        return ciContext.createCGImage(ci, from: ci.extent)
+    }
+
+    /// Mirrors `p` about the centre of `bounds` (top-left-origin space).
+    static func mirrorPoint(_ p: CGPoint, in bounds: CGRect,
+                            horizontal: Bool, vertical: Bool) -> CGPoint {
+        CGPoint(x: horizontal ? bounds.minX + bounds.maxX - p.x : p.x,
+                y: vertical   ? bounds.minY + bounds.maxY - p.y : p.y)
+    }
+
+    /// Mirrors `r` about the centre of `bounds`, keeping its size.
+    static func mirrorRect(_ r: CGRect, in bounds: CGRect,
+                           horizontal: Bool, vertical: Bool) -> CGRect {
+        CGRect(x: horizontal ? bounds.minX + bounds.maxX - r.maxX : r.minX,
+               y: vertical   ? bounds.minY + bounds.maxY - r.maxY : r.minY,
+               width: r.width, height: r.height)
+    }
+
     // MARK: - Fine straighten geometry
 
     /// Rotates a CGImage by an arbitrary angle (degrees), expanding the canvas to
@@ -3527,7 +3763,9 @@ struct EditorView: View {
             screenshotCropRect: screenshotCropRect,
             photoAdjustments: photoAdjustments,
             rotationSteps: rotationSteps,
-            straightenAngle: straightenAngle
+            straightenAngle: straightenAngle,
+            flipHorizontal: flipHorizontal,
+            flipVertical: flipVertical
         ))
     }
 
@@ -3556,6 +3794,8 @@ struct EditorView: View {
         // Restore rotation BEFORE photoAdjustments so the re-render uses the right orientation.
         rotationSteps = snapshot.rotationSteps
         straightenAngle = snapshot.straightenAngle
+        flipHorizontal = snapshot.flipHorizontal
+        flipVertical = snapshot.flipVertical
         // Restore photo adjustments — triggers onChange which re-renders the display image.
         photoAdjustments = snapshot.photoAdjustments
     }
@@ -3629,6 +3869,8 @@ struct EditorView: View {
         session.photoAdjustments = photoAdjustments
         session.rotationSteps = rotationSteps
         session.straightenAngle = straightenAngle
+        session.flipHorizontal = flipHorizontal
+        session.flipVertical = flipVertical
         session.undoStack = undoStack
         session.templateRenderer = templateRenderer
         session.generateThumbnail()
@@ -3676,6 +3918,8 @@ struct EditorView: View {
         photoAdjustments = session.photoAdjustments
         rotationSteps = session.rotationSteps
         straightenAngle = session.straightenAngle
+        flipHorizontal = session.flipHorizontal
+        flipVertical = session.flipVertical
         // Note: editorMode is intentionally NOT restored per-session — the active mode
         // is global to the editor window, not tied to the image being viewed.
         undoStack = session.undoStack

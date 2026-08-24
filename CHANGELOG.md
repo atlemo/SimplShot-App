@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-08-24 (1.7.5)
+
+### Crop Mode Takes Over the Sidebar
+Starting a crop now replaces the entire sidebar with a dedicated crop panel, in Annotate and Edit mode alike, instead of adding a small crop section to whichever panel happened to be open. Straighten keeps the same slider used by the Light, Color and Detail adjustments; Flip and Rotate sit beside it; and the aspect ratios are listed out with a checkmark rather than hidden behind a pop-up menu, with a Landscape/Portrait switch below them. Apply and Cancel are pinned to the bottom of the panel. Both modes share one panel, so the crop controls are identical wherever you start from.
+
+### Aspect Ratio Survives Flipping and Rotating
+Flipping or rotating mid-crop used to drop the pending selection back to the whole canvas — with a background applied, the crop even jumped outside its own bounds and covered the wallpaper until you nudged a handle. The selection now follows the image through both: a flip mirrors it in place at the same size, and a rotate carries it to where the content went while keeping the shape of whichever ratio you locked.
+
+### Flip
+A screenshot can be mirrored left to right or top to bottom from the crop panel. Like the 90° rotation and the fine straighten, the flip is non-destructive: the raw image is never modified, annotations are mirrored along with it so they stay glued to the content, and flipping again puts everything back. It applies to the screenshot only, so a template background is unaffected, and it carries through to raster export, the clipboard, printing and the thumbnail strip.
+
+## 2026-08-20 (1.7.4)
+
+### Capture History
+The menu bar now offers Capture History: your last 10 captures and opened files as a film strip of thumbnails. Hovering an entry reveals a Restore button that reopens the image with every annotation still editable, rather than as a flat file. Editable state lives in memory, so entries restored after a relaunch reopen the file itself; the list of files persists across launches.
+
+### Even Padding When Aligning
+Aligning the screenshot to an edge now places it flush against that edge while every other side keeps its exact padding. Previously the opposite side absorbed the difference and ended up with double the gap.
+
+### Pixelation Matches the Preview
+Pixelated regions now export exactly as they appear in the editor — saved and copied images use the same soft mosaic blocks as the on-screen preview, instead of a slightly different block pattern.
+
+### Lower Memory Use
+Editing sessions that are not on screen no longer hold their decoded bitmaps. A resting session keeps a losslessly compressed (PNG) copy of its raw image — roughly 5–15% of the decoded size — and re-derives its display bitmaps on demand, so a long day of captures no longer accumulates hundreds of megabytes.
+
 ## 2026-08-15 (1.7.3)
 
 ### Fixed: ⌘C stopped working in other apps

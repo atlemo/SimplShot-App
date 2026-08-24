@@ -18,6 +18,10 @@ struct WhatsNewEntry {
 let maxWhatsNewEntries = 4
 
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.7.5", items: [
+        "Cropping now takes over the whole sidebar — Straighten, Flip, Rotate and every aspect ratio sit in one panel instead of behind a pop-up menu, in both Annotate and Edit mode. A locked ratio survives flipping and rotating too, so your selection keeps its shape.",
+        "New: Flip — mirror a screenshot left to right or top to bottom from the crop panel. Like rotating and straightening, it is non-destructive: annotations stay glued to the image, and you can flip back at any time.",
+    ]),
     WhatsNewEntry(version: "1.7.4", items: [
         "New: Capture History — open it from the menu bar to see your last 10 captures and edited files as a film strip. Hover a thumbnail and click Restore to reopen an image with every annotation still editable.",
         "Alignment now keeps padding even — aligning to an edge puts the screenshot flush against it while the other sides keep their exact padding, instead of doubling the gap on the opposite side.",
@@ -30,17 +34,6 @@ let whatsNewEntries: [WhatsNewEntry] = [
     WhatsNewEntry(version: "1.7.2", items: [
         "Save & Copy now has a keyboard shortcut — press ⌘C in the editor to save your image, copy it to the clipboard and close the window, exactly like clicking the button. Prefer a different key? Settings › Shortcuts has a new Editor section where you can change it.",
         "SimplShot now speaks German — Deutsch joins English, French, Japanese, Russian and Simplified Chinese, so the whole interface, menus, alerts and these release notes are translated. Pick it in Settings › General, or let SimplShot follow your macOS language.",
-    ]),
-    WhatsNewEntry(version: "1.7.1", items: [
-        "SimplShot now speaks your language — the whole interface is available in English, French, Japanese, Russian and Simplified Chinese, and it follows your macOS language automatically. Menus, the editor, alerts and even these release notes are translated.",
-        "Want SimplShot in a different language than the rest of your Mac? Settings › General now opens with a Language picker. Each language is written in its own script, so you can always find your way back if you pick the wrong one by mistake. SimplShot restarts to apply the change.",
-        "New print options — the print dialog now has Rotation and Scale controls. Rotation can turn the page 90° clockwise or counterclockwise, and “Auto (fit page)” rotates only when that fills the paper better, so a landscape screenshot prints large on a portrait page without any fiddling. Scale offers 25 % to 200 %, with 100 % meaning fit to page. The preview updates as you change either.",
-        "Crop now reaches every edge — with an aspect ratio locked, dragging a handle no longer stalls just short of the right or bottom edge. Every handle now reaches its edge, whichever side you drag from.",
-        "Flip any crop ratio between landscape and portrait — pick 3:2 and click the new orientation button to get 2:3, and the same for 4:3 and 16:9. The selection keeps its size as you flip, so you can switch back and forth freely. The separate 3:4 and 9:16 presets are gone; the button covers them for every ratio.",
-        "Large images no longer look like they failed to open — while a big file is being decoded the editor shows a loading indicator instead of briefly flashing “Unable to load image”.",
-        "Applying a saved template no longer nudges your annotations out of place — they keep their position relative to the screenshot when the padding, background, aspect ratio and alignment all change at once.",
-        "Fixed missing drag handles on the Stroke, Font Size, Pixelation and Spotlight sliders — the knob now appears right away instead of only showing up once you'd clicked and dragged.",
-        "The focus ring on the Annotate · Edit · View switch now follows the segment you actually clicked, instead of staying stuck on whichever one had it first.",
     ]),
 ]
 

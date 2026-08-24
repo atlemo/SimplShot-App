@@ -245,6 +245,14 @@ class ImageSession: Identifiable, ObservableObject {
     /// straightened coordinate space.
     var straightenAngle: Double = 0
 
+    /// Mirror flags, applied after `rotationSteps` + `straightenAngle` and before
+    /// the crop. Non-destructive like the other transforms: `screenshotCropRect`
+    /// and annotations live in the *flipped* coordinate space, so toggling a flag
+    /// mirrors them once (see `EditorView.toggleFlip`) and everything downstream
+    /// — display, raster export, thumbnail — inherits it for free.
+    var flipHorizontal: Bool = false
+    var flipVertical: Bool = false
+
     // Undo
     var undoStack: [EditorSnapshot] = []
 

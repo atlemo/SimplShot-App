@@ -704,15 +704,40 @@ private final class StatusItemDragView: NSView {
     // MARK: - Click → open menu
 
     override func mouseDown(with event: NSEvent) {
-        guard let menu = statusItem?.menu else { return }
-        // popUpContextMenu(_:with:for:) makes the menu inherit THIS view's
-        // effective appearance, and the status-bar window follows the *menu bar*
-        // (dark whenever the wallpaper behind it is dark) — not the system
-        // Light/Dark setting. Without this the menu renders dark in Light Mode
-        // while every other status-bar menu is light. Pin it to the app
-        // appearance, which is what a statusItem.button-driven menu would get.
+        guard let statusItem, let menu = statusItem.menu else { return }
+        // The menu inherits THIS view's effective appearance, and the status-bar
+        // window follows the *menu bar* (dark whenever the wallpaper behind it is
+        // dark) — not the system Light/Dark setting. Without this the menu renders
+        // dark in Light Mode while every other status-bar menu is light. Pin it to
+        // the app appearance, which is what a statusItem.button-driven menu gets.
         menu.appearance = NSApp.effectiveAppearance
-        NSMenu.popUpContextMenu(menu, with: event, for: self)
+
+        // Positioning: -popUpStatusItemMenu: is deprecated but is the ONLY API that
+        // reproduces native status-menu placement — top edge flush with the bottom
+        // of the menu bar, left edge aligned to the item. We already own the item
+        // via the deprecated -setView: (see above), so this is the matching call.
+        // The alternatives are both wrong by a handful of points:
+        //   • NSMenu.popUpContextMenu(_:with:for:) anchors at the CLICK point, which
+        //     is inside the menu bar, so the menu overlaps it.
+        //   • menu.popUp(positioning:at:in:) anchors at a point in this view, but
+        //     the view is inset inside a taller status window (~4pt) and the menu
+        //     window carries its own top inset, so it never lands flush.
+        let popUpStatusItemMenu = NSSelectorFromString("popUpStatusItemMenu:")
+        if statusItem.responds(to: popUpStatusItemMenu) {
+            statusItem.perform(popUpStatusItemMenu, with: menu)
+            return
+        }
+
+        // Fallback if that selector ever disappears: anchor at this view's bottom
+        // edge, corrected down to the menu bar's bottom (= screen.visibleFrame.maxY,
+        // the only inset from the top of the screen). The view is not flipped, so
+        // lowering y moves the anchor down-screen.
+        var origin = NSPoint(x: bounds.minX, y: bounds.minY)
+        if let window, let screen = window.screen {
+            let viewBottomInScreen = window.convertPoint(toScreen: convert(.zero, to: nil)).y
+            origin.y -= viewBottomInScreen - screen.visibleFrame.maxY
+        }
+        menu.popUp(positioning: nil, at: origin, in: self)
     }
 
     // MARK: - NSDraggingDestination

@@ -11,17 +11,6 @@ import SwiftUI
 struct PhotoEditSidebarSection: View {
     @Binding var adjustments: PhotoAdjustments
     var metadata: ImageMetadata?
-    var isCropping: Bool
-    @Binding var cropAspectPreset: CropAspectPreset
-    @Binding var cropAspectPortrait: Bool
-    /// Additional fine straighten angle (degrees) for the current crop session.
-    @Binding var straightenDialAngle: Double
-    /// True while the user drags the straighten slider — drives the grid overlay.
-    @Binding var isAdjustingCrop: Bool
-    /// Straighten is only offered for plain raster images (no background template,
-    /// not a PDF), where the displayed image equals the screenshot and the
-    /// rotate/inscribe math stays exact.
-    var straightenAvailable: Bool = true
     var imagePixelSize: CGSize
     /// True while a background template is active. Resize works on the raw
     /// screenshot, but the W/H fields show the templated canvas (screenshot +
@@ -29,11 +18,11 @@ struct PhotoEditSidebarSection: View {
     /// size and annotations would drift — disable instead of producing both.
     var resizeDisabled: Bool = false
     var onEnterCrop: () -> Void
-    var onApplyCrop: () -> Void
-    var onCancelCrop: () -> Void
     var onResizeImage: (Int, Int) -> Void
     var onRotateLeft: () -> Void = {}
     var onRotateRight: () -> Void = {}
+    var onFlipHorizontal: () -> Void = {}
+    var onFlipVertical: () -> Void = {}
 
     // Resize state
     @State private var resizeWidthStr: String = ""
@@ -60,100 +49,31 @@ struct PhotoEditSidebarSection: View {
             Color.clear.frame(height: 12)
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 0) {
-                    if isCropping {
-                        // While cropping, the canvas is in interactive crop mode —
-                        // the adjustment sliders are hidden and replaced with Apply/Cancel.
-                        activeCropSection
-                    } else {
-                        lightSection
-                        groupDivider
-                        colorSection
-                        groupDivider
-                        detailSection
-                        if !adjustments.isDefault {
-                            resetAllRow
-                        }
-                        groupDivider
-                        transformSection
-                        groupDivider
-                        cropSection
-                        groupDivider
-                        resizeSection
-                        groupDivider
-                        metadataSection
+                    // Note: while cropping this panel is not shown at all —
+                    // `EditorSidebarView` swaps the whole sidebar for
+                    // `CropSidebarPanel` in both Annotate and Edit mode.
+                    lightSection
+                    groupDivider
+                    colorSection
+                    groupDivider
+                    detailSection
+                    if !adjustments.isDefault {
+                        resetAllRow
                     }
+                    groupDivider
+                    transformSection
+                    groupDivider
+                    cropSection
+                    groupDivider
+                    resizeSection
+                    groupDivider
+                    metadataSection
                 }
                 .padding(.bottom, 16)
             }
         }
         .onAppear { initResizeFields() }
         .onChange(of: imagePixelSize) { _, _ in initResizeFields() }
-    }
-
-    // MARK: - Active crop section (Apply / Cancel)
-
-    private var activeCropSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Crop")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
-            Text("Drag the handles to resize, or drag inside to reposition.")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Aspect ratio")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                CropAspectPickerRow(preset: $cropAspectPreset, portrait: $cropAspectPortrait)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            if straightenAvailable {
-                straightenControl
-            }
-
-            HStack(spacing: 8) {
-                Button(action: onApplyCrop) {
-                    Label("Apply", systemImage: "checkmark")
-                        .font(.system(size: 12))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .keyboardShortcut(.return, modifiers: [])
-
-                Button(action: onCancelCrop) {
-                    Label("Cancel", systemImage: "xmark")
-                        .font(.system(size: 12))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-    }
-
-    /// Fine straighten slider (−45°…+45°, 1° steps) shown inside the active crop
-    /// section. Uses the same `AdjustmentSlider` style as the Light/Color/Detail
-    /// rows (orange fill + thumb, value inline, double-click to reset to 0°) and
-    /// toggles `isAdjustingCrop` so the straightening grid appears while scrubbing.
-    private var straightenControl: some View {
-        AdjustmentSlider(
-            label: "Straighten",
-            value: Binding(
-                get: { Float(straightenDialAngle) },
-                set: { straightenDialAngle = Double($0) }
-            ),
-            range: -45...45,
-            zeroPoint: 0,
-            step: 1,
-            display: { "\(Int($0.rounded()))°" },
-            onEditingChanged: { isAdjustingCrop = $0 }
-        )
     }
 
     // MARK: - Adjustment sections
@@ -243,7 +163,7 @@ struct PhotoEditSidebarSection: View {
         Button(action: { adjustments = .default }) {
             Label("Reset All Adjustments", systemImage: "arrow.counterclockwise")
                 .font(.system(size: 12))
-                .frame(maxWidth: .infinity)
+                .sidebarButtonLabel()
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
@@ -259,7 +179,7 @@ struct PhotoEditSidebarSection: View {
                 Button(action: onRotateLeft) {
                     Label("Left", systemImage: "rotate.left")
                         .font(.system(size: 12))
-                        .frame(maxWidth: .infinity)
+                        .sidebarButtonLabel()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -268,11 +188,36 @@ struct PhotoEditSidebarSection: View {
                 Button(action: onRotateRight) {
                     Label("Right", systemImage: "rotate.right")
                         .font(.system(size: 12))
-                        .frame(maxWidth: .infinity)
+                        .sidebarButtonLabel()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .help("Rotate 90° clockwise")
+            }
+
+            // Flip is also in the crop panel; it is repeated here so mirroring
+            // an image doesn't require entering crop mode. Same actions, so the
+            // two stay in step by construction.
+            HStack(spacing: 8) {
+                Button(action: onFlipHorizontal) {
+                    Label("Horizontal",
+                          systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right")
+                        .font(.system(size: 12))
+                        .sidebarButtonLabel()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Flip horizontally")
+
+                Button(action: onFlipVertical) {
+                    Label("Vertical",
+                          systemImage: "arrow.up.and.down.righttriangle.up.righttriangle.down")
+                        .font(.system(size: 12))
+                        .sidebarButtonLabel()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Flip vertically")
             }
         }
     }
@@ -284,7 +229,7 @@ struct PhotoEditSidebarSection: View {
             Button(action: onEnterCrop) {
                 Label("Crop Image", systemImage: "crop")
                     .font(.system(size: 12))
-                    .frame(maxWidth: .infinity)
+                    .sidebarButtonLabel()
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -357,10 +302,13 @@ struct PhotoEditSidebarSection: View {
                     }
                 }
 
-                Button("Resize", action: commitResize)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity)
+                Button(action: commitResize) {
+                    Text("Resize")
+                        .sidebarButtonLabel()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
                     .disabled({
                         guard let w = Int(resizeWidthStr), let h = Int(resizeHeightStr), w > 0, h > 0 else { return true }
                         return w == Int(imagePixelSize.width) && h == Int(imagePixelSize.height)
@@ -655,5 +603,335 @@ private struct AdjustmentSlider: View {
             context.stroke(path, with: .color(.primary.opacity(0.18)), lineWidth: 1)
         }
         .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Crop panel
+
+/// The sidebar while the crop tool is active.
+///
+/// Cropping takes over the **whole** sidebar in both Annotate and Edit mode
+/// (`EditorSidebarView` swaps this in for the tool palette / adjustment sliders),
+/// so every crop control lives in one place instead of being duplicated as a
+/// section in each mode. Modelled on the Photos crop inspector: the same
+/// `AdjustmentSlider` used by the Light/Color/Detail rows for Straighten, then
+/// flip/rotate rows, then the aspect presets listed out rather than hidden
+/// behind a pop-up, with Apply/Cancel pinned to the bottom.
+struct CropSidebarPanel: View {
+    @Binding var aspectPreset: CropAspectPreset
+    @Binding var aspectPortrait: Bool
+    /// Fine straighten angle (degrees) for the current crop session.
+    @Binding var straightenAngle: Double
+    /// True while a control that should show the guide grid is being dragged.
+    @Binding var isAdjustingCrop: Bool
+    /// Straighten is only offered for plain raster images (no background
+    /// template, not a PDF) — see `EditorView`'s `straightenAvailable` gating.
+    var straightenAvailable: Bool = true
+    var flipAvailable: Bool = true
+    var onFlipHorizontal: () -> Void = {}
+    var onFlipVertical: () -> Void = {}
+    var onRotateLeft: () -> Void = {}
+    var onRotateRight: () -> Void = {}
+    var onApply: () -> Void
+    var onCancel: () -> Void
+
+    @State private var hoveredPreset: CropAspectPreset?
+
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: 12)
+
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    divider
+                    transformSection
+                    divider
+                    aspectSection
+                }
+                .padding(.bottom, 12)
+            }
+
+            footer
+        }
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            sectionTitle("Crop")
+            Text("Drag the handles to resize, or drag inside to reposition.")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 12)
+    }
+
+    // MARK: Straighten / flip / rotate
+
+    private var transformSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if straightenAvailable {
+                AdjustmentSlider(
+                    label: "Straighten",
+                    value: Binding(
+                        get: { Float(straightenAngle) },
+                        set: { straightenAngle = Double($0) }
+                    ),
+                    range: -45...45,
+                    zeroPoint: 0,
+                    step: 1,
+                    display: { "\(Int($0.rounded()))°" },
+                    onEditingChanged: { isAdjustingCrop = $0 }
+                )
+            }
+
+            if flipAvailable {
+                controlRow("Flip") {
+                    iconButton("arrow.left.and.right.righttriangle.left.righttriangle.right",
+                               help: "Flip horizontally", action: onFlipHorizontal)
+                    iconButton("arrow.up.and.down.righttriangle.up.righttriangle.down",
+                               help: "Flip vertically", action: onFlipVertical)
+                }
+            }
+
+            controlRow("Rotate") {
+                iconButton("rotate.left", help: "Rotate 90° counter-clockwise", action: onRotateLeft)
+                iconButton("rotate.right", help: "Rotate 90° clockwise", action: onRotateRight)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    /// A label on the left and a pair of icon buttons on the right, sized to sit
+    /// on the same rhythm as an `AdjustmentSlider` row.
+    private func controlRow<C: View>(
+        _ title: LocalizedStringKey,
+        @ViewBuilder buttons: () -> C
+    ) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.system(size: 12.5))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 4)
+            buttons()
+        }
+        .frame(height: 22)
+    }
+
+    private func iconButton(_ symbol: String, help: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 12))
+                .frame(width: 22, height: sidebarButtonContentHeight)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+
+    // MARK: Aspect presets
+
+    private var aspectSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Aspect ratio")
+
+            VStack(spacing: 1) {
+                ForEach(CropAspectPreset.allCases) { preset in
+                    aspectRow(preset)
+                }
+            }
+            .padding(.horizontal, -6)
+
+            OrientationSegmentedControl(
+                portrait: $aspectPortrait,
+                isEnabled: aspectPreset.supportsOrientation
+            )
+            .padding(.top, 2)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    private func aspectRow(_ preset: CropAspectPreset) -> some View {
+        let isSelected = preset == aspectPreset
+        return Button {
+            aspectPreset = preset
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(isSelected ? Color.simplShotOrange : Color.clear)
+                    .frame(width: 12)
+                // `label(portrait:)` returns a plain String (a ratio like "3:2"),
+                // which SwiftUI does not localize — Free is the one word in the
+                // list, so it goes through a literal to stay translatable.
+                if preset == .free {
+                    Text("Free")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(isSelected ? .primary : .secondary)
+                } else {
+                    Text(preset.label(portrait: aspectPortrait))
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(isSelected ? .primary : .secondary)
+                        .monospacedDigit()
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 5)
+            .padding(.horizontal, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(hoveredPreset == preset ? Color.primary.opacity(0.07) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { inside in
+            if inside { hoveredPreset = preset }
+            else if hoveredPreset == preset { hoveredPreset = nil }
+        }
+    }
+
+    // MARK: Footer
+
+    private var footer: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.07))
+                .frame(height: 1)
+            HStack(spacing: 8) {
+                Button(action: onApply) {
+                    Label("Apply", systemImage: "checkmark")
+                        .font(.system(size: 12))
+                        .sidebarButtonLabel()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .keyboardShortcut(.return, modifiers: [])
+
+                Button(action: onCancel) {
+                    Label("Cancel", systemImage: "xmark")
+                        .font(.system(size: 12))
+                        .sidebarButtonLabel()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+        }
+    }
+
+    // MARK: Shared bits
+
+    private func sectionTitle(_ title: LocalizedStringKey) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            .kerning(0.5)
+    }
+
+    private var divider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.07))
+            .frame(height: 1)
+            .padding(.horizontal, 14)
+    }
+}
+
+/// Landscape ⇄ Portrait switch for the crop panel.
+///
+/// Drawn explicitly rather than with `Picker(.segmented)`: as
+/// `EditorModeToggle` notes, the native segmented style only renders its
+/// floating-capsule look inside a window *toolbar* — in plain content (the
+/// sidebar) it falls back to a flat grey slab that reads as a stray button pair.
+/// This mirrors that toggle's approach at sidebar density, and sits on the same
+/// track fill as `AdjustmentSlider` so the whole panel shares one surface.
+private struct OrientationSegmentedControl: View {
+    @Binding var portrait: Bool
+    /// False for symmetric presets (Free, 1:1), where swapping does nothing.
+    var isEnabled: Bool
+
+    private let height: CGFloat = 24
+    private let corner: CGFloat = 7
+
+    var body: some View {
+        HStack(spacing: 2) {
+            segment("Landscape", symbol: "rectangle", isSelected: !portrait) { portrait = false }
+            segment("Portrait", symbol: "rectangle.portrait", isSelected: portrait) { portrait = true }
+        }
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(Color.primary.opacity(0.07))
+        )
+        .opacity(isEnabled ? 1 : 0.4)
+        .disabled(!isEnabled)
+        .animation(.easeOut(duration: 0.12), value: portrait)
+    }
+
+    private func segment(
+        _ title: LocalizedStringKey,
+        symbol: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .font(.system(size: 9))
+                Text(title)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: corner - 2, style: .continuous)
+                        .fill(Color.gray.opacity(0.24))
+                        .shadow(color: .black.opacity(0.05), radius: 1, y: 0.5)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+
+// MARK: - Sidebar button sizing
+
+/// Content height that makes every bordered button in the editor sidebar paint
+/// 24pt tall.
+///
+/// A `.controlSize(.small)` bordered button paints around its CONTENT, and
+/// `.frame(height:)` on the *button* does not change that — it only centres the
+/// control inside a taller slot, which is why the buttons stayed 21pt when that
+/// was tried. Intrinsic content height also varies with the glyph (a
+/// `rotate.left` label measures 22pt, a `checkmark` one 21pt), so a fixed
+/// padding leaves them uneven. A minimum content height is what lines them all
+/// up: 18pt measured 24pt painted for every button in this panel — text labels,
+/// prominent buttons and icon-only buttons alike.
+private let sidebarButtonContentHeight: CGFloat = 18
+
+private extension View {
+    /// Sizes a bordered button's label so the button paints at the shared height.
+    /// Deliberately no `lineLimit(1)`: a longer translation should wrap and make
+    /// the button taller rather than truncate.
+    func sidebarButtonLabel() -> some View {
+        frame(maxWidth: .infinity, minHeight: sidebarButtonContentHeight)
     }
 }

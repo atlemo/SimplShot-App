@@ -714,6 +714,10 @@ struct EditorSnapshot {
     let rotationSteps: Int
     /// Fine straighten angle (degrees) at the time of the snapshot.
     let straightenAngle: Double
+    /// Mirror flags at the time of the snapshot (applied after the straighten,
+    /// before the crop — see `EditorView.composeDisplayImage`).
+    let flipHorizontal: Bool
+    let flipVertical: Bool
 
     init(
         annotations: [Annotation],
@@ -725,7 +729,9 @@ struct EditorSnapshot {
         screenshotCropRect: CGRect? = nil,
         photoAdjustments: PhotoAdjustments = .default,
         rotationSteps: Int = 0,
-        straightenAngle: Double = 0
+        straightenAngle: Double = 0,
+        flipHorizontal: Bool = false,
+        flipVertical: Bool = false
     ) {
         self.annotations = annotations
         self.image = image
@@ -737,5 +743,7 @@ struct EditorSnapshot {
         self.photoAdjustments = photoAdjustments
         self.rotationSteps = rotationSteps
         self.straightenAngle = straightenAngle
+        self.flipHorizontal = flipHorizontal
+        self.flipVertical = flipVertical
     }
 }
