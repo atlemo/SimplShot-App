@@ -49,11 +49,13 @@ class HotkeyService {
     /// than leaking a system-wide ⌘C.
     ///
     /// Safe to call repeatedly; `disable` is a no-op when nothing is registered.
+    @MainActor
     static func unregisterEditorOnlyShortcuts() {
         KeyboardShortcuts.disable(.copyToClipboard)
     }
 
 #if !APPSTORE
+    @MainActor
     func register(
         onResizeAndCapture: @escaping () -> Void,
         onBatchCapture: @escaping () -> Void,
@@ -89,6 +91,7 @@ class HotkeyService {
         }
     }
 #else
+    @MainActor
     func register(
         onFreeSizeCapture: @escaping () -> Void,
         onCaptureWindow: @escaping () -> Void,
