@@ -22,8 +22,7 @@ enum PDFExportService {
         backingScale: CGFloat,
         to url: URL
     ) throws {
-        guard let firstSource = sessions.first?.pdfPageSource,
-              let firstPage = firstSource.document.page(at: firstSource.pageIndex)
+        guard let firstPage = sessions.first?.pdfPageSource?.page
         else { throw PDFExportError.noPDFSource }
 
         // Use the rotation-aware size so 90°/270° pages aren't clipped (see
@@ -38,9 +37,7 @@ enum PDFExportService {
         let renderer = AnnotationRenderer()
 
         for session in sessions {
-            guard let source = session.pdfPageSource,
-                  let page = source.document.page(at: source.pageIndex)
-            else { continue }
+            guard let page = session.pdfPageSource?.page else { continue }
 
             // Rotation-aware page size: draw(with:) bakes the page's `/Rotate`
             // into the content, so the new page's media box must match the

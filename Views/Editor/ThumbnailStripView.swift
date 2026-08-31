@@ -1,5 +1,6 @@
 import SwiftUI
 import PDFKit
+import UniformTypeIdentifiers
 
 // MARK: - Outline Model
 
@@ -49,7 +50,13 @@ struct ThumbnailStripView: View {
     let activeID: UUID?
     var onSelect: (UUID) -> Void
     var onRemove: (UUID) -> Void
+    /// False when only one item is left — the last page can't be deleted.
+    var canRemove: Bool = true
     var onMove: ((Int, Int) -> Void)? = nil
+    /// Insert the pages of these files at the given strip index (nil disables
+    /// file drops and the add button — only PDFs can take new pages).
+    var onInsert: (([URL], Int) -> Void)? = nil
+    var onAddPages: (() -> Void)? = nil
     /// Parsed document outline (empty → the Outline tab is hidden).
     var outline: [PDFOutlineNode] = []
     /// Page index of the active page, used to highlight the current section.
@@ -58,6 +65,9 @@ struct ThumbnailStripView: View {
 
     @State private var draggedID: UUID?
     @State private var tab: NavTab = .thumbnails
+    /// Strip index a dragged-in file would be inserted at (`sessions.count` =
+    /// append). Drives the insertion caret.
+    @State private var fileDropIndex: Int?
 
     private enum NavTab { case thumbnails, outline }
     private var hasOutline: Bool { !outline.isEmpty }
@@ -97,25 +107,53 @@ struct ThumbnailStripView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 8) {
                     ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
-                        ThumbnailItem(
-                            session: session,
-                            displayLabel: pageLabel(for: session, index: index),
-                            isSelected: session.id == activeID,
-                            isDragTarget: false,
-                            onSelect: { onSelect(session.id) },
-                            onRemove: { onRemove(session.id) }
-                        )
+                        VStack(spacing: 8) {
+                            insertionCaret(at: index)
+                            ThumbnailItem(
+                                session: session,
+                                displayLabel: pageLabel(for: session, index: index),
+                                isSelected: session.id == activeID,
+                                canRemove: canRemove,
+                                isDragTarget: false,
+                                onSelect: { onSelect(session.id) },
+                                onRemove: { onRemove(session.id) }
+                            )
+                        }
                         .id(session.id)
                         .opacity(draggedID == session.id ? 0.4 : 1)
                         .onDrag {
                             draggedID = session.id
                             return NSItemProvider(object: session.id.uuidString as NSString)
                         }
-                        .onDrop(of: [.text], delegate: ThumbnailDropDelegate(
+                        // One delegate for both drag kinds. A reorder drag
+                        // carries `.text` (the session id) and a dragged-in file
+                        // carries `.fileURL`; stacking two `onDrop` modifiers
+                        // instead would put the reorder drop behind a second
+                        // destination for the same view.
+                        .onDrop(of: [.text, .fileURL], delegate: ThumbnailDropDelegate(
                             targetID: session.id,
+                            insertIndex: index,
                             sessions: sessions,
                             draggedID: $draggedID,
-                            onMove: onMove
+                            fileDropIndex: $fileDropIndex,
+                            onMove: onMove,
+                            onInsert: onInsert
+                        ))
+                    }
+
+                    if onInsert != nil || onAddPages != nil {
+                        VStack(spacing: 8) {
+                            insertionCaret(at: sessions.count)
+                            addPagesButton
+                        }
+                        .onDrop(of: [.fileURL], delegate: ThumbnailDropDelegate(
+                            targetID: nil,
+                            insertIndex: sessions.count,
+                            sessions: sessions,
+                            draggedID: $draggedID,
+                            fileDropIndex: $fileDropIndex,
+                            onMove: nil,
+                            onInsert: onInsert
                         ))
                     }
                 }
@@ -130,12 +168,47 @@ struct ThumbnailStripView: View {
         }
     }
 
+    /// Dashed "Add Pages" tile closing the thumbnail list. Doubles as the drop
+    /// target for appending files after the last page.
+    private var addPagesButton: some View {
+        Button { onAddPages?() } label: {
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .foregroundStyle(.secondary.opacity(0.6))
+                .frame(width: 74, height: 40)
+                .overlay(
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                )
+                // `strokeBorder` paints only the outline, so without an explicit
+                // content shape the tile's interior isn't hit-testable and the
+                // button only responds on the 1pt dashed border itself.
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(onAddPages == nil)
+        .help("Add pages from a PDF or image")
+        .accessibilityLabel("Add Pages")
+    }
+
+    /// Horizontal caret marking where dragged-in files will land.
+    @ViewBuilder
+    private func insertionCaret(at index: Int) -> some View {
+        if fileDropIndex == index {
+            Capsule()
+                .fill(Color.accentColor)
+                .frame(width: 74, height: 3)
+                .transition(.opacity)
+        }
+    }
+
     /// The page badge label: the PDF page's own label (e.g. roman numerals) when
     /// present, else the 1-based index; nil for non-PDF images.
     private func pageLabel(for session: ImageSession, index: Int) -> String? {
         guard session.isPDF else { return nil }
         if let src = session.pdfPageSource,
-           let label = src.document.page(at: src.pageIndex)?.label,
+           let label = src.page.label,
            !label.isEmpty {
             return label
         }
@@ -223,14 +296,47 @@ private struct OutlineRow: View {
 
 // MARK: - Drop Delegate
 
+/// Handles both drags the strip accepts: reordering an existing thumbnail
+/// (`.text`, carrying the session id) and adding pages from files dragged in
+/// from outside (`.fileURL`). One delegate rather than two `onDrop` modifiers —
+/// a view can only have one drop destination, and the second would shadow the
+/// first even for types it doesn't accept.
 private struct ThumbnailDropDelegate: DropDelegate {
-    let targetID: UUID
+    /// The thumbnail this delegate is attached to; nil for the trailing
+    /// add/append zone, which only takes files.
+    let targetID: UUID?
+    /// Strip position a dropped file is inserted at (before this thumbnail, or
+    /// `sessions.count` for the append zone).
+    let insertIndex: Int
     let sessions: [ImageSession]
     @Binding var draggedID: UUID?
+    @Binding var fileDropIndex: Int?
     var onMove: ((Int, Int) -> Void)?
+    var onInsert: (([URL], Int) -> Void)?
+
+    /// File types that can become PDF pages: another PDF, or any image the
+    /// editor already opens (each becomes a single page).
+    private static let insertableExtensions: Set<String> = [
+        "pdf", "png", "jpg", "jpeg", "heic", "heif", "tiff", "tif",
+        "gif", "bmp", "webp", "avif", "jxl", "jp2", "psd"
+    ]
+
+    private func isFileDrag(_ info: DropInfo) -> Bool {
+        onInsert != nil && info.hasItemsConforming(to: [.fileURL])
+    }
+
+    // Deliberately independent of `draggedID`: gating the reorder branch on it
+    // would make a mistimed drag fail validation and never reach `dropEntered`.
+    func validateDrop(info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [.fileURL]) ? onInsert != nil : onMove != nil
+    }
 
     func dropEntered(info: DropInfo) {
-        guard let draggedID,
+        if isFileDrag(info) {
+            withAnimation(.easeInOut(duration: 0.12)) { fileDropIndex = insertIndex }
+            return
+        }
+        guard let draggedID, let targetID,
               draggedID != targetID,
               let from = sessions.firstIndex(where: { $0.id == draggedID }),
               let to = sessions.firstIndex(where: { $0.id == targetID })
@@ -240,13 +346,54 @@ private struct ThumbnailDropDelegate: DropDelegate {
         }
     }
 
+    func dropExited(info: DropInfo) {
+        guard fileDropIndex == insertIndex else { return }
+        withAnimation(.easeInOut(duration: 0.12)) { fileDropIndex = nil }
+    }
+
     func performDrop(info: DropInfo) -> Bool {
+        if isFileDrag(info) {
+            fileDropIndex = nil
+            loadURLs(info.itemProviders(for: [.fileURL]), then: onInsert)
+            return true
+        }
         draggedID = nil
         return true
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
+        if info.hasItemsConforming(to: [.fileURL]) {
+            return DropProposal(operation: onInsert != nil ? .copy : .cancel)
+        }
+        return DropProposal(operation: onMove != nil ? .move : .cancel)
+    }
+
+    /// Resolves item providers to file URLs. Loading a URL from a provider is
+    /// async, so results are keyed by position and collected on the main queue
+    /// once every provider has reported back — the inserted pages then keep the
+    /// order the user dragged them in, whichever provider finishes first.
+    private func loadURLs(_ providers: [NSItemProvider], then insert: (([URL], Int) -> Void)?) {
+        guard let insert else { return }
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var urls = [Int: URL]()
+        for (offset, provider) in providers.enumerated() {
+            group.enter()
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                if let url, Self.insertableExtensions.contains(url.pathExtension.lowercased()) {
+                    lock.lock()
+                    urls[offset] = url
+                    lock.unlock()
+                }
+                group.leave()
+            }
+        }
+        let index = insertIndex
+        group.notify(queue: .main) {
+            let ordered = urls.sorted { $0.key < $1.key }.map(\.value)
+            guard !ordered.isEmpty else { return }
+            insert(ordered, index)
+        }
     }
 }
 
@@ -258,11 +405,21 @@ private struct ThumbnailItem: View {
     @ObservedObject var session: ImageSession
     let displayLabel: String?
     let isSelected: Bool
+    let canRemove: Bool
     let isDragTarget: Bool
     var onSelect: () -> Void
     var onRemove: () -> Void
 
     @State private var isHovered = false
+
+    /// Tooltip and accessibility label for the × — a PDF page is deleted from
+    /// the document, any other thumbnail is just closed in the editor.
+    /// Typed `LocalizedStringKey` so both branches stay extractable: a ternary
+    /// that mixed a literal with a `String` would type the whole expression as
+    /// `String` and silently drop the literal from the catalog.
+    private var removeLabel: LocalizedStringKey {
+        session.isPDF ? "Delete Page" : "Remove \(session.imageURL.lastPathComponent)"
+    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -312,9 +469,11 @@ private struct ThumbnailItem: View {
             }
             .buttonStyle(.plain)
             .offset(x: 6, y: -6)
-            .opacity(isHovered || isSelected ? 1 : 0)
+            .opacity(canRemove && (isHovered || isSelected) ? 1 : 0)
+            .disabled(!canRemove)
             .animation(.easeInOut(duration: 0.15), value: isHovered)
-            .accessibilityLabel("Remove \(session.imageURL.lastPathComponent)")
+            .help(removeLabel)
+            .accessibilityLabel(removeLabel)
         }
         .onHover { isHovered = $0 }
     }

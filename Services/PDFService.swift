@@ -78,8 +78,21 @@ extension PDFPage {
 
 struct PDFPageSource {
     let document: PDFDocument
-    let pageIndex: Int
+    /// The page itself, not an index. Page membership and order are mutable (see
+    /// `PDFService.remove/move/insert`), so an index captured at load time goes
+    /// stale the moment a page is deleted or reordered. Holding the `PDFPage`
+    /// and resolving `pageIndex` through `document.index(for:)` makes every
+    /// call site follow structural edits with zero bookkeeping.
+    let page: PDFPage
     let sourceURL: URL
+
+    /// Live index of `page` within `document`; `-1` once the page has been
+    /// removed from it (an out-of-range index every lookup already rejects,
+    /// unlike `NSNotFound`, which is a huge positive number).
+    var pageIndex: Int {
+        let idx = document.index(for: page)
+        return idx == NSNotFound ? -1 : idx
+    }
 
     /// Serializes all background page rasterization. PDFKit page drawing is not
     /// thread-safe across pages of the same document, and renders are reached
@@ -95,7 +108,6 @@ struct PDFPageSource {
     }
 
     private func renderPageSerialized(backingScale: CGFloat) -> CGImage? {
-        guard let page = document.page(at: pageIndex) else { return nil }
         let pointSize = page.rotatedMediaBoxSize
         let width = Int((pointSize.width * backingScale).rounded())
         let height = Int((pointSize.height * backingScale).rounded())
@@ -138,9 +150,83 @@ enum PDFService {
         guard pageCount > 0 else { return [] }
 
         let groupID = UUID()
-        return (0..<pageCount).compactMap { index in
-            let source = PDFPageSource(document: document, pageIndex: index, sourceURL: url)
+        return (0..<pageCount).compactMap { index -> ImageSession? in
+            guard let page = document.page(at: index) else { return nil }
+            let source = PDFPageSource(document: document, page: page, sourceURL: url)
             return ImageSession(pdfPageSource: source, pdfGroupID: groupID)
+        }
+    }
+
+    /// Pages to splice into an already-open document from a file the user
+    /// dropped or picked: every page of a PDF, or a single page wrapping an
+    /// image file. Returns `[]` for anything unreadable or a locked PDF the
+    /// user declined to unlock.
+    ///
+    /// PDF pages are **copied** so they detach from their source document —
+    /// inserting a page still owned by another `PDFDocument` leaves the two
+    /// documents sharing a page object, and the donor deallocating takes the
+    /// page's content with it.
+    static func importablePages(from url: URL) -> [PDFPage] {
+        if url.pathExtension.lowercased() == "pdf" {
+            guard let document = PDFDocument(url: url) else { return [] }
+            if document.isLocked,
+               !unlockInteractively(document, filename: url.lastPathComponent) {
+                return []
+            }
+            return (0..<document.pageCount).compactMap {
+                document.page(at: $0)?.copy() as? PDFPage
+            }
+        }
+        // Rasterize before handing the image to PDFKit: `PDFPage(image:)` raises
+        // an uncatchable ObjC exception ("image must not be NULL") for an
+        // NSImage with no drawable representation, which `NSImage(contentsOf:)`
+        // happily returns for a corrupt or unsupported file.
+        guard let image = NSImage(contentsOf: url),
+              let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              cg.width > 0, cg.height > 0 else { return [] }
+
+        // `PDFPage(image:)` takes the media box from the NSImage's POINT size and
+        // embeds the representation's full pixel data. Sizing the page from
+        // `image.size` (which honours the file's DPI) therefore gives a 2× Retina
+        // screenshot a sane half-size page while keeping every pixel — sizing it
+        // from the pixel count instead would produce a 40-inch-wide page.
+        let points = image.size.width > 0 && image.size.height > 0
+            ? image.size
+            : NSSize(width: cg.width, height: cg.height)
+        let rep = NSBitmapImageRep(cgImage: cg)
+        rep.size = points
+        let bitmap = NSImage(size: points)
+        bitmap.addRepresentation(rep)
+        guard let page = PDFPage(image: bitmap) else { return [] }
+        return [page]
+    }
+
+    /// Removes `page` from its document. No-op if it isn't in one, or if it is
+    /// the document's only page (a zero-page PDF isn't a document).
+    @discardableResult
+    static func removePage(_ page: PDFPage, from document: PDFDocument) -> Bool {
+        let idx = document.index(for: page)
+        guard idx != NSNotFound, document.pageCount > 1 else { return false }
+        document.removePage(at: idx)
+        return true
+    }
+
+    /// Reorders `document` so its pages match `pages`, in place.
+    ///
+    /// Used to mirror a thumbnail-strip drag onto the document itself.
+    /// Selection-sort by remove-then-reinsert, which touches only the pages that
+    /// actually moved. Deliberately NOT `exchangePage(at:withPageAt:)`: that
+    /// method throws `NSInvalidArgumentException` ("object cannot be nil") from
+    /// inside PDFKit on macOS 26 and takes the app down with it — verified
+    /// against a document built page by page.
+    static func reorder(_ document: PDFDocument, toMatch pages: [PDFPage]) {
+        guard pages.count == document.pageCount else { return }
+        for target in 0..<pages.count {
+            let page = pages[target]
+            let current = document.index(for: page)
+            guard current != NSNotFound, current != target else { continue }
+            document.removePage(at: current)
+            document.insert(page, at: target)
         }
     }
 

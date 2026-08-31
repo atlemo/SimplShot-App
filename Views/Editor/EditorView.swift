@@ -78,6 +78,11 @@ struct EditorView: View {
     }
 
     private var anySessionHasEdits: Bool {
+        // Only groups still open count — closing a whole PDF (e.g. Trash) drops
+        // its sessions but leaves its id in the structural-edit set.
+        if sessions.contains(where: { $0.pdfGroupID.map(pdfStructureEditedGroups.contains) ?? false }) {
+            return true
+        }
         if activeSessionHasEdits { return true }
         for session in sessions where session.id != activeSessionID {
             if sessionHasEdits(session) { return true }
@@ -87,6 +92,7 @@ struct EditorView: View {
 
     private var pdfDocumentHasEdits: Bool {
         guard let groupID = activeSession?.pdfGroupID else { return false }
+        if pdfStructureEditedGroups.contains(groupID) { return true }
         // Active session — @State is the live source of truth for these fields.
         if !annotations.isEmpty { return true }
         if photoAdjustments != .default { return true }
@@ -341,6 +347,13 @@ struct EditorView: View {
     // Parsed PDF outline (table of contents), cached per document group.
     @State private var pdfOutlineNodes: [PDFOutlineNode] = []
     @State private var outlineGroupID: UUID?
+    /// PDF groups whose page set or page order has been edited (pages added,
+    /// deleted or reordered). Structural edits live on the shared `PDFDocument`,
+    /// not on any one `ImageSession`, so `sessionHasEdits` can't see them — this
+    /// is what makes "Done" become "Save All" and what makes an overwrite save
+    /// actually re-export a document whose pages changed but whose annotations
+    /// didn't.
+    @State private var pdfStructureEditedGroups: Set<UUID> = []
     @State private var showPDFInfo = false
     // Continuous (scroll-all-pages) reading mode — View mode + PDF only.
     @State private var pdfContinuousScroll = false
@@ -993,16 +1006,19 @@ struct EditorView: View {
                 }
                 .animation(.easeInOut(duration: 0.15), value: isFindBarVisible)
 
-                if sessions.count > 1 {
+                // Always shown for a PDF, even single-page: the strip is where
+                // pages are added, deleted and reordered, so hiding it below two
+                // pages would make a one-page document uneditable.
+                if sessions.count > 1 || isPDFSession {
                     ThumbnailStripView(
                         sessions: sessions,
                         activeID: thumbnailActiveID,
                         onSelect: { selectPageSession($0) },
                         onRemove: { removeSession($0) },
-                        onMove: { from, to in
-                            sessions.move(fromOffsets: IndexSet(integer: from),
-                                          toOffset: to > from ? to + 1 : to)
-                        },
+                        canRemove: sessions.count > 1,
+                        onMove: { movePage(from: $0, to: $1) },
+                        onInsert: isPDFSession ? { insertPages(from: $0, at: $1) } : nil,
+                        onAddPages: isPDFSession ? { promptToAddPages() } : nil,
                         outline: pdfOutlineNodes,
                         activePageIndex: activeSession?.pdfPageSource?.pageIndex,
                         onSelectOutline: { selectOutlineNode($0) }
@@ -1014,6 +1030,7 @@ struct EditorView: View {
             }
 
             EditorBottomToolbarView(
+                fileName: imageURL.lastPathComponent,
                 imagePixelSize: imagePixelSize,
                 aspectRatios: editorAspectRatios,
                 selectedAspectRatioID: $editorAspectRatioID,
@@ -3460,8 +3477,8 @@ struct EditorView: View {
     private func rotatePDFPage(deltaSteps delta: Int) {
         guard isPDFSession,
               let session = activeSession,
-              let src = session.pdfPageSource,
-              let page = src.document.page(at: src.pageIndex) else { return }
+              let src = session.pdfPageSource else { return }
+        let page = src.page
         let d = ((delta % 4) + 4) % 4
         guard d != 0 else { return }
 
@@ -3963,9 +3980,29 @@ struct EditorView: View {
     /// Remove a session from the strip. The strip is only visible when
     /// `sessions.count > 1`, so this should never be called for the final image —
     /// guard against misuse just in case.
+    ///
+    /// For a PDF page this also deletes the page from the in-memory
+    /// `PDFDocument`. Dropping only the session would leave the page in the
+    /// document that drives the continuous-scroll view, the page count, Find and
+    /// the outline — the page would visibly survive its own delete button.
+    /// The file on disk is untouched until the user saves.
     private func removeSession(_ id: UUID) {
         guard sessions.count > 1 else { return }
         guard let removedIdx = sessions.firstIndex(where: { $0.id == id }) else { return }
+
+        let removed = sessions[removedIdx]
+        if let src = removed.pdfPageSource,
+           let groupID = removed.pdfGroupID,
+           sessions.filter({ $0.pdfGroupID == groupID }).count > 1 {
+            // Deleting one page of a multi-page document edits the document.
+            // Deleting the *only* page of a document just closes that document
+            // in the editor — there is no such thing as a zero-page PDF, and
+            // nothing to save.
+            flushPendingDisplayRender()
+            saveActiveSessionState()
+            guard PDFService.removePage(src.page, from: src.document) else { return }
+            pdfStructureEditedGroups.insert(groupID)
+        }
 
         if id == activeSessionID {
             let nextIdx = removedIdx > 0 ? removedIdx - 1 : 1
@@ -3989,6 +4026,95 @@ struct EditorView: View {
         } else {
             sessions.remove(at: removedIdx)
         }
+        syncPDFOutlineAfterStructureChange()
+    }
+
+    // MARK: - PDF Page Management
+
+    /// Moves a page within the strip. Reorders `sessions` and — for a PDF group —
+    /// mirrors the new order onto the `PDFDocument`, so the page indices that
+    /// drive navigation, Find, continuous scroll and export all follow.
+    private func movePage(from: Int, to: Int) {
+        guard sessions.indices.contains(from) else { return }
+        let groupID = sessions[from].pdfGroupID
+        sessions.move(fromOffsets: IndexSet(integer: from),
+                      toOffset: to > from ? to + 1 : to)
+        guard let groupID else { return }
+        let group = sessions.filter { $0.pdfGroupID == groupID }
+        guard let document = group.first?.pdfPageSource?.document else { return }
+        PDFService.reorder(document, toMatch: group.compactMap { $0.pdfPageSource?.page })
+        pdfStructureEditedGroups.insert(groupID)
+        // Deliberately no outline re-parse: this runs on every `dropEntered`
+        // while a thumbnail is dragged, and reordering invalidates nothing in
+        // the outline — its destinations still resolve, by page identity.
+    }
+
+    /// Inserts the pages of dropped/picked files into the open PDF at strip
+    /// position `index`. PDFs contribute every page; images become one page each.
+    ///
+    /// Pages go into the shared `PDFDocument` (as detached copies) rather than
+    /// into standalone sessions, so the whole document stays one group: page
+    /// numbering, continuous scroll, Find and the single-file PDF export all
+    /// keep working across the added pages.
+    private func insertPages(from urls: [URL], at index: Int) {
+        guard let anchor = activeSession ?? sessions.first,
+              let groupID = anchor.pdfGroupID,
+              let document = anchor.pdfPageSource?.document else { return }
+
+        let pages = urls.flatMap { PDFService.importablePages(from: $0) }
+        guard !pages.isEmpty else { return }
+
+        flushPendingDisplayRender()
+        saveActiveSessionState()
+
+        // The strip index is a session index; translate it to a document index
+        // via the page currently sitting there (the strip can also hold plain
+        // images, which have no document position of their own).
+        let clamped = min(max(index, 0), sessions.count)
+        let anchorIndex = clamped < sessions.count
+            ? sessions[clamped].pdfPageSource
+                .flatMap { $0.document === document && $0.pageIndex >= 0 ? $0.pageIndex : nil }
+            : nil
+        let documentIndex = anchorIndex ?? document.pageCount
+
+        var newSessions: [ImageSession] = []
+        for (offset, page) in pages.enumerated() {
+            document.insert(page, at: documentIndex + offset)
+            let source = PDFPageSource(document: document, page: page, sourceURL: anchor.imageURL)
+            let session = ImageSession(pdfPageSource: source, pdfGroupID: groupID)
+            // Document-wide settings are mirrored across the group (see
+            // `watermarkSettingsBinding` / `syncZoomToPDFGroup`), so a page added
+            // later has to join at the same settings rather than at the defaults.
+            session.watermarkSettings = watermarkSettings
+            session.zoomLevel = zoomLevel
+            newSessions.append(session)
+        }
+        sessions.insert(contentsOf: newSessions, at: clamped)
+        pdfStructureEditedGroups.insert(groupID)
+        syncPDFOutlineAfterStructureChange()
+        preloadThumbnails()
+    }
+
+    /// Opens a picker for pages to add, inserting them after the current page.
+    private func promptToAddPages() {
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Add Pages")
+        panel.prompt = String(localized: "Add")
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.pdf, .image]
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
+        let after = sessions.firstIndex(where: { $0.id == activeSessionID }).map { $0 + 1 }
+        insertPages(from: panel.urls, at: after ?? sessions.count)
+    }
+
+    /// Re-parses the outline after pages were added, removed or reordered —
+    /// entries can now point at pages that are gone or have moved. Forces the
+    /// cache miss `refreshPDFOutlineIfNeeded` would otherwise skip (the group id
+    /// hasn't changed).
+    private func syncPDFOutlineAfterStructureChange() {
+        outlineGroupID = nil
+        refreshPDFOutlineIfNeeded()
     }
 
     // MARK: - Save
@@ -4042,7 +4168,7 @@ struct EditorView: View {
 
     /// The active session's PDF page, if it is a PDF session.
     private func activePDFPage() -> PDFPage? {
-        activeSession?.pdfPageSource.flatMap { $0.document.page(at: $0.pageIndex) }
+        activeSession?.pdfPageSource?.page
     }
 
     private func copyToClipboard() {
@@ -4138,7 +4264,8 @@ struct EditorView: View {
                     guard !handledPDFGroups.contains(groupID) else { continue }
                     handledPDFGroups.insert(groupID)
                     let groupSessions = sessions.filter { $0.pdfGroupID == groupID }
-                    let groupHasEdits = groupSessions.contains { sessionHasEdits($0) }
+                    let groupHasEdits = pdfStructureEditedGroups.contains(groupID)
+                        || groupSessions.contains { sessionHasEdits($0) }
                     if groupHasEdits {
                         try PDFExportService.exportPDF(
                             sessions: groupSessions,
@@ -4363,7 +4490,7 @@ struct EditorView: View {
                 ?? session.image?.cgImage(forProposedRect: nil, context: nil, hints: nil)
             // Each session may have its own DPI (mixed 1×/2× images in one print job).
             renderer.styleScale = session.dpiScaleFactor
-            let page = session.pdfPageSource.flatMap { $0.document.page(at: $0.pageIndex) }
+            let page = session.pdfPageSource?.page
             guard let outputCG = composedRasterOutput(
                 pdfPage: page,
                 displayCG: cg,

@@ -159,8 +159,7 @@ struct EditorCanvasView: View {
         ZStack(alignment: .topLeading) {
             // Base image + gesture layer combined (so gestures don't block other views)
             Group {
-                if let pdfSource = pdfPageSource,
-                   let page = pdfSource.document.page(at: pdfSource.pageIndex) {
+                if let page = pdfPageSource?.page {
                     // pointSize must be the page's own point size — the extent
                     // `page.draw(with: .mediaBox)` fills — NOT imagePixelSize /
                     // displayBackingScale. Non-active pages can be rasterized at a

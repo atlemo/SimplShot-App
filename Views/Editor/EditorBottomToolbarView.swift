@@ -5,7 +5,9 @@ import SwiftUI
 struct EditorBottomToolbarView: View {
     private let pillHeight: CGFloat = 32
 
-    // Left — pixel dimensions or template sliders
+    // Left — file name + pixel dimensions, or template sliders
+    /// Name of the file being edited, shown ahead of the dimensions.
+    let fileName: String
     let imagePixelSize: CGSize
     let aspectRatios: [AspectRatio]
     @Binding var selectedAspectRatioID: UUID?
@@ -46,12 +48,8 @@ struct EditorBottomToolbarView: View {
                     if useTemplateBackground && !hideSliders {
                         sliders
                             .pillBackground(useGlass: useGlass)
-                    } else if displayPixelDimensions && imagePixelSize != .zero {
-                        Text("\(Int(imagePixelSize.width)) × \(Int(imagePixelSize.height)) px")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.secondary)
                     } else {
-                        EmptyView()
+                        fileInfo
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -69,6 +67,35 @@ struct EditorBottomToolbarView: View {
             .padding(.vertical, 6)
         }
         .background(.clear)
+    }
+
+    /// Left readout: the file name, then the pixel dimensions when the user has
+    /// turned them on (View ▸ Display pixel dimensions).
+    private var fileInfo: some View {
+        HStack(spacing: 6) {
+            if !fileName.isEmpty {
+                Text(fileName)
+                    .lineLimit(1)
+                    // Middle truncation keeps the extension visible, which is
+                    // what distinguishes a PDF from an image at a glance.
+                    // No width frame: a `maxWidth` here reserves that width even
+                    // for a short name, leaving a gap before the dimensions. The
+                    // leading zone already caps the space available, and a
+                    // single-line Text compresses into it by truncating, so a
+                    // long name still can't crowd the centred actions.
+                    .truncationMode(.middle)
+                    .help(fileName)
+            }
+            if displayPixelDimensions && imagePixelSize != .zero {
+                if !fileName.isEmpty {
+                    Text(verbatim: "·")
+                }
+                Text("\(Int(imagePixelSize.width)) × \(Int(imagePixelSize.height)) px")
+                    .font(.system(size: 11, design: .monospaced))
+            }
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(.secondary)
     }
 
     @ViewBuilder

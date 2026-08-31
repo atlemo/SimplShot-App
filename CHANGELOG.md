@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Add, Remove and Reorder PDF Pages
+The page strip is now a real page organiser. The × on a thumbnail deletes the page from the document rather than just hiding its thumbnail — the page disappears from the page count, continuous scroll, Find and the outline as well, and is gone from the saved file. Dragging thumbnails reorders the document itself, so the new order is what gets exported. And pages can be added: drag a PDF or an image onto the strip and drop it wherever the caret appears, or use the Add Pages tile at the bottom of the strip to pick files. A dropped PDF contributes all of its pages, an image becomes a single page at its own resolution, and everything lands in the open document, so page numbering, Find and the single-file save keep working across the additions. Nothing touches the file on disk until you save. The strip now also appears for single-page PDFs, since that is where pages are added.
+
 ## 2026-08-31 (1.7.6)
 
 ### Hide the Menu Bar Icon
