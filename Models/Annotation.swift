@@ -527,6 +527,52 @@ enum AngleGeometry {
     }
 }
 
+// MARK: - Text Bubble Geometry
+
+/// The one place the text pill's width is derived. The drawn resize handles,
+/// the handle hit test, the body hit test and the resize drag must ALL go
+/// through this — they used to measure independently and drift apart.
+///
+/// ⚠️ The pill is laid out on screen at `fontSize * scale`, and the system
+/// font's tracking table is **not linear in point size**, so
+/// `naturalWidth(fontSize) * scale != naturalWidth(fontSize * scale)`.
+/// Measuring the natural width at the stored (image-space) `fontSize` and then
+/// scaling it put the hit target up to ~15pt away from the drawn dot at fit
+/// zoom — past `handleHitRadius`, so pressing the dot fell through to the body
+/// hit test and moved the whole bubble instead of resizing it. Every natural
+/// width is therefore measured at the **displayed** size and converted back.
+enum TextBubbleGeometry {
+    /// Horizontal padding inside the pill, in the same space as `fontSize`.
+    static func horizontalPadding(fontSize: CGFloat) -> CGFloat { fontSize * 0.55 }
+
+    /// Natural (wrap-free) pill width for `text` rendered at `fontSize`.
+    /// The result is in whatever space `fontSize` is expressed in.
+    static func naturalWidth(text: String, fontSize: CGFloat) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font]
+        let maxLineW = text.components(separatedBy: .newlines)
+            .map { ($0.isEmpty ? " " : $0 as NSString).size(withAttributes: attrs).width }
+            .max() ?? 0
+        return maxLineW + horizontalPadding(fontSize: fontSize) * 2
+    }
+
+    /// Pill width in **view points** at zoom `scale` — where the handles are drawn.
+    static func displayWidth(for annotation: Annotation, scale: CGFloat) -> CGFloat {
+        if let w = annotation.textWidth { return w * scale }
+        return naturalWidth(text: annotation.text,
+                            fontSize: annotation.style.fontSize * scale)
+    }
+
+    /// Pill width in **image-pixel space** at zoom `scale` — where hit testing
+    /// and the resize drag work. Exactly `displayWidth / scale`.
+    static func imageWidth(for annotation: Annotation, scale: CGFloat) -> CGFloat {
+        if let w = annotation.textWidth { return w }
+        guard scale > 0 else { return naturalWidth(text: annotation.text, fontSize: annotation.style.fontSize) }
+        return naturalWidth(text: annotation.text,
+                            fontSize: annotation.style.fontSize * scale) / scale
+    }
+}
+
 // MARK: - Annotation Style
 
 struct AnnotationStyle: Equatable {
@@ -540,9 +586,6 @@ struct AnnotationStyle: Equatable {
     var fillColor: Color? = nil
     var spotlightOpacity: CGFloat = 0.5
     var spotlightFeather: CGFloat = 0
-    /// Fixed wrap width for text annotations in image-pixel space.
-    /// nil = natural (no wrapping); a value = bubble wraps at that width.
-    var textWidth: CGFloat? = nil
 
     /// CGColor for use in Core Graphics rendering.
     var cgStrokeColor: CGColor {
@@ -606,6 +649,14 @@ struct Annotation: Identifiable, Equatable {
     var curvature: CGVector?
     var style: AnnotationStyle
     var text: String           // only meaningful for .text tool
+    /// Fixed wrap width for a `.text` bubble, in image-pixel space.
+    /// nil = natural (no wrapping); a value = the bubble wraps at that width.
+    /// Per-annotation *geometry*, deliberately NOT part of `AnnotationStyle`:
+    /// the sidebar replaces the whole style of the selection wholesale
+    /// (`applyStyleToSelection`) and `currentStyle` is inherited by the next
+    /// annotation, so a width living in the style was silently discarded by the
+    /// next colour/font tweak and leaked into freshly placed bubbles.
+    var textWidth: CGFloat?
     var stepNumber: Int        // only meaningful for .numberedStep tool
 
     init(
@@ -617,6 +668,7 @@ struct Annotation: Identifiable, Equatable {
         curvature: CGVector? = nil,
         style: AnnotationStyle = AnnotationStyle(),
         text: String = "",
+        textWidth: CGFloat? = nil,
         stepNumber: Int = 0
     ) {
         self.id = id
@@ -627,6 +679,7 @@ struct Annotation: Identifiable, Equatable {
         self.curvature = curvature
         self.style = style
         self.text = text
+        self.textWidth = textWidth
         self.stepNumber = stepNumber
     }
 

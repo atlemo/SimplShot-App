@@ -369,7 +369,7 @@ class AnnotationRenderer {
         case .star:
             drawStar(annotation.boundingRect, fillColor: annotation.style.cgFillColor, color: color, in: context)
         case .text:
-            drawText(annotation.text, at: annotation.startPoint, style: annotation.style, drawingHeight: drawingHeight, in: context)
+            drawText(annotation.text, at: annotation.startPoint, style: annotation.style, textWidth: annotation.textWidth, drawingHeight: drawingHeight, in: context)
         case .spotlight:
             break
         case .numberedStep:
@@ -875,7 +875,7 @@ class AnnotationRenderer {
         context.restoreGState()
     }
 
-    private func drawText(_ text: String, at point: CGPoint, style: AnnotationStyle, drawingHeight: CGFloat, in context: CGContext) {
+    private func drawText(_ text: String, at point: CGPoint, style: AnnotationStyle, textWidth: CGFloat?, drawingHeight: CGFloat, in context: CGContext) {
         guard !text.isEmpty else { return }
 
         // Text bubbles are NOT scaled by styleScale: their box geometry and the
@@ -897,7 +897,7 @@ class AnnotationRenderer {
         let lineSpacing = fontSize * 0.22
         let cornerRadius = fontSize * 0.45
 
-        if let fixedBubbleWidth = style.textWidth {
+        if let fixedBubbleWidth = textWidth {
             // Fixed-width mode: use CTFramesetter to wrap text into the available inner width.
             let innerWidth = fixedBubbleWidth - hPad * 2
 

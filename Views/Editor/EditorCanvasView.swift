@@ -294,7 +294,7 @@ struct EditorCanvasView: View {
                     x: ann.startPoint.x * scale,
                     y: ann.startPoint.y * scale
                 )
-                let fixedInnerW: CGFloat? = ann.style.textWidth.map { $0 * scale - hPad * 2 }
+                let fixedInnerW: CGFloat? = ann.textWidth.map { $0 * scale - hPad * 2 }
                 let contentW = fixedInnerW ?? max(editingContentSize.width, scaledFontSize * 2)
                 let contentH = max(editingContentSize.height, scaledFontSize * 1.2)
                 GrowingTextField(
@@ -409,6 +409,7 @@ struct EditorCanvasView: View {
                                     curvature: duplicate.curvature,
                                     style: duplicate.style,
                                     text: duplicate.text,
+                                    textWidth: duplicate.textWidth,
                                     stepNumber: duplicate.stepNumber
                                 )
                                 onCommit()
@@ -686,7 +687,7 @@ struct EditorCanvasView: View {
             let currentWidth = textBubbleWidth(for: ann)
             let minWidth = ann.style.fontSize * 2
             let newWidth = max(minWidth, currentWidth - dx * 2)
-            ann.style.textWidth = newWidth
+            ann.textWidth = newWidth
             snapH = false
             snapV = false
 
@@ -694,7 +695,7 @@ struct EditorCanvasView: View {
             let currentWidth = textBubbleWidth(for: ann)
             let minWidth = ann.style.fontSize * 2
             let newWidth = max(minWidth, currentWidth + dx * 2)
-            ann.style.textWidth = newWidth
+            ann.textWidth = newWidth
             snapH = false
             snapV = false
         }
@@ -909,21 +910,13 @@ struct EditorCanvasView: View {
         }
     }
 
-    /// Returns the current bubble width (in image pixels) for a text annotation,
-    /// using the stored textWidth if set, otherwise the natural wrap-free width.
+    /// The current bubble width in image pixels. Goes through
+    /// `TextBubbleGeometry` so the hit test, the drawn handles
+    /// (`AnnotationOverlayView.selectionHandles`) and the resize drag can't
+    /// drift apart — see the warning on that type about measuring the natural
+    /// width at the *displayed* font size.
     private func textBubbleWidth(for annotation: Annotation) -> CGFloat {
-        if let w = annotation.style.textWidth { return w }
-        return naturalTextBubbleWidth(for: annotation)
-    }
-
-    private func naturalTextBubbleWidth(for annotation: Annotation) -> CGFloat {
-        let fs = annotation.style.fontSize
-        let hPad = fs * 0.55
-        let lines = annotation.text.components(separatedBy: .newlines)
-        let font = NSFont.systemFont(ofSize: fs, weight: .medium)
-        let attrs: [NSAttributedString.Key: Any] = [.font: font]
-        let maxLineW = lines.map { ($0.isEmpty ? " " : $0 as NSString).size(withAttributes: attrs).width }.max() ?? 0
-        return maxLineW + hPad * 2
+        TextBubbleGeometry.imageWidth(for: annotation, scale: scale)
     }
 
     /// Hit-test annotation bodies (ignores handles).

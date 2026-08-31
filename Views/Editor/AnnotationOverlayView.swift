@@ -197,8 +197,8 @@ struct AnnotationOverlayView: View {
             let cornerRadius = scaledFontSize * 0.45
             let borderWidth = max(2, 2 * scale)
             let hPad = scaledFontSize * 0.55
-            let hasFixedWidth = annotation.style.textWidth != nil
-            let innerWidth: CGFloat? = annotation.style.textWidth.map { $0 * scale - hPad * 2 }
+            let hasFixedWidth = annotation.textWidth != nil
+            let innerWidth: CGFloat? = annotation.textWidth.map { $0 * scale - hPad * 2 }
             Group {
                 if let iw = innerWidth {
                     Text(annotation.text)
@@ -326,16 +326,9 @@ struct AnnotationOverlayView: View {
             HandleDot(center: CGPoint(x: rect.maxX, y: rect.maxY))
 
         case .text:
-            let fs = annotation.style.fontSize * scale
-            let hPad = fs * 0.55
-            let bubbleW: CGFloat = {
-                if let fixedW = annotation.style.textWidth { return fixedW * scale }
-                let lines = annotation.text.components(separatedBy: .newlines)
-                let font = NSFont.systemFont(ofSize: fs, weight: .medium)
-                let attrs: [NSAttributedString.Key: Any] = [.font: font]
-                let maxLineW = lines.map { ($0.isEmpty ? " " : $0 as NSString).size(withAttributes: attrs).width }.max() ?? 0
-                return maxLineW + hPad * 2
-            }()
+            // Same source as the hit test and the resize drag
+            // (EditorCanvasView.textBubbleWidth) — see TextBubbleGeometry.
+            let bubbleW = TextBubbleGeometry.displayWidth(for: annotation, scale: scale)
             let cx = annotation.startPoint.x * scale
             let cy = annotation.startPoint.y * scale
             HandleDot(center: CGPoint(x: cx - bubbleW / 2, y: cy))

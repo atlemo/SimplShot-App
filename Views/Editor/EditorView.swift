@@ -2334,8 +2334,8 @@ struct EditorView: View {
             // strokeWidth, which is logical points), so they must scale with
             // the image or text bubbles change size relative to the content.
             a.style.fontSize = ann.style.fontSize * min(scaleX, scaleY)
-            if let w = ann.style.textWidth {
-                a.style.textWidth = w * scaleX
+            if let w = ann.textWidth {
+                a.textWidth = w * scaleX
             }
             return a
         }
