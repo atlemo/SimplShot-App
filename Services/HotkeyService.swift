@@ -17,16 +17,16 @@ extension KeyboardShortcuts.Name {
     /// key monitor matches the recorded shortcut itself, so the action only
     /// fires in an editor window and only when no text field has focus.
     ///
-    /// Attaching a `KeyboardShortcuts.onKeyDown` handler is not the only way to
-    /// get one: the library registers a **global Carbon hotkey inside
-    /// `setShortcut`**, whether or not any handler exists. Both
-    /// `Name(_:default:)` (on the first launch, when UserDefaults has no value
-    /// yet) and every recorder/reset write therefore install a system-wide ⌘C
-    /// that swallows Copy in *every* app for the rest of the process lifetime.
-    ///
-    /// `HotkeyService.unregisterEditorOnlyShortcuts()` undoes that, and must be
-    /// called after launch and after every write. See `ShortcutsSettingsView`.
-    static let copyToClipboard = Self("copyToClipboard", default: .init(.c, modifiers: .command))
+    /// Under KeyboardShortcuts 2.x, declaring an initial shortcut was enough to
+    /// install one: the library registered a **global Carbon hotkey inside
+    /// `setShortcut`**, with no handler involved, so this name silently
+    /// swallowed ⌘C in *every* app for the rest of the process lifetime.
+    /// 3.x closed that — registration now requires an active handler, and this
+    /// name never gets one — but `unregisterEditorOnlyShortcuts()` is still
+    /// called after launch and after every write as the guard that survives
+    /// someone attaching a handler later. See `ShortcutsSettingsView` and the
+    /// fuller account in CLAUDE.md.
+    static let copyToClipboard = Self("copyToClipboard", initial: .init(.c, modifiers: .command))
 }
 
 class HotkeyService {

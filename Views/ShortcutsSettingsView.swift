@@ -64,7 +64,7 @@ struct ShortcutsSettingsView: View {
             // item — including ⌘C (Edit ▸ Copy). Names that ship a default are
             // therefore given a reset button, so a user who rebinds them can
             // always get the default back.
-            if shortcut.defaultShortcut != nil {
+            if shortcut.initialShortcut != nil {
                 ResetShortcutButton(name: shortcut)
             }
             // Recording writes through `setShortcut`, which installs a global
@@ -100,8 +100,8 @@ private struct ResetShortcutButton: View {
         .buttonStyle(.borderless)
         .controlSize(.small)
         .help("Restore the default shortcut")
-        .opacity(current == name.defaultShortcut ? 0 : 1)
-        .disabled(current == name.defaultShortcut)
+        .opacity(current == name.initialShortcut ? 0 : 1)
+        .disabled(current == name.initialShortcut)
         .onAppear { current = name.shortcut }
         // The recorder writes straight to UserDefaults, so poll the stored value
         // rather than trying to observe the recorder itself.
