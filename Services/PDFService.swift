@@ -208,6 +208,44 @@ enum PDFService {
         let idx = document.index(for: page)
         guard idx != NSNotFound, document.pageCount > 1 else { return false }
         document.removePage(at: idx)
+        pruneDanglingOutlineEntries(in: document)
+        return true
+    }
+
+    /// Drops outline entries whose destination page is no longer in `document`.
+    ///
+    /// PDFKit resolves a dangling destination to **page 0**, so leaving them
+    /// behind silently turns a deleted chapter's entry into a link to the front
+    /// of the document — in the editor's outline tab and in every saved copy,
+    /// including the lossless `dataRepresentation()` save path. Pruning at
+    /// deletion time (rather than at save time) keeps both save paths honest
+    /// without either of them having to special-case it.
+    private static func pruneDanglingOutlineEntries(in document: PDFDocument) {
+        guard let root = document.outlineRoot else { return }
+        for i in stride(from: root.numberOfChildren - 1, through: 0, by: -1) {
+            guard let child = root.child(at: i) else { continue }
+            _ = prune(child, in: document)
+        }
+    }
+
+    /// Returns true when `node` survives the prune. Children are visited in
+    /// reverse so removing one doesn't shift the indices still to be examined.
+    private static func prune(_ node: PDFOutline, in document: PDFDocument) -> Bool {
+        var survivor: PDFOutline?
+        for i in stride(from: node.numberOfChildren - 1, through: 0, by: -1) {
+            guard let child = node.child(at: i) else { continue }
+            if prune(child, in: document) { survivor = child }
+        }
+        let destination = node.destination ?? (node.action as? PDFActionGoTo)?.destination
+        let resolves = destination?.page.map { document.index(for: $0) != NSNotFound } ?? false
+        if resolves { return true }
+        guard let survivor else {
+            node.removeFromParent()
+            return false
+        }
+        // A section header whose own page is gone but whose children survive
+        // adopts its first surviving child's destination rather than page 0.
+        node.destination = survivor.destination
         return true
     }
 

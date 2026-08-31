@@ -5,6 +5,9 @@
 ### Add, Remove and Reorder PDF Pages
 The page strip is now a real page organiser. The × on a thumbnail deletes the page from the document rather than just hiding its thumbnail — the page disappears from the page count, continuous scroll, Find and the outline as well, and is gone from the saved file. Dragging thumbnails reorders the document itself, so the new order is what gets exported. And pages can be added: drag a PDF or an image onto the strip and drop it wherever the caret appears, or use the Add Pages tile at the bottom of the strip to pick files. A dropped PDF contributes all of its pages, an image becomes a single page at its own resolution, and everything lands in the open document, so page numbering, Find and the single-file save keep working across the additions. Nothing touches the file on disk until you save. The strip now also appears for single-page PDFs, since that is where pages are added.
 
+### Saving a PDF Keeps Its Outline, Links and Metadata
+Saving used to rebuild the document from scratch and draw the pages into it, which silently discarded the table of contents, every hyperlink and the document's metadata. That only affected annotated documents before; with page editing it would have hit anyone who merely reordered pages. A document with nothing composited over it — pages added, deleted or reordered — is now saved byte-for-byte intact, so nothing is re-encoded at all. When there are annotations or a watermark the pages still have to be redrawn, but the outline, links and metadata are carried across to the result instead of being dropped. Deleting a page also removes its table-of-contents entry rather than leaving one that jumps to the front of the document.
+
 ## 2026-08-31 (1.7.6)
 
 ### Hide the Menu Bar Icon
