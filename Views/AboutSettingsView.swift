@@ -9,6 +9,10 @@ struct AboutSettingsView: View {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     }
 
+#if !APPSTORE
+    private var appDelegate: AppDelegate? { NSApp.delegate as? AppDelegate }
+#endif
+
     var body: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -34,6 +38,18 @@ struct AboutSettingsView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .tint(.primary)
+
+#if !APPSTORE
+            // Mirrors the status-bar menu item — repeated here so updates stay
+            // reachable when the menu bar icon is hidden. Always shown, and
+            // disabled when the updater failed to configure, exactly like the
+            // menu item: a button that disappears looks like a missing feature.
+            Button("Check for Updates…") {
+                appDelegate?.checkForUpdates()
+            }
+            .disabled(appDelegate?.canCheckForUpdates != true)
+            .padding(.top, 4)
+#endif
 
             Spacer()
 

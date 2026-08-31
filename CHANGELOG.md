@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-31 (1.7.6)
+
+### Hide the Menu Bar Icon
+Settings › General can now take SimplShot's icon out of the menu bar, for people who drive the whole app from keyboard shortcuts. SimplShot keeps running in the background, and opening it from Spotlight brings the menu up for as long as it is needed — the icon reveals itself only to anchor the menu and hides again as soon as the menu closes, so the preference survives the visit. Suggested by [Matt Ormianek](https://github.com/MattOrmianek).
+
+### Check for Updates in Settings
+Check for Updates is now in Settings › About as well as the menu bar, so an update never depends on the icon being visible.
+
 ## 2026-08-24 (1.7.5)
 
 ### Crop Mode Takes Over the Sidebar

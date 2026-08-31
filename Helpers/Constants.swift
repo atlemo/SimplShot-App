@@ -70,5 +70,10 @@ enum Constants {
         static let screenRecordingLastGrantDate = "screenRecordingLastGrantDate"
         static let screenRecordingHasRequested = "screenRecordingHasRequested"
         static let displayPixelDimensions = "displayPixelDimensions"
+        /// Hides the status-bar item. The menu stays reachable by re-opening the
+        /// app (Spotlight/Finder) — see `AppDelegate.applicationShouldHandleReopen`.
+        static let hideMenuBarIcon = "hideMenuBarIcon"
+        /// Whether the one-time "how to get back to the menu" explainer was shown.
+        static let hasShownHideMenuBarIconNotice = "hasShownHideMenuBarIconNotice"
     }
 }

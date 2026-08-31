@@ -4,6 +4,13 @@ import ServiceManagement
 import AppKit
 #endif
 
+extension Notification.Name {
+    /// Posted when `AppSettings.hideMenuBarIcon` changes. `AppDelegate` observes
+    /// it to show/hide the status item without the settings pane having to reach
+    /// into the app delegate.
+    static let menuBarIconVisibilityChanged = Notification.Name("SimplShotMenuBarIconVisibilityChanged")
+}
+
 enum ScreenshotFormat: String, Codable, CaseIterable {
     case png
     case jpeg
@@ -169,6 +176,16 @@ class AppSettings {
         didSet { UserDefaults.standard.set(openEditorAfterCapture, forKey: Constants.UserDefaultsKeys.openEditorAfterCapture) }
     }
 
+    /// Hides the status-bar icon. The app keeps running: re-opening it (Spotlight,
+    /// Finder, Dock) pops the menu and leaves the icon hidden — see
+    /// `AppDelegate.applicationShouldHandleReopen`.
+    var hideMenuBarIcon: Bool {
+        didSet {
+            UserDefaults.standard.set(hideMenuBarIcon, forKey: Constants.UserDefaultsKeys.hideMenuBarIcon)
+            NotificationCenter.default.post(name: .menuBarIconVisibilityChanged, object: nil)
+        }
+    }
+
     var editorUseTemplateBackground: Bool {
         didSet { UserDefaults.standard.set(editorUseTemplateBackground, forKey: Constants.UserDefaultsKeys.editorUseTemplateBackground) }
     }
@@ -250,6 +267,9 @@ class AppSettings {
         } else {
             self.openEditorAfterCapture = true
         }
+
+        // Menu-bar icon visibility (defaults to visible)
+        self.hideMenuBarIcon = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.hideMenuBarIcon)
 
         // Load template background preference (defaults to false)
         self.editorUseTemplateBackground = UserDefaults.standard.bool(forKey: Constants.UserDefaultsKeys.editorUseTemplateBackground)

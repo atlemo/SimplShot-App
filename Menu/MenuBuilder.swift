@@ -28,6 +28,12 @@ class MenuBuilder: NSObject, NSMenuDelegate {
     /// Set by AppDelegate so the menu can re-show itself after selection changes.
     weak var statusItem: NSStatusItem?
 
+    /// Set by `AppDelegate.showStatusMenu()` when it reveals a hidden status item
+    /// only to have something to anchor the menu to. A flag rather than a re-read
+    /// of `appSettings.hideMenuBarIcon`, so an ordinary click on a visible icon
+    /// can never hide it.
+    var hideStatusItemAfterMenuCloses = false
+
 #if !APPSTORE
     /// When true, `menuWillOpen` skips the app-list refresh (used during reopen).
     private var skipNextRefresh = false
@@ -93,6 +99,12 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         }
 #endif
         rebuildMenu()
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        guard hideStatusItemAfterMenuCloses else { return }
+        hideStatusItemAfterMenuCloses = false
+        statusItem?.isVisible = false
     }
 
     // MARK: - Build menu

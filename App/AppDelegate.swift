@@ -10,6 +10,9 @@ import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
+    /// The status item's custom view, kept so the menu can also be popped from
+    /// outside a click (see `showStatusMenu()`).
+    private weak var statusItemView: StatusItemDragView?
     let appSettings = AppSettings()
     private var menuBuilder: MenuBuilder!
     private let screenshotService = ScreenshotService()
@@ -115,26 +118,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Set up status item.
-        // We use statusItem.view (deprecated API) intentionally: adding a drag-destination
-        // subview to NSStatusBarButton causes "Reentrant message: kDragIPCCompleted,
-        // current message: kDragIPCLeaveApplication" errors because the drag system treats
-        // the status-bar window as outside the app boundary. statusItem.view bypasses that
-        // IPC mechanism entirely and is the only reliable way to accept file drops here.
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        let thickness = NSStatusBar.system.thickness
-        let dragView = StatusItemDragView(
-            frame: NSRect(x: 0, y: 0, width: thickness, height: thickness)
+        setUpStatusItem()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applyMenuBarIconVisibility),
+            name: .menuBarIconVisibilityChanged,
+            object: nil
         )
-        dragView.toolTip = "SimplShot"
-        dragView.onFilesDropped = { [weak self] urls in
-            self?.application(NSApp, open: urls)
-        }
-        // Suppress "deprecated" warning: intentional, see comment above.
-        statusItem.perform(NSSelectorFromString("setView:"), with: dragView)
-        dragView.statusItem = statusItem      // needed for menu open on click
-        statusItem.menu = menuBuilder.menu
-        menuBuilder.statusItem = statusItem
 
         // Editor-only shortcuts must not become system-wide hotkeys — see
         // `KeyboardShortcuts.Name.copyToClipboard`. Run this BEFORE the global
@@ -208,6 +198,82 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 #if !APPSTORE
         showWhatsNewIfNeeded()
 #endif
+    }
+
+    // MARK: - Status item
+
+    /// Creates the status-bar item and applies the "hide menu bar icon" preference.
+    ///
+    /// We use statusItem.view (deprecated API) intentionally: adding a drag-destination
+    /// subview to NSStatusBarButton causes "Reentrant message: kDragIPCCompleted,
+    /// current message: kDragIPCLeaveApplication" errors because the drag system treats
+    /// the status-bar window as outside the app boundary. statusItem.view bypasses that
+    /// IPC mechanism entirely and is the only reliable way to accept file drops here.
+    @MainActor
+    private func setUpStatusItem() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        let thickness = NSStatusBar.system.thickness
+        let dragView = StatusItemDragView(
+            frame: NSRect(x: 0, y: 0, width: thickness, height: thickness)
+        )
+        dragView.toolTip = "SimplShot"
+        dragView.onFilesDropped = { [weak self] urls in
+            self?.application(NSApp, open: urls)
+        }
+        // Suppress "deprecated" warning: intentional, see comment above.
+        statusItem.perform(NSSelectorFromString("setView:"), with: dragView)
+        dragView.statusItem = statusItem      // needed for menu open on click
+        statusItem.menu = menuBuilder.menu
+        menuBuilder.statusItem = statusItem
+        statusItemView = dragView
+        applyMenuBarIconVisibility()
+    }
+
+    /// Hiding only sets `isVisible` — the item stays alive because it is the
+    /// anchor `showStatusMenu()` pops the menu from.
+    @MainActor
+    @objc private func applyMenuBarIconVisibility() {
+        statusItem?.isVisible = !appSettings.hideMenuBarIcon
+    }
+
+    /// Shows the status-bar menu, revealing a hidden icon just long enough to
+    /// anchor it. `MenuBuilder.menuDidClose` hides it again, so a visit through
+    /// Spotlight leaves the user's "hide the icon" preference intact.
+    @MainActor
+    private func showStatusMenu() {
+        guard let statusItem, let statusItemView else { return }
+        guard !statusItem.isVisible else {
+            statusItemView.showMenu()
+            return
+        }
+        statusItem.isVisible = true
+        menuBuilder.hideStatusItemAfterMenuCloses = true
+        popUpStatusMenuWhenPlaced()
+    }
+
+    /// A just-revealed item is not in the status bar's window yet, and the menu
+    /// is positioned relative to that window — so wait for it (briefly) before
+    /// popping, rather than anchoring the menu at nothing.
+    @MainActor
+    private func popUpStatusMenuWhenPlaced(attempt: Int = 0) {
+        guard let statusItemView else { return }
+        guard statusItemView.window == nil, attempt < 10 else {
+            statusItemView.showMenu()
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
+            self?.popUpStatusMenuWhenPlaced(attempt: attempt + 1)
+        }
+    }
+
+    /// Re-opening SimplShot (Spotlight, Finder, the Dock) shows the menu. That is
+    /// the only way in when the menu-bar icon is hidden: this is an agent app, so
+    /// a second launch has no window to bring forward and would do nothing.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // With windows on screen, keep the standard behaviour (AppKit fronts them).
+        guard !flag else { return true }
+        showStatusMenu()
+        return true
     }
 
 #if !APPSTORE
@@ -320,7 +386,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
 #if !APPSTORE
-    private func checkForUpdates() {
+    /// Also reachable from Settings → About, which is how a user with the menu
+    /// bar icon hidden gets to updates without going through the menu.
+    var canCheckForUpdates: Bool { updaterController != nil }
+
+    func checkForUpdates() {
         updaterController?.checkForUpdates(nil)
     }
 #endif
@@ -704,6 +774,12 @@ private final class StatusItemDragView: NSView {
     // MARK: - Click → open menu
 
     override func mouseDown(with event: NSEvent) {
+        showMenu()
+    }
+
+    /// Pops the item's menu with native status-menu placement. Also called by
+    /// `AppDelegate.showStatusMenu()` when the app is re-opened from Spotlight.
+    func showMenu() {
         guard let statusItem, let menu = statusItem.menu else { return }
         // The menu inherits THIS view's effective appearance, and the status-bar
         // window follows the *menu bar* (dark whenever the wallpaper behind it is

@@ -44,6 +44,23 @@ struct GeneralSettingsView: View {
 
             Divider().padding(.horizontal)
 
+            // --- Menu bar icon ---
+            settingsRow("Menu bar:") {
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("Hide menu bar icon", isOn: $appSettings.hideMenuBarIcon)
+                        .toggleStyle(.checkbox)
+                        .onChange(of: appSettings.hideMenuBarIcon) { _, isHidden in
+                            if isHidden { showHideMenuBarIconNoticeIfNeeded() }
+                        }
+                    Text("Open SimplShot from Spotlight to show the menu")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 20)
+                }
+            }
+
+            Divider().padding(.horizontal)
+
             // --- Open Editor After Capture ---
             settingsRow("After capture:") {
                 VStack(alignment: .leading, spacing: 2) {
@@ -178,6 +195,22 @@ struct GeneralSettingsView: View {
         if alert.runModal() == .alertFirstButtonReturn {
             MenuBuilder.relaunchApp()
         }
+    }
+
+    /// Explains the way back in, once, the first time the icon is hidden: with no
+    /// icon and no window there is nothing on screen to click, and the app is
+    /// still running.
+    private func showHideMenuBarIconNoticeIfNeeded() {
+        let key = Constants.UserDefaultsKeys.hasShownHideMenuBarIconNotice
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Menu Bar Icon Hidden")
+        alert.informativeText = String(localized: "SimplShot keeps running in the background. Open it from Spotlight to show the menu again — the icon stays hidden.")
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: String(localized: "OK"))
+        alert.runModal()
     }
 
     private func refreshPermissions() {

@@ -11,9 +11,9 @@ struct SettingsView: View {
     /// especially), so the pane needs slack beyond what the English layout uses.
     private var settingsHeight: CGFloat {
 #if APPSTORE
-        440
+        515
 #else
-        460
+        535
 #endif
     }
 

@@ -1,6 +1,244 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Check for Updates now also sits in Settings › About, so you can update SimplShot without bringing its menu bar icon back." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Nach Updates suchen“ findest du jetzt auch in Einstellungen › Über — so kannst du SimplShot aktualisieren, ohne das Menüleistensymbol zurückzuholen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "« Rechercher les mises à jour » se trouve désormais aussi dans Réglages › À propos : vous pouvez mettre SimplShot à jour sans faire réapparaître son icône dans la barre des menus."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「アップデートを確認」が設定 › このアプリについてにも加わり、メニューバーアイコンを戻さなくてもSimplShotを更新できます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пункт «Проверить обновления» теперь есть и в Настройках › О программе — обновить SimplShot можно, не возвращая значок в строку меню."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“检查更新”现在也出现在设置 › 关于中，无需让菜单栏图标重新出现即可更新 SimplShot。"
+          }
+        }
+      }
+    },
+    "Hide menu bar icon" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menüleistensymbol ausblenden"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masquer l’icône de la barre des menus"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューバーアイコンを非表示"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрыть значок в строке меню"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏菜单栏图标"
+          }
+        }
+      }
+    },
+    "Menu Bar Icon Hidden" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menüleistensymbol ausgeblendet"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icône de la barre des menus masquée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューバーアイコンを非表示にしました"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Значок в строке меню скрыт"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已隐藏菜单栏图标"
+          }
+        }
+      }
+    },
+    "Menu bar:" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menüleiste:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barre des menus :"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューバー:"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Строка меню:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "菜单栏："
+          }
+        }
+      }
+    },
+    "New: Hide the menu bar icon — Settings › General can take SimplShot's icon out of your menu bar, leaving your keyboard shortcuts to do the work. The app keeps running: open it from Spotlight and the menu appears for as long as you need it, then hides itself again. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the idea." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Menüleistensymbol ausblenden — In Einstellungen › Allgemein kannst du SimplShots Symbol aus der Menüleiste nehmen und alles über deine Tastaturkurzbefehle erledigen. Die App läuft weiter: Öffne sie über Spotlight, dann erscheint das Menü so lange, wie du es brauchst, und blendet sich danach wieder aus. Danke an Matt Ormianek (@MattOrmianek auf GitHub) für die Idee."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : masquer l’icône de la barre des menus — Réglages › Général permet de retirer l’icône de SimplShot de la barre des menus et de tout piloter au clavier. L’app continue de fonctionner : ouvrez-la depuis Spotlight et le menu s’affiche aussi longtemps que nécessaire, puis se masque à nouveau. Merci à Matt Ormianek (@MattOrmianek sur GitHub) pour l’idée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能: メニューバーアイコンを非表示 — 設定 › 一般でSimplShotのアイコンをメニューバーから外し、あとはキーボードショートカットで操作できます。Appはそのまま動作し続けます。SpotlightからSimplShotを開けば必要なあいだメニューが表示され、閉じるとアイコンはまた非表示になります。アイデアをくださったMatt Ormianekさん（GitHubの@MattOrmianek）に感謝します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: скрытие значка в строке меню — в Настройках › Основные можно убрать значок SimplShot из строки меню и работать одними сочетаниями клавиш. Приложение продолжает работать: откройте его через Spotlight, и меню появится ровно на столько, сколько нужно, а затем значок снова скроется. Спасибо Matt Ormianek (@MattOrmianek на GitHub) за идею."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：隐藏菜单栏图标——在设置 › 通用中，可以把 SimplShot 的图标从菜单栏移除，改用键盘快捷键操作。App 会继续运行：通过 Spotlight 打开它，菜单就会显示，需要多久都行，之后图标又会隐藏起来。感谢 Matt Ormianek（GitHub 上的 @MattOrmianek）提出这个想法。"
+          }
+        }
+      }
+    },
+    "Open SimplShot from Spotlight to show the menu" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffne SimplShot über Spotlight, um das Menü anzuzeigen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez SimplShot depuis Spotlight pour afficher le menu"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SpotlightからSimplShotを開くとメニューが表示されます"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Откройте SimplShot через Spotlight, чтобы показать меню"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 Spotlight 打开 SimplShot 即可显示菜单"
+          }
+        }
+      }
+    },
+    "SimplShot keeps running in the background. Open it from Spotlight to show the menu again — the icon stays hidden." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot läuft weiterhin im Hintergrund. Öffne es über Spotlight, um das Menü wieder anzuzeigen – das Symbol bleibt ausgeblendet."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot continue de fonctionner en arrière-plan. Ouvrez-le depuis Spotlight pour afficher à nouveau le menu — l’icône reste masquée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShotはバックグラウンドで動作し続けます。SpotlightからSimplShotを開くとメニューが再表示されます（アイコンは非表示のままです）。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot продолжает работать в фоне. Откройте его через Spotlight, чтобы снова показать меню — значок останется скрытым."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SimplShot 会继续在后台运行。通过 Spotlight 打开它即可再次显示菜单，图标仍保持隐藏。"
+          }
+        }
+      }
+    },
     "" : {
       "comment" : "Empty label on KeyboardShortcuts.Recorder — nothing to translate.",
       "shouldTranslate" : false
@@ -10465,6 +10703,7 @@
       }
     },
     "Save & Copy now has a keyboard shortcut — press ⌘C in the editor to save your image, copy it to the clipboard and close the window, exactly like clicking the button. Prefer a different key? Settings › Shortcuts has a new Editor section where you can change it." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -11760,6 +11999,7 @@
       }
     },
     "SimplShot now speaks German — Deutsch joins English, French, Japanese, Russian and Simplified Chinese, so the whole interface, menus, alerts and these release notes are translated. Pick it in Settings › General, or let SimplShot follow your macOS language." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
