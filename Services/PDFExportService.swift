@@ -100,6 +100,10 @@ enum PDFExportService {
         // page mapping the structure transplant relies on.
         var writtenPages: [PDFPage] = []
 
+        // Drawing pages is serialized with every other access to this document's
+        // page tree (background thumbnail rendering, structural edits) — see
+        // PDFService.documentQueue. Saving is modal, so blocking here is free.
+        PDFService.documentQueue.sync {
         for session in sessions {
             guard let page = session.pdfPageSource?.page else { continue }
 
@@ -130,6 +134,7 @@ enum PDFExportService {
 
             pdfContext.endPage()
             writtenPages.append(page)
+        }
         }
 
         pdfContext.closePDF()

@@ -94,20 +94,20 @@ struct PDFPageSource {
         return idx == NSNotFound ? -1 : idx
     }
 
-    /// Serializes all background page rasterization. PDFKit page drawing is not
-    /// thread-safe across pages of the same document, and renders are reached
-    /// from the concurrent `imageLoadQueue` by two independent tasks (the active
-    /// page's `loadImage` and the `preloadThumbnails` loop), which can otherwise
-    /// draw two pages of one `PDFDocument` simultaneously.
-    private static let renderQueue = DispatchQueue(label: "com.simplshot.pdfRender", qos: .userInitiated)
-
     func renderPage(backingScale: CGFloat = 2.0) -> CGImage? {
-        Self.renderQueue.sync {
+        PDFService.documentQueue.sync {
             renderPageSerialized(backingScale: backingScale)
         }
     }
 
     private func renderPageSerialized(backingScale: CGFloat) -> CGImage? {
+        // A page deleted while a preload was already in flight is still held by
+        // that loop's captured session list. Drawing it is what PDFKit logs as
+        // "Drawing a PDFPage when its PDFDocument is nil is unsupported" — it
+        // does still produce correct pixels today (measured), but it is
+        // explicitly unsupported, and nothing needs the result: the session is
+        // on its way out. Decline rather than rely on undefined behaviour.
+        guard document.index(for: page) != NSNotFound else { return nil }
         let pointSize = page.rotatedMediaBoxSize
         let width = Int((pointSize.width * backingScale).rounded())
         let height = Int((pointSize.height * backingScale).rounded())
@@ -133,6 +133,33 @@ struct PDFPageSource {
 }
 
 enum PDFService {
+    /// Serializes everything that touches a `PDFDocument`'s page tree: page
+    /// rasterization AND structural edits.
+    ///
+    /// Rasterization needs it because PDFKit page drawing is not thread-safe
+    /// across pages of one document, and renders are reached from the concurrent
+    /// `imageLoadQueue` by two independent tasks (the active page's `loadImage`
+    /// and the `preloadThumbnails` loop).
+    ///
+    /// Structural edits need it because they mutate the page tree PDFKit may be
+    /// walking. `reorder` also detaches a page between `removePage` and
+    /// `insert`, so a render landing in that window draws a page whose
+    /// `document` is nil — which PDFKit logs as unsupported.
+    ///
+    /// Mutations use `sync`, so a structural edit made while a render is in
+    /// flight waits for that one page to finish. That stall is bounded and rare
+    /// (preloading only runs just after a document opens) and is the price of
+    /// not mutating a page tree PDFKit is walking.
+    ///
+    /// ⚠️ This serialization is defence against PDFKit's documented
+    /// non-thread-safety; the suite does NOT reproduce a failure without it. A
+    /// detached page still renders correct pixels today, so no output check can
+    /// catch the window — only the log line marks it. What IS covered by
+    /// `PDFStructureTests` is the deterministic half: rendering an
+    /// already-detached page, which `renderPageSerialized` refuses. Don't drop
+    /// the queue just because no test turns red.
+    static let documentQueue = DispatchQueue(label: "com.simplshot.pdfDocument", qos: .userInitiated)
+
     /// Loads one `ImageSession` per page. If the document is password protected,
     /// presents a modal password dialog (retrying on a wrong password) and
     /// returns `[]` if the user cancels. Must be called on the main thread.
@@ -205,11 +232,23 @@ enum PDFService {
     /// the document's only page (a zero-page PDF isn't a document).
     @discardableResult
     static func removePage(_ page: PDFPage, from document: PDFDocument) -> Bool {
-        let idx = document.index(for: page)
-        guard idx != NSNotFound, document.pageCount > 1 else { return false }
-        document.removePage(at: idx)
-        pruneDanglingOutlineEntries(in: document)
-        return true
+        documentQueue.sync {
+            let idx = document.index(for: page)
+            guard idx != NSNotFound, document.pageCount > 1 else { return false }
+            document.removePage(at: idx)
+            pruneDanglingOutlineEntries(in: document)
+            return true
+        }
+    }
+
+    /// Splices `pages` into `document` starting at `index`.
+    static func insert(_ pages: [PDFPage], into document: PDFDocument, at index: Int) {
+        documentQueue.sync {
+            let start = min(max(index, 0), document.pageCount)
+            for (offset, page) in pages.enumerated() {
+                document.insert(page, at: min(start + offset, document.pageCount))
+            }
+        }
     }
 
     /// Drops outline entries whose destination page is no longer in `document`.
@@ -258,6 +297,11 @@ enum PDFService {
     /// inside PDFKit on macOS 26 and takes the app down with it — verified
     /// against a document built page by page.
     static func reorder(_ document: PDFDocument, toMatch pages: [PDFPage]) {
+        documentQueue.sync { reorderLocked(document, toMatch: pages) }
+    }
+
+    /// `reorder`'s body, for callers already holding `documentQueue`.
+    private static func reorderLocked(_ document: PDFDocument, toMatch pages: [PDFPage]) {
         guard pages.count == document.pageCount else { return }
         for target in 0..<pages.count {
             let page = pages[target]
@@ -266,6 +310,74 @@ enum PDFService {
             document.removePage(at: current)
             document.insert(page, at: target)
         }
+    }
+
+    // MARK: - Structural Undo
+
+    /// A reversible snapshot of a document's structure: which pages it holds, in
+    /// what order, and its outline.
+    ///
+    /// Holds the pages strongly, so a page deleted after the snapshot was taken
+    /// is still alive to be put back. The outline is captured as a value tree
+    /// because `removePage` prunes dangling entries destructively — without it,
+    /// undoing a delete would restore the page but not its contents entry.
+    struct PDFStructureSnapshot {
+        let document: PDFDocument
+        let pages: [PDFPage]
+        fileprivate let outline: OutlineNode?
+    }
+
+    fileprivate struct OutlineNode {
+        let label: String?
+        let destination: PDFDestination?
+        let children: [OutlineNode]
+    }
+
+    static func snapshotStructure(of document: PDFDocument) -> PDFStructureSnapshot {
+        documentQueue.sync {
+            PDFStructureSnapshot(
+                document: document,
+                pages: (0..<document.pageCount).compactMap { document.page(at: $0) },
+                outline: document.outlineRoot.map(captureOutline)
+            )
+        }
+    }
+
+    /// Puts `document` back exactly as the snapshot found it — page membership,
+    /// page order, and the outline.
+    static func restore(_ snapshot: PDFStructureSnapshot) {
+        documentQueue.sync {
+            let document = snapshot.document
+            let wanted = Set(snapshot.pages.map(ObjectIdentifier.init))
+            for i in stride(from: document.pageCount - 1, through: 0, by: -1) {
+                guard let page = document.page(at: i) else { continue }
+                if !wanted.contains(ObjectIdentifier(page)) { document.removePage(at: i) }
+            }
+            for (index, page) in snapshot.pages.enumerated()
+            where document.index(for: page) == NSNotFound {
+                document.insert(page, at: min(index, document.pageCount))
+            }
+            reorderLocked(document, toMatch: snapshot.pages)
+            document.outlineRoot = snapshot.outline.map(rebuildOutline)
+        }
+    }
+
+    fileprivate static func captureOutline(_ node: PDFOutline) -> OutlineNode {
+        OutlineNode(
+            label: node.label,
+            destination: node.destination ?? (node.action as? PDFActionGoTo)?.destination,
+            children: (0..<node.numberOfChildren).compactMap { node.child(at: $0) }.map(captureOutline)
+        )
+    }
+
+    fileprivate static func rebuildOutline(_ node: OutlineNode) -> PDFOutline {
+        let outline = PDFOutline()
+        outline.label = node.label
+        if let destination = node.destination { outline.destination = destination }
+        for child in node.children {
+            outline.insertChild(rebuildOutline(child), at: outline.numberOfChildren)
+        }
+        return outline
     }
 
     /// Prompts for the document password until it unlocks or the user cancels.

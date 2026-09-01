@@ -255,6 +255,10 @@ class ImageSession: Identifiable, ObservableObject {
 
     // Undo
     var undoStack: [EditorSnapshot] = []
+    /// Push order of `undoStack`'s entries on the editor-wide undo clock, so a
+    /// page edit and an annotation edit can be undone in the order they were
+    /// made. Kept exactly parallel to `undoStack`.
+    var undoSequences: [Int] = []
 
     /// True when this session was recorded into Capture History. On reopen the
     /// editor must restore state from the session (skip the default-template

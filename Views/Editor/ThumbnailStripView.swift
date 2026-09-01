@@ -53,6 +53,9 @@ struct ThumbnailStripView: View {
     /// False when only one item is left — the last page can't be deleted.
     var canRemove: Bool = true
     var onMove: ((Int, Int) -> Void)? = nil
+    /// Called once when a reorder drag starts, so the caller can collapse the
+    /// whole drag into a single undo entry (`onMove` fires on every hover step).
+    var onMoveBegan: (() -> Void)? = nil
     /// Insert the pages of these files at the given strip index (nil disables
     /// file drops and the add button — only PDFs can take new pages).
     var onInsert: (([URL], Int) -> Void)? = nil
@@ -123,6 +126,7 @@ struct ThumbnailStripView: View {
                         .opacity(draggedID == session.id ? 0.4 : 1)
                         .onDrag {
                             draggedID = session.id
+                            onMoveBegan?()
                             return NSItemProvider(object: session.id.uuidString as NSString)
                         }
                         // One delegate for both drag kinds. A reorder drag

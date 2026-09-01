@@ -313,6 +313,29 @@ struct EditorView: View {
 
     // Undo
     @State private var undoStack: [EditorSnapshot] = []
+    /// Push order of `undoStack`'s entries, parallel to it. Only needed to
+    /// interleave correctly with `pdfStructureUndoStack` — a page edit belongs
+    /// to the document, not to any one session's stack, so the two are ordered
+    /// against a shared clock rather than merged.
+    @State private var undoSequences: [Int] = []
+    @State private var undoClock = 0
+    @State private var pdfStructureUndoStack: [PDFStructureUndoEntry] = []
+    /// Whether the reorder drag in progress has already recorded its undo entry,
+    /// so a drag collapses into one entry however many hover steps it makes.
+    /// Reset when a drag starts rather than when one ends: a drag abandoned
+    /// outside the strip never reports an end, and a stuck flag would silently
+    /// make the next reorder un-undoable.
+    @State private var pageDragPushedUndo = false
+
+    /// One reversible page edit: what the document's structure was, and what the
+    /// strip looked like, before it.
+    private struct PDFStructureUndoEntry {
+        let groupID: UUID
+        let sequence: Int
+        let sessions: [ImageSession]
+        let activeSessionID: UUID?
+        let structure: PDFService.PDFStructureSnapshot
+    }
 
     // Alerts
     @State private var showTrashAlert: Bool = false
@@ -773,7 +796,7 @@ struct EditorView: View {
             onRemoveCustomColor: { appSettings?.removeCustomColor($0) },
             onOverwriteTemplate: overwriteSelectedTemplate,
             onSaveAsNewTemplate: saveAsNewTemplate,
-            canUndo: !undoStack.isEmpty,
+            canUndo: canUndo,
             onApplyCrop: applyCrop,
             onCancelCrop: cancelCrop,
             onEnterCrop: { isCropping = true; currentTool = .crop },
@@ -838,7 +861,7 @@ struct EditorView: View {
                         .buttonStyle(ToolbarHoverButtonStyle())
                         .help("Undo")
                         .keyboardShortcut("z", modifiers: .command)
-                        .disabled(undoStack.isEmpty)
+                        .disabled(!canUndo)
                         .pillBackground(useGlass: topBarUseGlass)
                     }
 
@@ -1017,6 +1040,7 @@ struct EditorView: View {
                         onRemove: { removeSession($0) },
                         canRemove: sessions.count > 1,
                         onMove: { movePage(from: $0, to: $1) },
+                        onMoveBegan: { pageDragPushedUndo = false },
                         onInsert: isPDFSession ? { insertPages(from: $0, at: $1) } : nil,
                         onAddPages: isPDFSession ? { promptToAddPages() } : nil,
                         outline: pdfOutlineNodes,
@@ -2017,7 +2041,7 @@ struct EditorView: View {
         // Push the pre-crop state captured in enterCropMode() so undo restores the
         // correct cropped image (not the expanded full-image intermediate state).
         if let snapshot = preCropSnapshot {
-            undoStack.append(snapshot)
+            pushUndoSnapshot(snapshot)
             preCropSnapshot = nil
         } else {
             pushUndo()
@@ -2111,7 +2135,7 @@ struct EditorView: View {
 
         // Push pre-straighten state for undo (captured in enterCropMode).
         if let snapshot = preCropSnapshot {
-            undoStack.append(snapshot)
+            pushUndoSnapshot(snapshot)
             preCropSnapshot = nil
         } else {
             pushUndo()
@@ -3766,11 +3790,25 @@ struct EditorView: View {
     /// stack can pin hundreds of MB during a long session on a large screenshot.
     private static let maxUndoDepth = 50
 
-    private func pushUndo() {
+    private func nextUndoSequence() -> Int {
+        undoClock += 1
+        return undoClock
+    }
+
+    /// Appends one snapshot, keeping `undoSequences` exactly parallel to
+    /// `undoStack` — including when the depth cap trims the front.
+    private func pushUndoSnapshot(_ snapshot: EditorSnapshot) {
         if undoStack.count >= Self.maxUndoDepth {
-            undoStack.removeFirst(undoStack.count - Self.maxUndoDepth + 1)
+            let excess = undoStack.count - Self.maxUndoDepth + 1
+            undoStack.removeFirst(excess)
+            undoSequences.removeFirst(min(excess, undoSequences.count))
         }
-        undoStack.append(EditorSnapshot(
+        undoStack.append(snapshot)
+        undoSequences.append(nextUndoSequence())
+    }
+
+    private func pushUndo() {
+        pushUndoSnapshot(EditorSnapshot(
             annotations: annotations,
             image: image,
             rawImage: rawImage,
@@ -3786,8 +3824,47 @@ struct EditorView: View {
         ))
     }
 
+    /// Records the active PDF group's structure so the next page edit can be
+    /// undone. Call BEFORE mutating the document or `sessions`.
+    private func pushPDFStructureUndo() {
+        guard let groupID = activeSession?.pdfGroupID,
+              let document = activeSession?.pdfPageSource?.document else { return }
+        if pdfStructureUndoStack.count >= Self.maxUndoDepth {
+            pdfStructureUndoStack.removeFirst(
+                pdfStructureUndoStack.count - Self.maxUndoDepth + 1)
+        }
+        pdfStructureUndoStack.append(PDFStructureUndoEntry(
+            groupID: groupID,
+            sequence: nextUndoSequence(),
+            sessions: sessions,
+            activeSessionID: activeSessionID,
+            structure: PDFService.snapshotStructure(of: document)
+        ))
+    }
+
+    /// The pending page-edit undo, but only when it belongs to the document the
+    /// user is currently looking at — ⌘Z in another image must not reach back
+    /// into a PDF's page history.
+    private var pendingPDFStructureUndo: PDFStructureUndoEntry? {
+        guard let entry = pdfStructureUndoStack.last,
+              entry.groupID == activeSession?.pdfGroupID else { return nil }
+        return entry
+    }
+
+    private var canUndo: Bool {
+        !undoStack.isEmpty || pendingPDFStructureUndo != nil
+    }
+
     private func undo() {
+        // Page edits and annotation edits live on separate stacks; undo whichever
+        // happened last so ⌘Z walks back in the order the user worked.
+        if let structure = pendingPDFStructureUndo,
+           structure.sequence > (undoSequences.last ?? Int.min) {
+            undoPDFStructure(structure)
+            return
+        }
         guard let snapshot = undoStack.popLast() else { return }
+        if !undoSequences.isEmpty { undoSequences.removeLast() }
         // Settle any pending shift/render first — a deferred shift belongs to
         // the pre-undo annotations and must not land on the restored ones.
         flushPendingDisplayRender()
@@ -3815,6 +3892,39 @@ struct EditorView: View {
         flipVertical = snapshot.flipVertical
         // Restore photo adjustments — triggers onChange which re-renders the display image.
         photoAdjustments = snapshot.photoAdjustments
+    }
+
+    /// Reverses one page edit: restores the document's pages and outline, the
+    /// strip order, and which page was showing.
+    private func undoPDFStructure(_ entry: PDFStructureUndoEntry) {
+        flushPendingDisplayRender()
+        saveActiveSessionState()
+        pdfStructureUndoStack.removeLast()
+
+        PDFService.restore(entry.structure)
+        sessions = entry.sessions
+        syncPDFOutlineAfterStructureChange()
+
+        // Sessions are reference types, so every page's annotations and settings
+        // are already current — only which one is showing has to be re-applied.
+        let targetID = entry.activeSessionID ?? sessions.first?.id
+        if let target = sessions.first(where: { $0.id == targetID }) {
+            if target.id != activeSessionID {
+                activeSessionID = target.id
+                restoreSessionState(from: target)
+            }
+            if target.image == nil {
+                loadImage()
+            } else {
+                updateFitScale(viewSize: lastViewSize)
+            }
+        }
+        // A group that is back to the structure it was opened with has nothing
+        // structural left to save.
+        if pdfStructureUndoStack.allSatisfy({ $0.groupID != entry.groupID }) {
+            pdfStructureEditedGroups.remove(entry.groupID)
+        }
+        preloadThumbnails()
     }
 
     // MARK: - Custom Background Images
@@ -3889,6 +3999,7 @@ struct EditorView: View {
         session.flipHorizontal = flipHorizontal
         session.flipVertical = flipVertical
         session.undoStack = undoStack
+        session.undoSequences = undoSequences
         session.templateRenderer = templateRenderer
         session.generateThumbnail()
     }
@@ -3940,6 +4051,7 @@ struct EditorView: View {
         // Note: editorMode is intentionally NOT restored per-session — the active mode
         // is global to the editor window, not tied to the image being viewed.
         undoStack = session.undoStack
+        undoSequences = session.undoSequences
         templateRenderer = session.templateRenderer
 
         // Clear on the next runloop tick — after SwiftUI has fired the onChange
@@ -4000,7 +4112,11 @@ struct EditorView: View {
             // nothing to save.
             flushPendingDisplayRender()
             saveActiveSessionState()
-            guard PDFService.removePage(src.page, from: src.document) else { return }
+            pushPDFStructureUndo()
+            guard PDFService.removePage(src.page, from: src.document) else {
+                pdfStructureUndoStack.removeLast()
+                return
+            }
             pdfStructureEditedGroups.insert(groupID)
         }
 
@@ -4037,6 +4153,13 @@ struct EditorView: View {
     private func movePage(from: Int, to: Int) {
         guard sessions.indices.contains(from) else { return }
         let groupID = sessions[from].pdfGroupID
+        // One undo entry per drag, not per `dropEntered` — the strip re-runs this
+        // on every hover step. Recorded on the first actual move rather than at
+        // drag start, so picking a thumbnail up and putting it back costs no ⌘Z.
+        if groupID != nil, !pageDragPushedUndo {
+            pushPDFStructureUndo()
+            pageDragPushedUndo = true
+        }
         sessions.move(fromOffsets: IndexSet(integer: from),
                       toOffset: to > from ? to + 1 : to)
         guard let groupID else { return }
@@ -4066,6 +4189,7 @@ struct EditorView: View {
 
         flushPendingDisplayRender()
         saveActiveSessionState()
+        pushPDFStructureUndo()
 
         // The strip index is a session index; translate it to a document index
         // via the page currently sitting there (the strip can also hold plain
@@ -4077,9 +4201,9 @@ struct EditorView: View {
             : nil
         let documentIndex = anchorIndex ?? document.pageCount
 
+        PDFService.insert(pages, into: document, at: documentIndex)
         var newSessions: [ImageSession] = []
-        for (offset, page) in pages.enumerated() {
-            document.insert(page, at: documentIndex + offset)
+        for page in pages {
             let source = PDFPageSource(document: document, page: page, sourceURL: anchor.imageURL)
             let session = ImageSession(pdfPageSource: source, pdfGroupID: groupID)
             // Document-wide settings are mirrored across the group (see
