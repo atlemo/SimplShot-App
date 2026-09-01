@@ -5,6 +5,9 @@
 ### Add, Remove and Reorder PDF Pages
 The page strip is now a real page organiser. The × on a thumbnail deletes the page from the document rather than just hiding its thumbnail — the page disappears from the page count, continuous scroll, Find and the outline as well, and is gone from the saved file. Dragging thumbnails reorders the document itself, so the new order is what gets exported. And pages can be added: drag a PDF or an image onto the strip and drop it wherever the caret appears, or use the Add Pages tile at the bottom of the strip to pick files. A dropped PDF contributes all of its pages, an image becomes a single page at its own resolution, and everything lands in the open document, so page numbering, Find and the single-file save keep working across the additions. Nothing touches the file on disk until you save. The strip now also appears for single-page PDFs, since that is where pages are added.
 
+### Fixed: Adding an HDR Photo to a PDF Produced a Blank Page
+Dropping a photo from a recent iPhone into a PDF added a page that was completely white. Those files decode as 10-bit HDR, which PDFKit accepts when building a page but cannot actually embed — the page came out empty with no error of any kind. Images are now converted to standard 8-bit colour before being added, so any photo the app can open drops in with its content intact. Transparency in PNGs is preserved.
+
 ### Undo for Page Changes
 Adding, deleting and reordering pages can now be undone with ⌘Z, restoring the page, its place in the document and its table-of-contents entry. Page edits and annotation edits share one undo history, so ⌘Z steps back in the order you actually worked rather than emptying one queue before the other. A reorder counts as a single step however far the thumbnail was dragged.
 

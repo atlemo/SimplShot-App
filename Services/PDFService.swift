@@ -212,6 +212,16 @@ enum PDFService {
               let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
               cg.width > 0, cg.height > 0 else { return [] }
 
+        // Normalize to 8-bit sRGB before handing the pixels to PDFKit.
+        // `PDFPage(image:)` cannot embed every representation CoreGraphics can
+        // decode: an HDR photo from a recent iPhone decodes to 10 bits per
+        // component in ITU-R 709 PQ, and embedding that logs "too few samples"
+        // and yields a page that renders completely BLANK — no error, no nil,
+        // just a white page. Re-drawing through a plain 8-bit sRGB context makes
+        // any decodable image embeddable. Alpha is preserved, so a transparent
+        // PNG still drops in with its transparency.
+        guard let normalized = normalizedForPDF(cg) else { return [] }
+
         // `PDFPage(image:)` takes the media box from the NSImage's POINT size and
         // embeds the representation's full pixel data. Sizing the page from
         // `image.size` (which honours the file's DPI) therefore gives a 2× Retina
@@ -219,13 +229,36 @@ enum PDFService {
         // from the pixel count instead would produce a 40-inch-wide page.
         let points = image.size.width > 0 && image.size.height > 0
             ? image.size
-            : NSSize(width: cg.width, height: cg.height)
-        let rep = NSBitmapImageRep(cgImage: cg)
+            : NSSize(width: normalized.width, height: normalized.height)
+        let rep = NSBitmapImageRep(cgImage: normalized)
         rep.size = points
         let bitmap = NSImage(size: points)
         bitmap.addRepresentation(rep)
         guard let page = PDFPage(image: bitmap) else { return [] }
         return [page]
+    }
+
+    /// Redraws `image` as 8-bit sRGB, the widest format `PDFPage(image:)`
+    /// reliably embeds. Returns nil only if the context can't be allocated.
+    static func normalizedForPDF(_ image: CGImage) -> CGImage? {
+        // Already the plain format PDFKit handles — nothing to do.
+        if image.bitsPerComponent == 8,
+           image.colorSpace?.model == .rgb,
+           image.colorSpace?.name == CGColorSpace.sRGB {
+            return image
+        }
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                data: nil,
+                width: image.width,
+                height: image.height,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: space,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return context.makeImage()
     }
 
     /// Removes `page` from its document. No-op if it isn't in one, or if it is
