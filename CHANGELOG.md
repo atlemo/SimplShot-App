@@ -23,6 +23,9 @@ Settings › General can now take SimplShot's icon out of the menu bar, for peop
 ### Check for Updates in Settings
 Check for Updates is now in Settings › About as well as the menu bar, so an update never depends on the icon being visible.
 
+### Template Preview Fixes
+Settings › Template now previews templates more accurately: Auto keeps even padding, ratio presets show the right canvas shape, and watermarks appear closer to their exported size.
+
 ## 2026-08-24 (1.7.5)
 
 ### Crop Mode Takes Over the Sidebar
