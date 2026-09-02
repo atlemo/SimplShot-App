@@ -12,6 +12,7 @@ struct TemplateSettingsView: View {
                 TemplatePreviewView(
                     template: previewTemplate,
                     aspectRatio: previewAspectRatio,
+                    referenceCaptureWidth: previewReferenceCaptureWidth,
                     alignment: appSettings.defaultCaptureTemplatePreset?.alignment ?? .middleCenter,
                     shadowIntensity: appSettings.defaultCaptureTemplatePreset?.shadowIntensity ?? 1.0
                 )
@@ -115,15 +116,23 @@ struct TemplateSettingsView: View {
         )
     }
 
-    private var previewAspectRatio: Double {
+    private var previewAspectRatio: Double? {
 #if !APPSTORE
         if let templateRatioID = appSettings.defaultCaptureTemplatePreset?.aspectRatioID,
            let ratio = appSettings.aspectRatios.first(where: { $0.id == templateRatioID })?.ratio {
             return ratio
         }
-        return appSettings.selectedAspectRatio?.ratio ?? (16.0 / 9.0)
+        return nil
 #else
-        16.0 / 9.0
+        nil
+#endif
+    }
+
+    private var previewReferenceCaptureWidth: CGFloat {
+#if !APPSTORE
+        CGFloat(appSettings.selectedWidthPreset?.width ?? Constants.defaultWidthPresets.first?.width ?? 960)
+#else
+        960
 #endif
     }
 
@@ -133,7 +142,8 @@ struct TemplateSettingsView: View {
 
 struct TemplatePreviewView: View {
     let template: ScreenshotTemplate
-    let aspectRatio: Double // width / height (e.g. 16/9 = 1.77)
+    let aspectRatio: Double? // width / height (e.g. 16/9 = 1.77); nil means Auto
+    let referenceCaptureWidth: CGFloat
     let alignment: CanvasAlignment
     let shadowIntensity: Double
 
@@ -224,36 +234,30 @@ struct TemplatePreviewView: View {
         let maxPreviewPadding: CGFloat = 44
         let previewPadding = minPreviewPadding + paddingFraction * (maxPreviewPadding - minPreviewPadding)
 
-        let baseWidth = mockScreenshotSize.width + previewPadding * 2
-        let baseHeight = mockScreenshotSize.height + previewPadding * 2
-        let targetRatio = CGFloat(max(aspectRatio, 0.1))
-        let baseRatio = baseWidth / baseHeight
-
-        let canvasReferenceWidth: CGFloat
-        let canvasReferenceHeight: CGFloat
-
-        if baseRatio < targetRatio {
-            canvasReferenceWidth = baseHeight * targetRatio
-            canvasReferenceHeight = baseHeight
-        } else if baseRatio > targetRatio {
-            canvasReferenceWidth = baseWidth
-            canvasReferenceHeight = baseWidth / targetRatio
-        } else {
-            canvasReferenceWidth = baseWidth
-            canvasReferenceHeight = baseHeight
+        if let aspectRatio, aspectRatio > 0 {
+            return presetRatioPreviewLayout(
+                in: bounds,
+                targetAspectRatio: CGFloat(aspectRatio),
+                padding: previewPadding
+            )
         }
+
+        let canvasReferenceSize = CGSize(
+            width: mockScreenshotSize.width + previewPadding * 2,
+            height: mockScreenshotSize.height + previewPadding * 2
+        )
 
         let fittedCanvasSize = Self.fittedSize(
             in: CGSize(width: max(bounds.width - 2, 1), height: max(bounds.height - 2, 1)),
-            ratio: max(canvasReferenceWidth / canvasReferenceHeight, 0.1)
+            ratio: max(canvasReferenceSize.width / canvasReferenceSize.height, 0.1)
         )
         let previewScale = min(
-            fittedCanvasSize.width / canvasReferenceWidth,
-            fittedCanvasSize.height / canvasReferenceHeight
+            fittedCanvasSize.width / canvasReferenceSize.width,
+            fittedCanvasSize.height / canvasReferenceSize.height
         )
         let screenshotOrigin = CGPoint(
-            x: (canvasReferenceWidth - mockScreenshotSize.width) * alignment.horizontalFraction,
-            y: (canvasReferenceHeight - mockScreenshotSize.height) * alignment.verticalFraction
+            x: (canvasReferenceSize.width - mockScreenshotSize.width) * alignment.horizontalFraction,
+            y: (canvasReferenceSize.height - mockScreenshotSize.height) * alignment.verticalFraction
         )
 
         return (
@@ -267,13 +271,43 @@ struct TemplatePreviewView: View {
         )
     }
 
+    private func presetRatioPreviewLayout(
+        in bounds: CGSize,
+        targetAspectRatio: CGFloat,
+        padding: CGFloat
+    ) -> (canvasSize: CGSize, screenshotFrame: CGRect) {
+        let canvasSize = Self.fittedSize(
+            in: CGSize(width: max(bounds.width - 2, 1), height: max(bounds.height - 2, 1)),
+            ratio: max(targetAspectRatio, 0.1)
+        )
+        let padLeft = alignment.horizontalFraction == 0 ? 0 : padding
+        let padRight = alignment.horizontalFraction == 1 ? 0 : padding
+        let padTop = alignment.verticalFraction == 0 ? 0 : padding
+        let padBottom = alignment.verticalFraction == 1 ? 0 : padding
+
+        let screenshotWidth = max(1, canvasSize.width - padLeft - padRight)
+        let screenshotHeight = max(1, canvasSize.height - padTop - padBottom)
+        let totalSpaceX = canvasSize.width - screenshotWidth
+        let totalSpaceY = canvasSize.height - screenshotHeight
+
+        return (
+            canvasSize: canvasSize,
+            screenshotFrame: CGRect(
+                x: totalSpaceX * alignment.horizontalFraction,
+                y: totalSpaceY * alignment.verticalFraction,
+                width: screenshotWidth,
+                height: screenshotHeight
+            )
+        )
+    }
+
     @ViewBuilder
     private func watermarkPreview(in layout: (canvasSize: CGSize, screenshotFrame: CGRect)) -> some View {
         if template.watermarkSettings.isEnabled,
            let path = template.watermarkSettings.imagePath,
            let nsImage = NSImage(contentsOfFile: path),
            nsImage.isValid {
-            let previewScale = layout.screenshotFrame.width / CGFloat(280)
+            let previewScale = layout.canvasSize.width / max(referenceCaptureWidth, 1)
             let marginH = CGFloat(template.watermarkSettings.edgeOffset) * previewScale
             let marginV = CGFloat(template.watermarkSettings.bottomOffset) * previewScale
             let targetW = max(1, CGFloat(template.watermarkSettings.widthPx) * previewScale)
