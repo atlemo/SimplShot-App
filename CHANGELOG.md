@@ -7,7 +7,7 @@ The page strip is now a real page organiser. The × on a thumbnail deletes the p
 
 
 ### Undo for Page Changes
-Adding, deleting and reordering pages can now be undone with ⌘Z, restoring the page, its place in the document and its table-of-contents entry. Page edits and annotation edits share one undo history, so ⌘Z steps back in the order you actually worked rather than emptying one queue before the other. A reorder counts as a single step however far the thumbnail was dragged.
+Adding, deleting and reordering pages can now be undone with ⌘Z, restoring the page, its place in the document and its table-of-contents entry. Undo is available in View mode too, where PDFs open — it previously appeared only in Annotate and Edit. Page edits and annotation edits share one undo history, so ⌘Z steps back in the order you actually worked rather than emptying one queue before the other. A reorder counts as a single step however far the thumbnail was dragged.
 
 
 ### Saving a PDF Keeps Its Outline, Links and Metadata

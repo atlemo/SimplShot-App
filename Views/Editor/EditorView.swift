@@ -849,21 +849,22 @@ struct EditorView: View {
                 // Leading — Undo, then PDF page navigator (PDF sessions only),
                 // each in its own glass pill.
                 HStack(spacing: 8) {
-                    if editorMode == .view {
-                        Color.clear
+                    // Present in every mode, disabled when there is nothing to
+                    // undo. View mode used to substitute an inert placeholder
+                    // here — which silently took ⌘Z with it, because the
+                    // shortcut lives on this button. That was fine while View
+                    // mode was read-only, but page add/delete/reorder happen in
+                    // the strip, which View mode shows.
+                    Button(action: undo) {
+                        Image(systemName: "arrow.uturn.backward")
                             .frame(width: 34, height: 34)
-                    } else {
-                        Button(action: undo) {
-                            Image(systemName: "arrow.uturn.backward")
-                                .frame(width: 34, height: 34)
-                                .contentShape(RoundedRectangle(cornerRadius: 8))
-                        }
-                        .buttonStyle(ToolbarHoverButtonStyle())
-                        .help("Undo")
-                        .keyboardShortcut("z", modifiers: .command)
-                        .disabled(!canUndo)
-                        .pillBackground(useGlass: topBarUseGlass)
+                            .contentShape(RoundedRectangle(cornerRadius: 8))
                     }
+                    .buttonStyle(ToolbarHoverButtonStyle())
+                    .help("Undo")
+                    .keyboardShortcut("z", modifiers: .command)
+                    .disabled(!canUndo)
+                    .pillBackground(useGlass: topBarUseGlass)
 
                     if isPDFSession {
                         pdfPageNavigator
