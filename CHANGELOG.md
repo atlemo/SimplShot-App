@@ -14,6 +14,9 @@ Saving used to rebuild the document from scratch and draw the pages into it, whi
 ### Fixed: Adding an HDR Photo to a PDF Produced a Blank Page
 Dropping a photo from a recent iPhone into a PDF added a page that was completely white. Those files decode as 10-bit HDR, which PDFKit accepts when building a page but cannot actually embed — the page came out empty with no error of any kind. Images are now converted to standard 8-bit colour before being added, so any photo the app can open drops in with its content intact. Transparency in PNGs is preserved.
 
+### More Accurate Template Previews
+Settings › Template now previews a template closer to what it actually exports: Auto keeps the padding even, the aspect-ratio presets show the right canvas shape, and watermarks appear at something much nearer their exported size.
+
 ### Hide the Menu Bar Icon
 Settings › General can now take SimplShot's icon out of the menu bar, for people who drive the whole app from keyboard shortcuts. SimplShot keeps running in the background, and opening it from Spotlight brings the menu up for as long as it is needed — the icon reveals itself only to anchor the menu and hides again as soon as the menu closes, so the preference survives the visit. Suggested by [Matt Ormianek](https://github.com/MattOrmianek).
 
