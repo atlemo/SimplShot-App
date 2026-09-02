@@ -1,6 +1,74 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "New: Organise PDF pages — the page strip can now add, delete and reorder pages. Drag a PDF or an image onto the strip to insert its pages where you drop them, use the × on a thumbnail to delete a page, and drag thumbnails to reorder. Every page change can be undone with ⌘Z, and nothing touches your file until you save." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: PDF-Seiten organisieren — in der Seitenübersicht lassen sich jetzt Seiten hinzufügen, löschen und neu anordnen. Ziehen Sie ein PDF oder ein Bild auf die Übersicht, um dessen Seiten an der abgelegten Stelle einzufügen, löschen Sie eine Seite über das × auf der Miniatur, und ordnen Sie Seiten durch Ziehen der Miniaturen neu. Jede Seitenänderung lässt sich mit ⌘Z widerrufen, und Ihre Datei bleibt unberührt, bis Sie speichern."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : organisez les pages d'un PDF — la bande de pages permet désormais d'ajouter, de supprimer et de réorganiser des pages. Faites glisser un PDF ou une image sur la bande pour insérer ses pages à l'endroit où vous les déposez, utilisez le × d'une miniature pour supprimer une page, et déplacez les miniatures pour les réordonner. Chaque modification de page s'annule avec ⌘Z, et votre fichier n'est pas touché tant que vous n'enregistrez pas."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：PDF のページを整理 — ページストリップでページの追加・削除・並べ替えができるようになりました。PDF や画像をストリップにドラッグすると、ドロップした位置にそのページが挿入されます。サムネイルの × でページを削除でき、サムネイルをドラッグして順序を入れ替えられます。ページの変更は ⌘Z で取り消せ、保存するまでファイルは変更されません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: управление страницами PDF — на панели страниц теперь можно добавлять, удалять и переупорядочивать страницы. Перетащите PDF или изображение на панель, чтобы вставить его страницы там, где вы их отпустили, нажмите × на миниатюре, чтобы удалить страницу, и перетаскивайте миниатюры для изменения порядка. Любое изменение страниц отменяется клавишами ⌘Z, а файл остаётся нетронутым до сохранения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新功能：整理 PDF 页面 — 页面栏现在可以添加、删除和重新排序页面。将 PDF 或图像拖到页面栏，即可在放下的位置插入其页面；点击缩略图上的 × 删除页面；拖动缩略图调整顺序。所有页面更改都可以用 ⌘Z 撤销，在你保存之前文件不会被修改。"
+          }
+        }
+      }
+    },
+    "Saving a PDF now keeps its table of contents, links and document details. Previously they were discarded whenever a PDF was saved; a document you have only reorganised is no longer re-encoded at all." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Speichern eines PDFs bleiben jetzt Inhaltsverzeichnis, Links und Dokumentinformationen erhalten. Bisher gingen sie beim Speichern verloren; ein Dokument, das Sie nur neu geordnet haben, wird gar nicht mehr neu kodiert."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'enregistrement d'un PDF conserve désormais sa table des matières, ses liens et ses informations de document. Auparavant, tout cela disparaissait à l'enregistrement ; un document que vous vous êtes contenté de réorganiser n'est même plus ré-encodé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF を保存しても、目次・リンク・書類情報が保持されるようになりました。これまでは保存のたびに失われていました。ページを並べ替えただけの書類は、再エンコードすらされません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При сохранении PDF теперь сохраняются оглавление, ссылки и сведения о документе. Раньше они терялись при каждом сохранении; документ, в котором изменён только порядок страниц, больше вообще не перекодируется."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存 PDF 时现在会保留目录、链接和文稿信息。以前这些内容在每次保存时都会丢失；仅调整过页面顺序的文稿现在完全不会被重新编码。"
+          }
+        }
+      }
+    },
     "Add Pages" : {
       "localizations" : {
         "de" : {

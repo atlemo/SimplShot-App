@@ -18,7 +18,7 @@ extension KeyboardShortcuts.Name {
     /// fires in an editor window and only when no text field has focus.
     ///
     /// Under KeyboardShortcuts 2.x, declaring an initial shortcut was enough to
-    /// install one: the library registered a **global Carbon hotkey inside
+    /// install one: the library registered a       **global Carbon hotkey inside
     /// `setShortcut`**, with no handler involved, so this name silently
     /// swallowed ⌘C in *every* app for the rest of the process lifetime.
     /// 3.x closed that — registration now requires an active handler, and this

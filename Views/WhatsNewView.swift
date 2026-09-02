@@ -19,6 +19,8 @@ let maxWhatsNewEntries = 4
 
 let whatsNewEntries: [WhatsNewEntry] = [
     WhatsNewEntry(version: "1.7.6", items: [
+        "New: Organise PDF pages — the page strip can now add, delete and reorder pages. Drag a PDF or an image onto the strip to insert its pages where you drop them, use the × on a thumbnail to delete a page, and drag thumbnails to reorder. Every page change can be undone with ⌘Z, and nothing touches your file until you save.",
+        "Saving a PDF now keeps its table of contents, links and document details. Previously they were discarded whenever a PDF was saved; a document you have only reorganised is no longer re-encoded at all.",
         "New: Hide the menu bar icon — Settings › General can take SimplShot's icon out of your menu bar, leaving your keyboard shortcuts to do the work. The app keeps running: open it from Spotlight and the menu appears for as long as you need it, then hides itself again. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the idea.",
         "Check for Updates now also sits in Settings › About, so you can update SimplShot without bringing its menu bar icon back.",
     ]),
