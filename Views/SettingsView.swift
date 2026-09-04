@@ -9,11 +9,14 @@ struct SettingsView: View {
     /// Includes headroom for localization: the caption under a row wraps to a
     /// second line in languages whose text runs longer than English (Russian
     /// especially), so the pane needs slack beyond what the English layout uses.
+    ///
+    /// The "Default app" row costs ~90pt: a button plus the pane's longest
+    /// caption, which wraps to two lines in English and three in Russian.
     private var settingsHeight: CGFloat {
 #if APPSTORE
-        515
+        580
 #else
-        535
+        600
 #endif
     }
 

@@ -105,8 +105,15 @@ private struct ResetShortcutButton: View {
         .onAppear { current = name.shortcut }
         // The recorder writes straight to UserDefaults, so poll the stored value
         // rather than trying to observe the recorder itself.
+        //
+        // `didChangeNotification` fires for EVERY UserDefaults suite in the
+        // process, on whatever thread did the write — TelemetryDeck persists its
+        // session data from a background queue — so hop to main before touching
+        // SwiftUI state, or this publishes changes off the main thread.
         .onReceive(
-            NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            NotificationCenter.default
+                .publisher(for: UserDefaults.didChangeNotification)
+                .receive(on: DispatchQueue.main)
         ) { _ in
             current = name.shortcut
         }

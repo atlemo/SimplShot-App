@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import UniformTypeIdentifiers
 
 struct GeneralSettingsView: View {
     @Bindable var appSettings: AppSettings
@@ -8,6 +9,8 @@ struct GeneralSettingsView: View {
 #endif
     @State private var screenRecordingGranted = false
     @State private var language = AppLanguage.current
+    @State private var isDefaultForAllTypes = false
+    @State private var isSettingDefaultApp = false
 
     private let labelWidth: CGFloat = 140
 
@@ -15,7 +18,7 @@ struct GeneralSettingsView: View {
         VStack(spacing: 0) {
             // --- UI language ---
             settingsRow("Language:") {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 5) {
                     Picker("", selection: $language) {
                         ForEach(AppLanguage.allCases) { lang in
                             Text(lang.displayName).tag(lang)
@@ -34,15 +37,11 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            Divider().padding(.horizontal)
-
             // --- Start at Login ---
             settingsRow("Startup:") {
                 Toggle("Launch at login", isOn: $appSettings.startAtLogin)
                     .toggleStyle(.checkbox)
             }
-
-            Divider().padding(.horizontal)
 
             // --- Menu bar icon ---
             settingsRow("Menu bar:") {
@@ -59,8 +58,6 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            Divider().padding(.horizontal)
-
             // --- Open Editor After Capture ---
             settingsRow("After capture:") {
                 VStack(alignment: .leading, spacing: 2) {
@@ -75,18 +72,14 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            Divider().padding(.horizontal)
-
             // --- Screenshot Save Location ---
             settingsRow("Screenshot location:") {
                 PathControlPicker(url: $appSettings.screenshotSaveURL)
                     .frame(maxWidth: 260, minHeight: 24, alignment: .leading)
             }
 
-            Divider().padding(.horizontal)
-
             // --- Screenshot Format ---
-            settingsRow("File format:") {
+            settingsRow("Screenshot format:") {
                 Picker("", selection: $appSettings.screenshotFormat) {
                     ForEach(ScreenshotFormat.allCases, id: \.self) { format in
                         Text(format.displayName).tag(format)
@@ -97,11 +90,9 @@ struct GeneralSettingsView: View {
                 .frame(width: 210)
             }
 
-            Divider().padding(.horizontal)
-
             // --- Default mode when opening images ---
             settingsRow("Open images in:") {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 5) {
                     Picker("", selection: $appSettings.defaultEditorModeOnOpen) {
                         ForEach(DefaultEditorModeSetting.allCases) { mode in
                             Text(mode.displayName).tag(mode)
@@ -116,7 +107,32 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            Divider().padding(.horizontal)
+            // --- Default app for the file types we declare in Info.plist ---
+            settingsRow("Default app:") {
+                VStack(alignment: .leading, spacing: 4) {
+                    if isDefaultForAllTypes {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .font(.system(size: 13))
+                            Text("SimplShot opens images and PDFs by default")
+                                .font(.system(size: 13))
+                        }
+                    } else {
+                        Button("Make SimplShot Default ❤️") {
+                            makeDefaultAppForSupportedTypes()
+                        }
+                        .disabled(isSettingDefaultApp)
+                        Text("Opens PNG, JPEG, HEIC, PDF and other supported files in SimplShot. macOS shows one confirmation dialog per format.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            // Without this the caption is handed a single-line
+                            // height and truncates with an ellipsis instead of
+                            // wrapping — it is the longest caption in the pane.
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
 
             // --- Permissions ---
             settingsRow("Permissions:") {
@@ -217,12 +233,117 @@ struct GeneralSettingsView: View {
 #if !APPSTORE
         accessibilityGranted = AccessibilityService.isTrusted
 #endif
+        isDefaultForAllTypes = DefaultAppService.isDefaultForAllSupportedTypes()
         Task {
             let state = await ScreenRecordingPermissionManager.shared.checkPermission()
             await MainActor.run {
                 screenRecordingGranted = state == .granted
             }
         }
+    }
+
+    /// Claims every file type SimplShot declares, then re-reads the real state —
+    /// the button never asserts success it hasn't verified.
+    private func makeDefaultAppForSupportedTypes() {
+        isSettingDefaultApp = true
+        Task {
+            let failed = await DefaultAppService.makeDefaultForAllSupportedTypes()
+            await MainActor.run {
+                isSettingDefaultApp = false
+                isDefaultForAllTypes = DefaultAppService.isDefaultForAllSupportedTypes()
+                if !failed.isEmpty { showDefaultAppFailureAlert() }
+            }
+        }
+    }
+
+    private func showDefaultAppFailureAlert() {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Some File Types Weren't Changed")
+        alert.informativeText = String(localized: "macOS didn't let SimplShot become the default app for every supported file type. You can set the rest by hand: select a file in Finder, choose File › Get Info, pick SimplShot under “Open with” and click “Change All…”.")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: String(localized: "OK"))
+        alert.runModal()
+    }
+}
+
+// MARK: - Default app registration
+
+/// Makes SimplShot the default handler for every type it declares in
+/// `CFBundleDocumentTypes`.
+///
+/// The type list is read back out of our own Info.plist rather than hardcoded,
+/// so it can never drift from what the app actually claims to open — adding a
+/// format to the plist is enough.
+enum DefaultAppService {
+
+    /// Declared types we deliberately do NOT claim.
+    ///
+    /// Photoshop owns `.psd` wherever it is installed, and taking that away is
+    /// hostile for a screenshot editor. We stay an `Alternate` handler for it,
+    /// so SimplShot still shows up under "Open With" — it just never becomes
+    /// the default.
+    private static let unclaimedIdentifiers: Set<String> = ["com.adobe.photoshop-image"]
+
+    /// Declared types we are willing to claim, as they resolve on this system.
+    /// `AVIF` and `JPEG XL` only exist on newer macOS versions, so unknown
+    /// identifiers are dropped.
+    static let claimableContentTypes: [UTType] = {
+        let docTypes = Bundle.main.object(forInfoDictionaryKey: "CFBundleDocumentTypes") as? [[String: Any]] ?? []
+        let identifiers = docTypes.flatMap { $0["LSItemContentTypes"] as? [String] ?? [] }
+        var seen = Set<String>()
+        return identifiers.compactMap { identifier in
+            guard seen.insert(identifier).inserted,
+                  !unclaimedIdentifiers.contains(identifier) else { return nil }
+            return UTType(identifier)
+        }
+    }()
+
+    static func isDefault(for contentType: UTType) -> Bool {
+        guard let handler = NSWorkspace.shared.urlForApplication(toOpen: contentType) else { return false }
+        return handler.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL
+    }
+
+    static func isDefaultForAllSupportedTypes() -> Bool {
+        !claimableContentTypes.isEmpty && claimableContentTypes.allSatisfy(isDefault(for:))
+    }
+
+    /// Claims every type we don't already own, stopping the moment the user
+    /// dismisses one of macOS's confirmation prompts — there is one prompt per
+    /// content type and no way to batch them, so carrying on after a cancel
+    /// would march the user through a prompt for every remaining format.
+    ///
+    /// Returns the types that genuinely failed. A cancelled prompt is a choice,
+    /// not a failure, so it is not reported as one.
+    static func makeDefaultForAllSupportedTypes() async -> [UTType] {
+        var failed: [UTType] = []
+        for contentType in claimableContentTypes where !isDefault(for: contentType) {
+            guard let error = await setDefault(for: contentType) else { continue }
+            if isCancellation(error) { break }
+            failed.append(contentType)
+        }
+        return failed
+    }
+
+    private static func setDefault(for contentType: UTType) async -> Error? {
+        await withCheckedContinuation { continuation in
+            NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpen: contentType) { error in
+                continuation.resume(returning: error)
+            }
+        }
+    }
+
+    /// A dismissed confirmation prompt arrives as `userCanceledErr`, wrapped in a
+    /// Cocoa "file couldn't be opened" error rather than surfacing directly.
+    private static func isCancellation(_ error: Error) -> Bool {
+        func isUserCancelled(_ error: NSError) -> Bool {
+            error.domain == NSOSStatusErrorDomain && error.code == -128
+        }
+        let nsError = error as NSError
+        if isUserCancelled(nsError) { return true }
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
+            return isUserCancelled(underlying)
+        }
+        return false
     }
 }
 
