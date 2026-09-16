@@ -307,6 +307,67 @@ class ImageSession: Identifiable, ObservableObject {
         self.pdfGroupID = pdfGroupID
     }
 
+    /// A copy of this session's whole edit state under a fresh identity, for
+    /// handing a page to another editor window (see `ThumbnailDragBroker`).
+    ///
+    /// Pass a `pdfPageSource` to attach the copy to the destination document's
+    /// own (already inserted) page; pass none to land as a plain raster session,
+    /// which is how a PDF page dropped into an image window arrives — its
+    /// `rawImage` is the page raster, and crop/rotation/annotations are all
+    /// expressed against that, so dropping the PDF backing is all it takes.
+    ///
+    /// ⚠️ This is a field-by-field copy of a class with a lot of state. A new
+    /// stored property on `ImageSession` that describes the user's edit — as
+    /// opposed to a derived cache — belongs here too, or it silently fails to
+    /// travel between windows.
+    ///
+    /// Deliberately NOT copied: `undoStack`/`undoSequences` (their snapshots
+    /// describe the source window's history, including images the destination
+    /// never had), `rawImageData` (a Capture History encoding, rebuilt on
+    /// demand), and `templateRenderer` (a per-session cache).
+    func duplicate(pdfPageSource: PDFPageSource? = nil, pdfGroupID: UUID? = nil) -> ImageSession {
+        let copy: ImageSession
+        if let pdfPageSource, let pdfGroupID {
+            copy = ImageSession(pdfPageSource: pdfPageSource, pdfGroupID: pdfGroupID)
+        } else {
+            copy = ImageSession(imageURL: imageURL)
+        }
+
+        // Bitmaps are shared by reference — the pipeline always re-derives from
+        // `rawImage` and never draws into it, so two sessions can hold the same
+        // decoded image safely.
+        copy.image = image
+        copy.rawImage = rawImage
+        copy.currentDisplayCGImage = currentDisplayCGImage
+        copy.imagePixelSize = imagePixelSize
+        copy.screenshotCropRect = screenshotCropRect
+        copy.metadata = metadata
+        copy.dpiScaleFactor = dpiScaleFactor
+
+        copy.annotations = annotations
+
+        copy.cropRect = cropRect
+        copy.zoomLevel = zoomLevel
+        copy.fitScale = fitScale
+
+        copy.selectedWallpaper = copy.isPDF ? nil : selectedWallpaper
+        copy.editorAspectRatioID = editorAspectRatioID
+        copy.editorPadding = editorPadding
+        copy.editorCornerRadius = editorCornerRadius
+        copy.shadowIntensity = shadowIntensity
+        copy.screenshotAlignment = screenshotAlignment
+        copy.watermarkSettings = watermarkSettings
+        copy.photoAdjustments = photoAdjustments
+
+        copy.rotationSteps = rotationSteps
+        copy.straightenAngle = straightenAngle
+        copy.flipHorizontal = flipHorizontal
+        copy.flipVertical = flipVertical
+
+        copy.thumbnail = thumbnail
+        return copy
+    }
+
     /// Generate a downscaled thumbnail. Always dispatches the heavy CGContext
     /// draw to a background queue so the main thread is never blocked when this
     /// is called as part of session-state writes.

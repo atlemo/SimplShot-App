@@ -204,13 +204,24 @@ enum PDFService {
                 document.page(at: $0)?.copy() as? PDFPage
             }
         }
+        // `NSImage(contentsOf:)` happily returns an image with no drawable
+        // representation for a corrupt or unsupported file; `page(from:)` is
+        // what bails on that rather than letting PDFKit raise.
+        guard let image = NSImage(contentsOf: url), let page = page(from: image) else { return [] }
+        return [page]
+    }
+
+    /// Wraps one decoded image as a single PDF page.
+    ///
+    /// Split out of `importablePages` so pixels that never came from a file —
+    /// a thumbnail dragged in from another editor window — can join a document
+    /// on exactly the same terms as a dropped image.
+    static func page(from image: NSImage) -> PDFPage? {
         // Rasterize before handing the image to PDFKit: `PDFPage(image:)` raises
         // an uncatchable ObjC exception ("image must not be NULL") for an
-        // NSImage with no drawable representation, which `NSImage(contentsOf:)`
-        // happily returns for a corrupt or unsupported file.
-        guard let image = NSImage(contentsOf: url),
-              let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
-              cg.width > 0, cg.height > 0 else { return [] }
+        // NSImage with no drawable representation.
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              cg.width > 0, cg.height > 0 else { return nil }
 
         // Normalize to 8-bit sRGB before handing the pixels to PDFKit.
         // `PDFPage(image:)` cannot embed every representation CoreGraphics can
@@ -220,7 +231,7 @@ enum PDFService {
         // just a white page. Re-drawing through a plain 8-bit sRGB context makes
         // any decodable image embeddable. Alpha is preserved, so a transparent
         // PNG still drops in with its transparency.
-        guard let normalized = normalizedForPDF(cg) else { return [] }
+        guard let normalized = normalizedForPDF(cg) else { return nil }
 
         // `PDFPage(image:)` takes the media box from the NSImage's POINT size and
         // embeds the representation's full pixel data. Sizing the page from
@@ -234,8 +245,7 @@ enum PDFService {
         rep.size = points
         let bitmap = NSImage(size: points)
         bitmap.addRepresentation(rep)
-        guard let page = PDFPage(image: bitmap) else { return [] }
-        return [page]
+        return PDFPage(image: bitmap)
     }
 
     /// Redraws `image` as 8-bit sRGB, the widest format `PDFPage(image:)`

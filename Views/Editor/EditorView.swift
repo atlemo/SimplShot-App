@@ -326,6 +326,16 @@ struct EditorView: View {
     /// outside the strip never reports an end, and a stuck flag would silently
     /// make the next reorder un-undoable.
     @State private var pageDragPushedUndo = false
+    /// Pages ticked in the thumbnail strip (⌘/⇧-click). Drives multi-page
+    /// drags and the × button; always contains the page on screen.
+    @State private var stripSelection: Set<UUID> = []
+    /// Stable identity for this editor window, so a thumbnail dropped back into
+    /// its own strip is a reorder and one from elsewhere is an insert. @State
+    /// rather than a `let`: the view struct is rebuilt on every render, and a
+    /// `let` initialiser would mint a new id each time.
+    @State private var windowIdentity = UUID()
+    /// True while pages from another editor window hover over this canvas.
+    @State private var isPageDropTargeted = false
 
     /// One reversible page edit: what the document's structure was, and what the
     /// strip looked like, before it.
@@ -979,6 +989,18 @@ struct EditorView: View {
                                     onCropAdjustEnded: { isAdjustingCrop = false }
                                 )
                                 .padding(20)
+                                // Centre the page in the viewport when it is
+                                // smaller than the visible area. A ScrollView
+                                // does NOT do this on its own here — it pins the
+                                // content to the top-leading corner, so a
+                                // zoomed-out image sat in the corner with all the
+                                // slack below and to the right. Growing the
+                                // content to at least the viewport splits that
+                                // slack evenly; when the image is larger, its own
+                                // size drives scrolling on both axes, unchanged.
+                                // Same fix as the continuous PDF view, which
+                                // anchors `.top` instead.
+                                .frame(minWidth: geo.size.width, minHeight: geo.size.height)
                                 .background(ScrollViewAccessor { nsScrollView = $0 })
                             }
                         } else if imageLoadState == .loading {
@@ -1029,6 +1051,25 @@ struct EditorView: View {
                     }
                 }
                 .animation(.easeInOut(duration: 0.15), value: isFindBarVisible)
+                .overlay {
+                    if isPageDropTargeted {
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.accentColor, lineWidth: 3)
+                            .padding(6)
+                            .allowsHitTesting(false)
+                    }
+                }
+                // Pages from another editor window, and files from outside,
+                // land at the end when dropped on the canvas. The strip is the
+                // precise target, but it isn't shown for a window holding a
+                // single image — which would otherwise make that window
+                // impossible to drop into.
+                .onDrop(of: [.simplShotThumbnail, .fileURL], delegate: EditorCanvasPageDropDelegate(
+                    windowID: windowIdentity,
+                    isTargeted: $isPageDropTargeted,
+                    onAcceptSessions: { acceptDraggedSessions($0, at: sessions.count) },
+                    onAcceptFiles: { insertDroppedFiles($0, at: sessions.count) }
+                ))
 
                 // Always shown for a PDF, even single-page: the strip is where
                 // pages are added, deleted and reordered, so hiding it below two
@@ -1037,13 +1078,21 @@ struct EditorView: View {
                     ThumbnailStripView(
                         sessions: sessions,
                         activeID: thumbnailActiveID,
+                        selection: $stripSelection,
+                        windowID: windowIdentity,
                         onSelect: { selectPageSession($0) },
-                        onRemove: { removeSession($0) },
+                        onRemove: { removeSessions($0) },
                         canRemove: sessions.count > 1,
                         onMove: { movePage(from: $0, to: $1) },
                         onMoveBegan: { pageDragPushedUndo = false },
-                        onInsert: isPDFSession ? { insertPages(from: $0, at: $1) } : nil,
+                        onMoveSelection: { movePages($0, to: $1) },
+                        onInsert: { insertDroppedFiles($0, at: $1) },
                         onAddPages: isPDFSession ? { promptToAddPages() } : nil,
+                        onPrepareDrag: {
+                            flushPendingDisplayRender()
+                            saveActiveSessionState()
+                        },
+                        onAcceptSessions: { acceptDraggedSessions($0, at: $1) },
                         outline: pdfOutlineNodes,
                         activePageIndex: activeSession?.pdfPageSource?.pageIndex,
                         onSelectOutline: { selectOutlineNode($0) }
@@ -2746,9 +2795,9 @@ struct EditorView: View {
                 if !hasBlockedModifier, sessions.count > 1 {
                     switch event.keyCode {
                     case 123, 126:  // left, up → previous
-                        goToPreviousSession()
+                        goToAdjacentSession(-1)
                     case 124, 125:  // right, down → next
-                        goToNextSession()
+                        goToAdjacentSession(1)
                     default: break
                     }
                     return nil
@@ -2947,21 +2996,27 @@ struct EditorView: View {
         }
     }
 
-    private func goToPreviousSession() {
+    /// Arrow-key navigation between open images / PDF pages.
+    ///
+    /// Anchors on `thumbnailActiveID` rather than `activeSessionID`: in
+    /// continuous PDF mode every page is on screen at once and the active
+    /// session does not follow scrolling, so stepping from it would jump back
+    /// to wherever the session pointer happened to be left.
+    ///
+    /// And it commits through `selectPageSession`, which SCROLLS the continuous
+    /// view instead of switching sessions. Switching is invisible there — the
+    /// page on screen never changed and the strip highlight follows
+    /// `continuousVisiblePage`, so the arrow keys looked completely dead in a
+    /// PDF while Page Up/Down and the ‹ › buttons (which go through
+    /// `goToAdjacentPDFPage`) worked fine.
+    private func goToAdjacentSession(_ delta: Int) {
         guard sessions.count > 1,
-              let current = sessions.firstIndex(where: { $0.id == activeSessionID })
+              let current = sessions.firstIndex(where: { $0.id == thumbnailActiveID })
         else { return }
-        let prev = (current - 1 + sessions.count) % sessions.count
-        switchToSession(sessions[prev].id)
+        let target = (current + delta + sessions.count) % sessions.count
+        selectPageSession(sessions[target].id)
     }
 
-    private func goToNextSession() {
-        guard sessions.count > 1,
-              let current = sessions.firstIndex(where: { $0.id == activeSessionID })
-        else { return }
-        let next = (current + 1) % sessions.count
-        switchToSession(sessions[next].id)
-    }
 
     // MARK: - PDF Navigation (shared by Find, Links, Outline)
 
@@ -3308,9 +3363,7 @@ struct EditorView: View {
                 onDismiss()
                 return
             }
-            for id in groupIDs {
-                removeSession(id)
-            }
+            removeSessions(groupIDs)
         } else {
             removeSession(active.id)
         }
@@ -4090,41 +4143,53 @@ struct EditorView: View {
         }
     }
 
-    /// Remove a session from the strip. The strip is only visible when
-    /// `sessions.count > 1`, so this should never be called for the final image —
-    /// guard against misuse just in case.
+    /// Removes one or more pages from the strip — the × button, and the source
+    /// half of a cross-window move.
     ///
     /// For a PDF page this also deletes the page from the in-memory
     /// `PDFDocument`. Dropping only the session would leave the page in the
     /// document that drives the continuous-scroll view, the page count, Find and
     /// the outline — the page would visibly survive its own delete button.
     /// The file on disk is untouched until the user saves.
-    private func removeSession(_ id: UUID) {
-        guard sessions.count > 1 else { return }
-        guard let removedIdx = sessions.firstIndex(where: { $0.id == id }) else { return }
+    ///
+    /// Never empties the window: an editor with nothing open has nothing to
+    /// show, and there is no such thing as a zero-page PDF. Only an ⌥-drag of
+    /// every open page can ask for that, and there the pages survive in the
+    /// window they were dropped into — the source just keeps its copy.
+    private func removeSessions(_ ids: [UUID]) {
+        let idSet = Set(ids)
+        let doomed = sessions.filter { idSet.contains($0.id) }
+        guard !doomed.isEmpty, doomed.count < sessions.count else { return }
 
-        let removed = sessions[removedIdx]
-        if let src = removed.pdfPageSource,
-           let groupID = removed.pdfGroupID,
-           sessions.filter({ $0.pdfGroupID == groupID }).count > 1 {
-            // Deleting one page of a multi-page document edits the document.
-            // Deleting the *only* page of a document just closes that document
-            // in the editor — there is no such thing as a zero-page PDF, and
-            // nothing to save.
-            flushPendingDisplayRender()
-            saveActiveSessionState()
-            pushPDFStructureUndo()
-            guard PDFService.removePage(src.page, from: src.document) else {
-                pdfStructureUndoStack.removeLast()
-                return
+        flushPendingDisplayRender()
+        saveActiveSessionState()
+
+        // Deleting pages out of a multi-page document edits the document.
+        // Deleting *every* open page of one just closes that document in the
+        // editor — there is nothing left to save.
+        var structureUndoPushed = false
+        for session in doomed {
+            guard let groupID = session.pdfGroupID,
+                  let src = session.pdfPageSource,
+                  sessions.filter({ $0.pdfGroupID == groupID }).count
+                      > doomed.filter({ $0.pdfGroupID == groupID }).count
+            else { continue }
+            if !structureUndoPushed {
+                pushPDFStructureUndo()
+                structureUndoPushed = true
             }
+            guard PDFService.removePage(src.page, from: src.document) else { continue }
             pdfStructureEditedGroups.insert(groupID)
         }
 
-        if id == activeSessionID {
-            let nextIdx = removedIdx > 0 ? removedIdx - 1 : 1
-            let nextID = sessions[nextIdx].id
-            sessions.remove(at: removedIdx)
+        let losingActive = activeSessionID.map(idSet.contains) ?? false
+        let firstIdx = sessions.firstIndex { idSet.contains($0.id) } ?? 0
+        sessions.removeAll { idSet.contains($0.id) }
+        stripSelection.subtract(idSet)
+
+        if losingActive, !sessions.isEmpty {
+            // Land on the page just above the block that went, or the new first.
+            let nextID = sessions[min(max(firstIdx - 1, 0), sessions.count - 1)].id
             activeSessionID = nextID
             if let target = sessions.first(where: { $0.id == nextID }) {
                 restoreSessionState(from: target)
@@ -4140,10 +4205,12 @@ struct EditorView: View {
                     updateFitScale(viewSize: lastViewSize)
                 }
             }
-        } else {
-            sessions.remove(at: removedIdx)
         }
         syncPDFOutlineAfterStructureChange()
+    }
+
+    private func removeSession(_ id: UUID) {
+        removeSessions([id])
     }
 
     // MARK: - PDF Page Management
@@ -4171,6 +4238,220 @@ struct EditorView: View {
         // Deliberately no outline re-parse: this runs on every `dropEntered`
         // while a thumbnail is dragged, and reordering invalidates nothing in
         // the outline — its destinations still resolve, by page identity.
+    }
+
+    /// Moves a whole selection to one strip position, in a single commit.
+    ///
+    /// `movePage` swaps one neighbour per hover step, which can't express a set
+    /// — so a multi-page drag (and a drop on the trailing append zone, which has
+    /// no neighbour to swap with) shows an insertion caret and lands here.
+    private func movePages(_ ids: [UUID], to index: Int) {
+        let idSet = Set(ids)
+        let moving = sessions.filter { idSet.contains($0.id) }
+        guard !moving.isEmpty else { return }
+
+        // Count only the pages that STAY above the drop point: the dragged ones
+        // are about to be pulled out of the array, so the raw strip index would
+        // land short by however many of them sit above it.
+        let landing = sessions.prefix(index).filter { !idSet.contains($0.id) }.count
+        var reordered = sessions.filter { !idSet.contains($0.id) }
+        guard landing <= reordered.count else { return }
+        reordered.insert(contentsOf: moving, at: landing)
+        guard reordered.map(\.id) != sessions.map(\.id) else { return }
+
+        let groupID = moving.first?.pdfGroupID
+        // One undo entry per drag, like `movePage` — a drag that ends where it
+        // started costs no ⌘Z.
+        if groupID != nil, !pageDragPushedUndo {
+            pushPDFStructureUndo()
+            pageDragPushedUndo = true
+        }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            sessions = reordered
+        }
+
+        guard let groupID else { return }
+        let group = sessions.filter { $0.pdfGroupID == groupID }
+        guard let document = group.first?.pdfPageSource?.document else { return }
+        PDFService.reorder(document, toMatch: group.compactMap { $0.pdfPageSource?.page })
+        pdfStructureEditedGroups.insert(groupID)
+    }
+
+    // MARK: - Cross-Window Page Transfer
+
+    /// The PDF document a dropped page should join: the active page's, else the
+    /// first PDF open in this window. `nil` in a window holding only images.
+    private var pdfInsertTarget: (document: PDFDocument, groupID: UUID, sourceURL: URL)? {
+        let anchor = activeSession?.isPDF == true
+            ? activeSession
+            : sessions.first(where: { $0.isPDF })
+        guard let anchor,
+              let src = anchor.pdfPageSource,
+              let groupID = anchor.pdfGroupID else { return nil }
+        return (src.document, groupID, anchor.imageURL)
+    }
+
+    /// Takes pages dragged in from another editor window's thumbnail strip.
+    ///
+    /// Both windows live in the same process, so what arrives are the source
+    /// `ImageSession` objects themselves — annotations, crop, rotation and all.
+    /// They are never adopted as they stand: a page has to be re-expressed in
+    /// this window's terms (a copy of the `PDFPage` inside *this* document, or a
+    /// plain raster session) or the two windows would share mutable state, and
+    /// the donor deallocating would take the page's content with it.
+    private func acceptDraggedSessions(_ incoming: [ImageSession], at index: Int) {
+        guard !incoming.isEmpty else { return }
+        flushPendingDisplayRender()
+        saveActiveSessionState()
+
+        let landing = min(max(index, 0), sessions.count)
+        let added = pdfInsertTarget.map { adoptAsPDFPages(incoming, at: landing, target: $0) }
+            ?? adoptAsImageSessions(incoming)
+        guard !added.isEmpty else { return }
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            sessions.insert(contentsOf: added, at: landing)
+        }
+        syncPDFOutlineAfterStructureChange()
+        preloadThumbnails()
+    }
+
+    /// Re-expresses dragged pages as pages of THIS window's document.
+    ///
+    /// A PDF page is copied out of its own document (see
+    /// `PDFService.importablePages` on why a shared page object is a trap),
+    /// keeping the donor's crop and transforms, which are display-pipeline
+    /// state expressed against the page raster. A raster session is wrapped as
+    /// one page from its *composed* image, exactly like a dropped image file —
+    /// so a screenshot arrives with its crop, template and adjustments already
+    /// in the page, and its own copies of those must be reset.
+    private func adoptAsPDFPages(
+        _ incoming: [ImageSession],
+        at stripIndex: Int,
+        target: (document: PDFDocument, groupID: UUID, sourceURL: URL)
+    ) -> [ImageSession] {
+        var adopted: [(page: PDFPage, origin: ImageSession, wasPDF: Bool)] = []
+        for origin in incoming {
+            if let src = origin.pdfPageSource, let copy = src.page.copy() as? PDFPage {
+                adopted.append((copy, origin, true))
+            } else if let image = origin.image ?? origin.rawImage,
+                      let page = PDFService.page(from: image) {
+                adopted.append((page, origin, false))
+            }
+        }
+        guard !adopted.isEmpty else { return [] }
+
+        pushPDFStructureUndo()
+
+        // Translate the strip index into a document index the way `insertPages`
+        // does — the strip can also hold plain images, which have no position
+        // in the document.
+        let anchorIndex = stripIndex < sessions.count
+            ? sessions[stripIndex].pdfPageSource
+                .flatMap { $0.document === target.document && $0.pageIndex >= 0 ? $0.pageIndex : nil }
+            : nil
+        PDFService.insert(adopted.map(\.page), into: target.document,
+                          at: anchorIndex ?? target.document.pageCount)
+        pdfStructureEditedGroups.insert(target.groupID)
+
+        let backingScale = displayBackingScale
+        return adopted.map { page, origin, wasPDF in
+            let source = PDFPageSource(document: target.document, page: page,
+                                       sourceURL: target.sourceURL)
+            let session = origin.duplicate(pdfPageSource: source, pdfGroupID: target.groupID)
+
+            // Document-wide settings belong to this document, not the donor's.
+            session.watermarkSettings = watermarkSettings
+            session.zoomLevel = zoomLevel
+
+            // The page re-rasterises here at this window's backing scale, and a
+            // raster donor was re-wrapped at its own pixel size, so the pixel
+            // space the annotations live in has changed by this much.
+            let pointSize = page.rotatedMediaBoxSize
+            let donorWidth = wasPDF
+                ? (origin.rawImage?.size.width ?? 0)
+                : origin.imagePixelSize.width
+            let scale = donorWidth > 0
+                ? (pointSize.width * backingScale).rounded() / donorWidth
+                : 1
+            session.annotations = Self.rescaleAnnotations(origin.annotations, by: scale)
+
+            if wasPDF {
+                session.screenshotCropRect = session.screenshotCropRect.applying(
+                    CGAffineTransform(scaleX: scale, y: scale))
+            } else {
+                // Everything the donor's pipeline would have applied is already
+                // drawn into the page; re-applying it would double up.
+                session.screenshotCropRect = .zero
+                session.rotationSteps = 0
+                session.straightenAngle = 0
+                session.flipHorizontal = false
+                session.flipVertical = false
+                session.photoAdjustments = .default
+            }
+
+            // Drop the donor's bitmaps so `preloadThumbnails` renders the page
+            // through this window's pipeline. The thumbnail is kept as-is: it
+            // already shows the right pixels, so the strip has something to draw
+            // until the real render lands.
+            session.image = nil
+            session.rawImage = nil
+            session.currentDisplayCGImage = nil
+            session.imagePixelSize = .zero
+            return session
+        }
+    }
+
+    /// Takes dragged pages into a window that holds plain images: each becomes
+    /// a standalone raster session.
+    ///
+    /// A PDF page needs no conversion — its session's `rawImage` already *is*
+    /// the rendered page, and its crop, rotation and annotations are all
+    /// expressed against that raster, so dropping the PDF backing is the whole
+    /// job. (`duplicate()` with no page source does exactly that.)
+    private func adoptAsImageSessions(_ incoming: [ImageSession]) -> [ImageSession] {
+        var added: [ImageSession] = []
+        for origin in incoming {
+            let copy = origin.duplicate()
+            if copy.rawImage == nil,
+               let src = origin.pdfPageSource,
+               let cg = src.renderPage(backingScale: displayBackingScale) {
+                let nsImage = NSImage(size: NSSize(width: cg.width, height: cg.height))
+                nsImage.addRepresentation(NSBitmapImageRep(cgImage: cg))
+                copy.rawImage = nsImage
+                copy.screenshotCropRect = CGRect(x: 0, y: 0, width: cg.width, height: cg.height)
+            }
+            guard copy.rawImage != nil else { continue }
+            // `preloadThumbnails` skips a session that already has a raw image,
+            // so render the display bitmap and thumbnail here.
+            renderSessionDisplay(copy)
+            added.append(copy)
+        }
+        return added
+    }
+
+    /// Re-expresses annotations from one image-pixel space into another.
+    ///
+    /// Points, `fontSize` and `textWidth` are all stored in image pixels (see
+    /// the resize path), so a page that rasterises at a different pixel size in
+    /// the destination window — another display's backing scale, or an image
+    /// re-wrapped as a page — has to take them with it. `curvature` is stored
+    /// relative to its own segment and needs no scaling.
+    private static func rescaleAnnotations(_ annotations: [Annotation], by scale: CGFloat) -> [Annotation] {
+        guard scale > 0, scale != 1, !annotations.isEmpty else { return annotations }
+        return annotations.map { ann in
+            var a = ann
+            a.startPoint = CGPoint(x: ann.startPoint.x * scale, y: ann.startPoint.y * scale)
+            a.endPoint = CGPoint(x: ann.endPoint.x * scale, y: ann.endPoint.y * scale)
+            if !ann.points.isEmpty {
+                a.points = ann.points.map { CGPoint(x: $0.x * scale, y: $0.y * scale) }
+            }
+            a.style.fontSize = ann.style.fontSize * scale
+            if let w = ann.textWidth {
+                a.textWidth = w * scale
+            }
+            return a
+        }
     }
 
     /// Inserts the pages of dropped/picked files into the open PDF at strip
@@ -4216,6 +4497,60 @@ struct EditorView: View {
         }
         sessions.insert(contentsOf: newSessions, at: clamped)
         pdfStructureEditedGroups.insert(groupID)
+        syncPDFOutlineAfterStructureChange()
+        preloadThumbnails()
+    }
+
+    /// Files dropped on the strip or the canvas.
+    ///
+    /// What that means depends on the window: a PDF takes them in as **pages**
+    /// of the document it already holds, while a window of plain images opens
+    /// them **alongside** what's there. Dropping a PDF on a screenshot can't
+    /// splice pages into a raster image, and rasterising it would throw away a
+    /// document — so it joins as its own page group, the way opening the two
+    /// files together would.
+    private func insertDroppedFiles(_ urls: [URL], at index: Int) {
+        if pdfInsertTarget != nil {
+            insertPages(from: urls, at: index)
+        } else {
+            openDroppedFiles(urls, at: index)
+        }
+    }
+
+    /// Adds dropped files to a window that isn't a PDF, at strip position
+    /// `index`. Images become one session each; a PDF contributes all of its
+    /// pages as a group, so it stays exportable as a document.
+    private func openDroppedFiles(_ urls: [URL], at index: Int) {
+        var added: [ImageSession] = []
+        for url in urls {
+            if url.pathExtension.lowercased() == "pdf" {
+                added.append(contentsOf: PDFService.loadPages(from: url))
+            } else if DroppedFiles.insertableExtensions.contains(url.pathExtension.lowercased()) {
+                added.append(ImageSession(imageURL: url))
+            }
+        }
+        guard !added.isEmpty else { return }
+
+        flushPendingDisplayRender()
+        saveActiveSessionState()
+
+        // A freshly opened session starts at bare defaults; give it the
+        // window's current look, the way `propagateInitialTemplateToOtherSessions`
+        // does for the images the editor opened with.
+        for session in added {
+            session.editorPadding = editorPadding
+            session.editorCornerRadius = editorCornerRadius
+            // Never carry a template background onto a PDF page.
+            session.selectedWallpaper = session.isPDF ? nil : selectedWallpaper
+            session.shadowIntensity = shadowIntensity
+            session.editorAspectRatioID = editorAspectRatioID
+            session.screenshotAlignment = screenshotAlignment
+            session.watermarkSettings = watermarkSettings
+        }
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            sessions.insert(contentsOf: added, at: min(max(index, 0), sessions.count))
+        }
         syncPDFOutlineAfterStructureChange()
         preloadThumbnails()
     }

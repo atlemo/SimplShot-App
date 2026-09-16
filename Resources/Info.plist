@@ -72,5 +72,26 @@
 	<string>https://atle.co/simplshot/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>Jvm+s+yxjmzC0iTdnHv848jSsejEx3EF16qpmJqgejo=</string>
+	<!-- Drag type for a thumbnail moved between editor windows. Never written to
+	     disk and never seen by another app: the payload lives in memory and the
+	     pasteboard item is registered .ownProcess. It is declared here because
+	     UTType(exportedAs:) resolves against the bundle's exported types, and an
+	     undeclared identifier stops the drag from starting at all. See
+	     ThumbnailDragBroker in ThumbnailStripView.swift. -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.simplshot.editor-thumbnail</string>
+			<key>UTTypeDescription</key>
+			<string>SimplShot Editor Thumbnail</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+	</array>
 </dict>
 </plist>
