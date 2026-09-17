@@ -2341,18 +2341,21 @@ struct GradientEditorRequest: Identifiable {
     let gradient: CustomGradient
     let isNew: Bool
 
-    /// The gradient a fresh "+" starts from — the neutral two-stop ramp, so
-    /// what the editor opens with is predictable rather than a copy of
-    /// whatever happened to be selected.
+    /// The gradient a fresh "+" starts from. Fixed, rather than a copy of
+    /// whatever swatch happened to be selected, so what the editor opens with
+    /// is predictable.
     static func new() -> GradientEditorRequest {
         let gradient = CustomGradient(
             definition: GradientDefinition(
+                // Written as exact 255ths: rounded decimals land a channel or
+                // two off, and the stop rows show these as hex.
                 colors: [
-                    CodableColor(red: 0.851, green: 0.851, blue: 0.851),
-                    CodableColor(red: 0.451, green: 0.451, blue: 0.451),
+                    CodableColor(red: 1, green: 166 / 255, blue: 0),           // #FFA600
+                    CodableColor(red: 1, green: 99 / 255, blue: 97 / 255),     // #FF6361
+                    CodableColor(red: 0, green: 63 / 255, blue: 92 / 255),     // #003F5C
                 ],
-                angle: 135,
-                locations: [0, 1],
+                angle: 35,
+                locations: [0, 0.5, 1],
                 kind: .linear
             )
         )
@@ -2385,11 +2388,29 @@ struct GradientEditorSheet: View {
 
     @State private var stops: [EditableGradientStop] = []
     @State private var kind: GradientKind = .linear
-    @State private var angle: Double = 135
+    @State private var angle: Double = 0
     @State private var selectedStopID: UUID?
+    /// The stop currently under the pointer, resolved once at mouse-down and
+    /// held for the whole drag — re-resolving per event would hand the drag to
+    /// a neighbour the moment the pin passed over it.
+    @State private var activeStopDrag: StopDrag?
+
+    struct StopDrag: Equatable {
+        let id: UUID
+        /// Tip position minus grab position, so the pin keeps its grip.
+        let grabOffset: CGFloat
+    }
 
     private static let maximumStops = 12
     private static let barCoordinateSpace = "gradientStopBar"
+    private static let rampHeight: CGFloat = 26
+    /// Pin geometry: a square body, a tail below it, and the amount the tip
+    /// sinks into the ramp so the two read as connected.
+    private static let pinWidth = GradientStopBarGeometry.pinWidth
+    private static let pinTailHeight: CGFloat = 8
+    private static let pinSwatchSide: CGFloat = 14
+    private static let pinOverlap: CGFloat = 2
+    private static var pinHeight: CGFloat { pinWidth + pinTailHeight }
 
     /// The gradient as currently edited — the single source the preview, the
     /// ramp and the saved value all read, so they cannot drift apart.
@@ -2470,6 +2491,9 @@ struct GradientEditorSheet: View {
 
     private var typeRow: some View {
         HStack(spacing: 8) {
+            Text("Gradient Type")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
             Picker("", selection: $kind) {
                 ForEach(GradientKind.allCases) { kind in
                     Text(kind.displayName).tag(kind)
@@ -2495,17 +2519,22 @@ struct GradientEditorSheet: View {
         }
     }
 
+    /// The same control the Edit panel's Light/Color/Detail and Straighten rows
+    /// use. `zeroPoint` is 0° — the fill grows from the left as the angle
+    /// increases, and a double-click resets to the left → right direction the
+    /// stop ramp itself is drawn in.
     private var angleRow: some View {
-        HStack(spacing: 8) {
-            Text("Angle")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-            Slider(value: $angle, in: 0...360, step: 1)
-            Text("\(Int(angle.rounded()))°")
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 34, alignment: .trailing)
-        }
+        AdjustmentSlider(
+            label: "Angle",
+            value: Binding(
+                get: { Float(angle) },
+                set: { angle = Double($0) }
+            ),
+            range: 0...360,
+            zeroPoint: 0,
+            step: 1,
+            display: { "\(Int($0.rounded()))°" }
+        )
     }
 
     private func reverseStops() {
@@ -2519,58 +2548,118 @@ struct GradientEditorSheet: View {
     /// The ramp is always drawn left → right, whatever `kind` and `angle` are:
     /// it is the axis the stops are positioned along, not a preview of the
     /// finished gradient (that is what `preview` above is for).
+    ///
+    /// The stops sit **above** the ramp on pins that point down at it, so the
+    /// gradient itself is never covered by its own handles.
     private var stopBar: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(.clear)
-                    .overlay(CheckerboardView())
-                    .overlay(
-                        LinearGradient(
-                            stops: definition.swiftUIStops,
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
-                    )
-                    .frame(height: 24)
-                    .contentShape(Rectangle())
-                    .onTapGesture { location in
-                        addStop(at: location.x / max(width, 1))
-                    }
-
+                ramp(width: width)
+                    .offset(y: Self.pinHeight - Self.pinOverlap)
                 ForEach(sortedStops) { stop in
-                    handle(for: stop, barWidth: width)
+                    pin(for: stop, barWidth: width)
+                        // The stop being worked on draws over its neighbours,
+                        // so the one you are aiming at is the one on top.
+                        .zIndex(selectedStopID == stop.id ? 1 : 0)
                 }
+                // One hit layer over the whole pin band. Pins overlap as soon
+                // as two stops are close, and per-pin hit rects then fight
+                // over the click — whichever happened to be drawn last won,
+                // which is not the one being aimed at.
+                Color.clear
+                    .frame(width: width, height: Self.pinHeight)
+                    .contentShape(Rectangle())
+                    .gesture(pinDrag(barWidth: width))
+                    .zIndex(2)
             }
         }
-        .frame(height: 30)
+        .frame(height: Self.pinHeight - Self.pinOverlap + Self.rampHeight)
         .coordinateSpace(name: Self.barCoordinateSpace)
     }
 
-    private func handle(for stop: EditableGradientStop, barWidth: CGFloat) -> some View {
-        let isSelected = selectedStopID == stop.id
-        return Circle()
-            .fill(stop.color.swiftUIColor)
+    private func ramp(width: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 6)
+            .fill(.clear)
+            .overlay(CheckerboardView())
             .overlay(
-                Circle().stroke(isSelected ? Color.accentColor : Color.white, lineWidth: isSelected ? 2.5 : 2)
+                LinearGradient(
+                    stops: definition.swiftUIStops,
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
             )
-            .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
-            .frame(width: 16, height: 16)
-            .position(x: CGFloat(stop.location) * barWidth, y: 12)
-            .gesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.barCoordinateSpace))
-                    .onChanged { value in
-                        selectedStopID = stop.id
-                        guard let index = stops.firstIndex(where: { $0.id == stop.id }) else { return }
-                        stops[index].location = min(max(Double(value.location.x / max(barWidth, 1)), 0), 1)
-                    }
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
             )
+            .frame(width: width, height: Self.rampHeight)
+            .contentShape(Rectangle())
+            .onTapGesture { location in
+                addStop(at: location.x / max(width, 1))
+            }
+    }
+
+    /// A stop handle: a swatch on a pin whose tip marks the exact position.
+    ///
+    /// The **body is clamped to the ramp** while the **tip is not** — at 0% and
+    /// 100% the body stays fully on screen and the tail slides into the
+    /// corner nearest the edge, so the tip still points precisely at the stop
+    /// instead of the handle drifting off the end or hanging over it.
+    private func pin(for stop: EditableGradientStop, barWidth: CGFloat) -> some View {
+        let isSelected = selectedStopID == stop.id
+        let stopX = CGFloat(stop.location) * barWidth
+        let bodyLeft = GradientStopBarGeometry.bodyLeft(tipX: stopX, barWidth: barWidth)
+        let shape = GradientStopPin(tipX: stopX - bodyLeft, tailHeight: Self.pinTailHeight, cornerRadius: 7)
+        return shape
+            .fill(isSelected ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
+            .overlay(shape.stroke(Color.primary.opacity(isSelected ? 0 : 0.18), lineWidth: 0.5))
+            .overlay(alignment: .top) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(stop.color.swiftUIColor)
+                    .frame(width: Self.pinSwatchSide, height: Self.pinSwatchSide)
+                    .padding(.top, (Self.pinWidth - Self.pinSwatchSide) / 2)
+            }
+            .shadow(color: .black.opacity(0.22), radius: 2, y: 1)
+            .frame(width: Self.pinWidth, height: Self.pinHeight)
+            .offset(x: bodyLeft)
+            // Purely visual — the shared hit layer above owns every click.
+            .allowsHitTesting(false)
+    }
+
+    private func stopID(grabbedAt x: CGFloat, barWidth: CGFloat) -> UUID? {
+        guard let index = GradientStopBarGeometry.grabbedStop(
+            at: x, locations: stops.map(\.location), barWidth: barWidth)
+        else { return nil }
+        return stops[index].id
+    }
+
+    /// Drags a stop, keeping the grab point fixed relative to the tip — so
+    /// grabbing a pin by its body doesn't teleport the tip under the cursor,
+    /// and a click that doesn't move only selects.
+    private func pinDrag(barWidth: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.barCoordinateSpace))
+            .onChanged { value in
+                let drag: StopDrag
+                if let activeStopDrag {
+                    drag = activeStopDrag
+                } else {
+                    guard let id = stopID(grabbedAt: value.startLocation.x, barWidth: barWidth),
+                          let stop = stops.first(where: { $0.id == id })
+                    else { return }
+                    drag = StopDrag(
+                        id: id,
+                        grabOffset: CGFloat(stop.location) * barWidth - value.startLocation.x
+                    )
+                    activeStopDrag = drag
+                    selectedStopID = id
+                }
+                guard let index = stops.firstIndex(where: { $0.id == drag.id }) else { return }
+                let tipX = value.location.x + drag.grabOffset
+                stops[index].location = min(max(Double(tipX / max(barWidth, 1)), 0), 1)
+            }
+            .onEnded { _ in activeStopDrag = nil }
     }
 
     /// Inserts a stop at `fraction`, taking the colour the gradient already has
@@ -2670,6 +2759,49 @@ struct GradientEditorSheet: View {
                 stops[index] = updated
             }
         )
+    }
+}
+
+/// A rounded-square badge with a tail hanging off its bottom edge, ending in a
+/// point at `tipX`. The tail is clamped inside the badge, so a tip at either
+/// end turns it into a pulled-out corner rather than pushing the point past
+/// the body.
+///
+/// Body and tail are `union`ed rather than filled as overlapping subpaths: a
+/// non-zero fill of two subpaths only unions cleanly when both wind the same
+/// way, and `CGPath(roundedRect:)`'s winding is not something to depend on.
+private struct GradientStopPin: Shape {
+    /// Where the point sits, in the pin's own coordinates — not necessarily
+    /// the centre, because the caller clamps the body to the ramp.
+    var tipX: CGFloat
+    var tailHeight: CGFloat
+    var cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let bodyHeight = max(rect.height - tailHeight, 1)
+        let body = CGPath(
+            roundedRect: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: bodyHeight),
+            cornerWidth: cornerRadius,
+            cornerHeight: cornerRadius,
+            transform: nil
+        )
+
+        let apex = min(max(tipX, rect.minX), rect.maxX)
+        // Wider than it is tall: a 45° point reads as a spike rather than
+        // the stubby speech-bubble tail this is meant to be.
+        let halfBase = max(tailHeight * 1.3, 5)
+        let left = min(max(apex - halfBase, rect.minX), rect.maxX)
+        let right = min(max(apex + halfBase, rect.minX), rect.maxX)
+        // The base starts a corner radius up inside the body, so the tail
+        // still meets solid edge when it is sitting over a rounded corner.
+        let baseY = max(bodyHeight - cornerRadius, rect.minY)
+        let tail = CGMutablePath()
+        tail.move(to: CGPoint(x: left, y: baseY))
+        tail.addLine(to: CGPoint(x: apex, y: rect.maxY))
+        tail.addLine(to: CGPoint(x: right, y: baseY))
+        tail.closeSubpath()
+
+        return Path(body.union(tail))
     }
 }
 

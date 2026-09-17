@@ -464,7 +464,11 @@ private extension Color {
 /// inset on the left and the formatted value on the right, a fill that grows
 /// from `zeroPoint` toward the thumb, and a thin vertical thumb. Drag anywhere
 /// on the bar to scrub; double-click to reset to `zeroPoint`.
-private struct AdjustmentSlider: View {
+///
+/// Internal rather than file-private because the gradient editor's Angle row
+/// in `EditorSidebarView` uses it too — one slider style across the editor.
+/// `Color.simplShotOrange` below stays file-private: only this control needs it.
+struct AdjustmentSlider: View {
     let label: LocalizedStringKey
     @Binding var value: Float
     let range: ClosedRange<Float>

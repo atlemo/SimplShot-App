@@ -136,6 +136,57 @@ struct GradientDefinition: Codable, Equatable, Hashable {
     }
 }
 
+/// The gradient editor's stop ramp: where a stop's pin is drawn, and which
+/// stop a click on the ramp grabs.
+///
+/// One source for both, because they must agree — a hit test computed
+/// separately from the drawing is exactly how a handle ends up unclickable, or
+/// clickable somewhere it isn't drawn.
+enum GradientStopBarGeometry {
+    /// Width of a pin's square body. The tail hangs below it.
+    static let pinWidth: CGFloat = 24
+    /// How far outside a pin a click still grabs it.
+    static let grabSlack: CGFloat = 10
+
+    /// The pin **body** is clamped to the ramp; the **tip** is not. At 0% and
+    /// 100% the body stays fully on the ramp and the tail slides into the
+    /// nearest corner, so the tip still marks the exact position.
+    static func bodyLeft(tipX: CGFloat, barWidth: CGFloat, pinWidth: CGFloat = pinWidth) -> CGFloat {
+        min(max(tipX - pinWidth / 2, 0), max(barWidth - pinWidth, 0))
+    }
+
+    /// Index into `locations` of the stop a click at `x` grabs, or nil when the
+    /// click is nowhere near one.
+    ///
+    /// Among the pins under the cursor the nearest **tip** wins. Pins overlap
+    /// as soon as two stops are close, and picking by body — or by draw order —
+    /// then hands the click to whichever pin happens to be on top rather than
+    /// the one being aimed at. Tips stay distinct where bodies do not, so two
+    /// stops a few points apart remain separately grabbable.
+    static func grabbedStop(
+        at x: CGFloat,
+        locations: [Double],
+        barWidth: CGFloat,
+        pinWidth: CGFloat = pinWidth,
+        slack: CGFloat = grabSlack
+    ) -> Int? {
+        var underCursor: [(index: Int, tipDistance: CGFloat)] = []
+        var nearest: (index: Int, distance: CGFloat)?
+        for (index, location) in locations.enumerated() {
+            let tipX = CGFloat(location) * barWidth
+            let left = bodyLeft(tipX: tipX, barWidth: barWidth, pinWidth: pinWidth)
+            let distance = max(max(left - x, x - (left + pinWidth)), 0)
+            if distance == 0 { underCursor.append((index, abs(tipX - x))) }
+            if nearest == nil || distance < nearest!.distance {
+                nearest = (index, distance)
+            }
+        }
+        if let best = underCursor.min(by: { $0.tipDistance < $1.tipDistance }) { return best.index }
+        if let nearest, nearest.distance <= slack { return nearest.index }
+        return nil
+    }
+}
+
 /// A gradient the user built in the gradient editor. The `id` exists so the
 /// swatch grid can list and edit them; `WallpaperSource` still stores the
 /// **definition** inline, so deleting a preset never breaks a saved template
