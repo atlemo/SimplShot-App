@@ -293,10 +293,17 @@ struct AnnotationOverlayView: View {
             .position(x: start.x, y: start.y)
 
         case .sticker:
-            // Font size comes from StickerGeometry so the glyph is laid out at
-            // the identical point size the export uses; both centre the emoji's
-            // own layout box on the stored rect's centre.
-            let stickerFontSize = StickerGeometry.fontSize(forBox: annotation.boundingRect.size) * scale
+            // Fit the glyph to the DISPLAYED rect, not `fontSize(forBox:) * scale`.
+            // The colour-emoji advance rounds up to a whole point, so point size
+            // is not linear in box size — the very nonlinearity `fontSize(forBox:)`
+            // corrects for in image space is reintroduced by multiplying its
+            // result by `scale`, and the glyph then spills out of its own
+            // selection rectangle and handles when zoomed out (measured: +4% at
+            // 25% zoom, +20% at 10%; exact from ~40% up). Feeding the helper the
+            // view-space box instead keeps the emoji inside its rect at every
+            // zoom, and both spaces still centre the glyph's own layout box on
+            // the rect's centre, so this stays the export's look scaled down.
+            let stickerFontSize = StickerGeometry.fontSize(forBox: rect.size)
             ZStack {
                 if isSelected {
                     // Selection chrome is fixed-size in view points, like HandleDot.

@@ -4853,9 +4853,34 @@ struct EditorView: View {
         var formatPicker: SaveFormatPicker?
 
         if isPDFSession {
-            let pdfName = imageURL.deletingPathExtension().lastPathComponent + ".pdf"
-            panel.nameFieldStringValue = pdfName
-            panel.allowedContentTypes = [.pdf]
+            // A PDF can be saved as a document (every page, vector, structure
+            // preserved) or as a picture of the page being edited. Both are
+            // reasonable things to want from "Save As", so the same accessory
+            // popup the raster path uses offers PDF first and then the image
+            // formats — the caption spells out which pages each one writes, so
+            // "PNG" can't be mistaken for "the whole document".
+            let formats: [SaveFormatPicker.Format] =
+                [.init(label: "PDF", type: .pdf, ext: "pdf")] + Self.rasterSaveFormats()
+
+            panel.nameFieldStringValue = imageURL.deletingPathExtension().lastPathComponent + ".pdf"
+            panel.allowedContentTypes = [formats[0].type]
+
+            let pageCount = activeSession?.pdfGroupID
+                .map { id in sessions.filter { $0.pdfGroupID == id }.count } ?? 1
+            let pageNumber = currentPDFPageNumber ?? 1
+            let picker = SaveFormatPicker(formats: formats, panel: panel) { format in
+                guard pageCount > 1 else { return nil }
+                // "All pages" carries no count on purpose: a count here would
+                // need a plural variation in every language (Russian has four
+                // categories) to say nothing the popup doesn't already imply.
+                // The page line has two numbers, so its placeholders are
+                // positional or the substitution silently misorders.
+                return format.type == .pdf
+                    ? String(localized: "All pages")
+                    : String(localized: "Page \(pageNumber) of \(pageCount)")
+            }
+            panel.accessoryView = picker.makeAccessoryView()
+            formatPicker = picker
         } else {
             let ext = imageURL.pathExtension.lowercased()
             let jp2Type = UTType("public.jpeg-2000")
@@ -4876,16 +4901,7 @@ struct EditorView: View {
             }
             // Offer every supported raster format via an accessory popup,
             // defaulting to the source image's format (first entry).
-            var formats: [SaveFormatPicker.Format] = [
-                .init(label: "PNG", type: .png, ext: "png"),
-                .init(label: "JPEG", type: .jpeg, ext: "jpg"),
-                .init(label: "HEIC", type: .heic, ext: "heic"),
-            ]
-            #if !APPSTORE
-            formats.append(.init(label: "WebP", type: .webP, ext: "webp"))
-            #endif
-            if let jp2Type { formats.append(.init(label: "JPEG 2000", type: jp2Type, ext: "jp2")) }
-            if let psdType { formats.append(.init(label: "Photoshop", type: psdType, ext: "psd")) }
+            var formats = Self.rasterSaveFormats()
             if let idx = formats.firstIndex(where: { $0.type == sourceType }) {
                 formats.insert(formats.remove(at: idx), at: 0)
             }
@@ -4903,8 +4919,13 @@ struct EditorView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         _ = formatPicker  // keep alive until the panel closes
 
+        // Branch on the URL, not on the popup: the user can type ".png" into
+        // the name field directly, and the panel is free to append an extension
+        // of its own. The file on disk is what has to match its contents.
+        let savingAsPDF = url.pathExtension.lowercased() == "pdf"
+
         do {
-            if isPDFSession, let groupID = activeSession?.pdfGroupID {
+            if isPDFSession, savingAsPDF, let groupID = activeSession?.pdfGroupID {
                 saveActiveSessionState()
                 let groupSessions = sessions.filter { $0.pdfGroupID == groupID }
                 try PDFExportService.exportPDF(
@@ -4912,6 +4933,16 @@ struct EditorView: View {
                     backingScale: displayBackingScale,
                     to: url
                 )
+            } else if isPDFSession {
+                try exportPDFPageAsRaster(to: url)
+                // Deliberately does NOT close the editor, unlike every other
+                // Save As. Writing a picture of one page is exporting a copy,
+                // not finishing with the document: the PDF itself is still
+                // unsaved, and the window closes without prompting, so
+                // dismissing here would silently discard the annotations on
+                // every other page.
+                requestReviewIfEligible()
+                return
             } else {
                 try exportAndSave(to: url)
             }
@@ -4920,6 +4951,49 @@ struct EditorView: View {
         } catch {
             showSaveError(error)
         }
+    }
+
+    /// Every raster format "Save As" can write, in a fixed order. Shared so the
+    /// image and PDF paths can never drift apart on which formats they offer.
+    /// Format names are product names — deliberately not localized.
+    private static func rasterSaveFormats() -> [SaveFormatPicker.Format] {
+        var formats: [SaveFormatPicker.Format] = [
+            .init(label: "PNG", type: .png, ext: "png"),
+            .init(label: "JPEG", type: .jpeg, ext: "jpg"),
+            .init(label: "HEIC", type: .heic, ext: "heic"),
+        ]
+        #if !APPSTORE
+        formats.append(.init(label: "WebP", type: .webP, ext: "webp"))
+        #endif
+        if let jp2 = UTType("public.jpeg-2000") {
+            formats.append(.init(label: "JPEG 2000", type: jp2, ext: "jp2"))
+        }
+        if let psd = UTType("com.adobe.photoshop-image") {
+            formats.append(.init(label: "Photoshop", type: psd, ext: "psd"))
+        }
+        return formats
+    }
+
+    /// Writes the page being edited as a flat image.
+    ///
+    /// Goes through `composedRasterOutput`, the same helper clipboard and print
+    /// use, so a scanned page exports at the resolution of the bitmap actually
+    /// embedded in it rather than at its (much smaller) point size — and so a
+    /// cropped page falls back to the cropped display raster instead of being
+    /// re-drawn whole. See the PDF rendering notes in ARCHITECTURE/CLAUDE.md.
+    private func exportPDFPageAsRaster(to url: URL) throws {
+        let renderer = AnnotationRenderer()
+        renderer.styleScale = dpiScaleFactor
+        guard let outputImage = composedRasterOutput(
+            pdfPage: activePDFPage(),
+            displayCG: currentCGImage(),
+            annotations: annotations,
+            watermark: watermarkSettings,
+            renderer: renderer
+        ) else {
+            throw PDFExportError.cannotRenderPage
+        }
+        try Self.writeImage(outputImage, to: url)
     }
 
     private func exportAndSave(to url: URL) throws {
@@ -5409,10 +5483,15 @@ private final class SaveFormatPicker: NSObject {
 
     private let formats: [Format]
     private weak var panel: NSSavePanel?
+    /// Secondary line under the popup, recomputed per format. Used by the PDF
+    /// path to say how much of the document each format writes; nil hides it.
+    private let caption: ((Format) -> String?)?
+    private var captionLabel: NSTextField?
 
-    init(formats: [Format], panel: NSSavePanel) {
+    init(formats: [Format], panel: NSSavePanel, caption: ((Format) -> String?)? = nil) {
         self.formats = formats
         self.panel = panel
+        self.caption = caption
     }
 
     func makeAccessoryView() -> NSView {
@@ -5428,15 +5507,40 @@ private final class SaveFormatPicker: NSObject {
 
         container.addSubview(label)
         container.addSubview(popup)
+
+        let popupCenterY: NSLayoutConstraint
+        if caption == nil {
+            popupCenterY = popup.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+            NSLayoutConstraint.activate([
+                container.heightAnchor.constraint(equalToConstant: 44),
+                label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            ])
+        } else {
+            let detail = NSTextField(labelWithString: "")
+            detail.translatesAutoresizingMaskIntoConstraints = false
+            detail.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            detail.textColor = .secondaryLabelColor
+            container.addSubview(detail)
+            captionLabel = detail
+
+            popupCenterY = popup.topAnchor.constraint(equalTo: container.topAnchor, constant: 12)
+            NSLayoutConstraint.activate([
+                container.heightAnchor.constraint(equalToConstant: 66),
+                label.firstBaselineAnchor.constraint(equalTo: popup.firstBaselineAnchor),
+                detail.topAnchor.constraint(equalTo: popup.bottomAnchor, constant: 6),
+                detail.leadingAnchor.constraint(equalTo: popup.leadingAnchor),
+                detail.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -20),
+            ])
+        }
+
         NSLayoutConstraint.activate([
-            container.heightAnchor.constraint(equalToConstant: 44),
+            popupCenterY,
             label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
             popup.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 8),
-            popup.centerYAnchor.constraint(equalTo: container.centerYAnchor),
             popup.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
             popup.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
         ])
+        updateCaption(for: 0)
         return container
     }
 
@@ -5447,5 +5551,11 @@ private final class SaveFormatPicker: NSObject {
         let base = (panel.nameFieldStringValue as NSString).deletingPathExtension
         panel.allowedContentTypes = [format.type]
         panel.nameFieldStringValue = base.isEmpty ? base : "\(base).\(format.ext)"
+        updateCaption(for: sender.indexOfSelectedItem)
+    }
+
+    private func updateCaption(for index: Int) {
+        guard let captionLabel, let caption, formats.indices.contains(index) else { return }
+        captionLabel.stringValue = caption(formats[index]) ?? ""
     }
 }

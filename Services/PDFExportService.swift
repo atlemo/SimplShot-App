@@ -139,9 +139,36 @@ enum PDFExportService {
 
         pdfContext.closePDF()
 
-        guard let output = PDFDocument(data: buffer as Data) else {
+        guard let rendered = PDFDocument(data: buffer as Data) else {
             throw PDFExportError.cannotRenderPage
         }
+
+        // ⚠️ The flattened pages are re-wrapped in a FRESH document before the
+        // transplant, and that is load-bearing: as of macOS 27, PDFKit does not
+        // serialize an `outlineRoot` assigned to a document that came from
+        // `PDFDocument(data:)`. Setting it succeeds, `numberOfChildren` reads
+        // back correctly right up to the write, and the outline is then silently
+        // absent from the file — so every annotated save lost its table of
+        // contents while links and metadata (page objects and the attributes
+        // dict, which do serialize) came through fine, which is what made it
+        // look like a narrow bug. `write(to:)` in place of
+        // `dataRepresentation()` does not help; the document's origin is what
+        // matters. A document built with `PDFDocument()` still serializes an
+        // assigned outline, so copying the pages across is the whole fix
+        // (measured: identical page content, ~1 KB larger).
+        //
+        // A failed copy throws rather than skipping the page: `writtenPages` is
+        // positional, so dropping one here would shift every later page and
+        // hand the transplant the wrong destinations — the same desync
+        // `writtenPages` exists to prevent above.
+        let output = PDFDocument()
+        for index in 0..<rendered.pageCount {
+            guard let page = rendered.page(at: index)?.copy() as? PDFPage else {
+                throw PDFExportError.cannotRenderPage
+            }
+            output.insert(page, at: output.pageCount)
+        }
+
         transplantStructure(from: source, to: output, sourcePageOrder: writtenPages)
         guard let data = output.dataRepresentation() else {
             throw PDFExportError.cannotRenderPage

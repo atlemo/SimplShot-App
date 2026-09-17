@@ -338,6 +338,26 @@ struct EditorSidebarView: View {
         )
     }
 
+    /// Background grid selection. Clearing the background to nil **also
+    /// deselects the template**, so the two routes to "no background" leave the
+    /// same state.
+    ///
+    /// Without a wallpaper none of a template's composite renders (see
+    /// `EditorTemplatePreset.noTemplateApplied`), so the picker already reads
+    /// "None" here. Leaving the id set made that a lie the UI told itself: the
+    /// picker said None while `selectedEditorTemplateID` still pointed at a
+    /// template, Save was dimmed with no way back, and picking any background by
+    /// hand afterwards made the picker **snap back to that template's name** —
+    /// a name the user had never re-selected.
+    ///
+    /// The watermark is deliberately left alone, unlike `clearTemplate` below:
+    /// this is the Background section, "no background" is the whole command,
+    /// and a watermark keeps rendering (and staying the user's) either way.
+    private func selectWallpaper(_ source: WallpaperSource?) {
+        selectedWallpaper = source
+        if source == nil { selectedEditorTemplateID = nil }
+    }
+
     /// "None": strip the template look off this image — background and
     /// watermark, the two parts of a template that actually render.
     ///
@@ -438,7 +458,7 @@ struct EditorSidebarView: View {
                     customColors: customColors,
                     customGradients: customGradients,
                     mode: type.gridMode,
-                    onSelectWallpaper: { selectedWallpaper = $0 },
+                    onSelectWallpaper: selectWallpaper,
                     onRemoveCustomImage: onRemoveCustomImage,
                     onAddCustomImage: onAddCustomImage,
                     onAddCustomColor: onAddCustomColor,
@@ -2567,8 +2587,15 @@ struct GradientEditorSheet: View {
                 // as two stops are close, and per-pin hit rects then fight
                 // over the click — whichever happened to be drawn last won,
                 // which is not the one being aimed at.
+                //
+                // It stops exactly where the ramp starts. At the full pin
+                // height it reached `pinOverlap` past that, and those top few
+                // points of the ramp then swallowed the click that should have
+                // inserted a stop. The only thing given up is the very apex of
+                // the tail, which sinks into the ramp for looks and is the last
+                // part of the handle anyone aims at.
                 Color.clear
-                    .frame(width: width, height: Self.pinHeight)
+                    .frame(width: width, height: Self.pinHeight - Self.pinOverlap)
                     .contentShape(Rectangle())
                     .gesture(pinDrag(barWidth: width))
                     .zIndex(2)
@@ -2818,6 +2845,11 @@ private struct GradientStopRow: View {
     /// away mid-keystroke; it is re-synced whenever the stop's colour changes
     /// from somewhere else (the colour well, a drag on the ramp).
     @State private var hexText: String = ""
+    /// Commit on losing focus as well as on Return. The neighbouring `%` fields
+    /// are `TextField(value:format:)`, which parses on blur for free; the hex
+    /// field parses by hand, so without this a typed value is silently dropped
+    /// by clicking Save instead of pressing Return.
+    @FocusState private var hexFocused: Bool
 
     private var percentBinding: Binding<Int> {
         Binding(
@@ -2873,7 +2905,12 @@ private struct GradientStopRow: View {
             TextField("", text: $hexText)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 78)
+                .focused($hexFocused)
                 .onSubmit(commitHex)
+                .onChange(of: hexFocused) { _, focused in
+                    guard !focused else { return }
+                    commitHex()
+                }
 
             TextField("", value: opacityBinding, format: .number)
                 .textFieldStyle(.roundedBorder)

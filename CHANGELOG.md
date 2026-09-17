@@ -20,8 +20,14 @@ A new Sticker tool stamps emoji onto a screenshot. Click it in the Tools list to
 
 While the tool is active the pointer becomes a faded copy of the emoji at the size it will land, so you can see exactly what you are about to place and where. Press Esc to put the tool away again and go back to selecting. A placed sticker then behaves like any other annotation: drag it to move it, drag a corner to resize it, and ⌘Z to undo. Picking a different emoji while one is selected swaps it in place rather than making you delete and start again. Stickers survive cropping, rotating, straightening and flipping like everything else, and they are burned into saved images and PDFs alike, so they look the same in every viewer.
 
+### Save a PDF Page as an Image
+Save As on a PDF now offers PNG, JPEG, HEIC and the rest alongside PDF. Choosing PDF writes the whole document as before; choosing an image format writes the page you are editing, at the resolution of the bitmap actually embedded in it rather than its much smaller page size — so a 300 DPI scan exports at 300 DPI, not at 72. The format popup says which of the two you are about to get. Exporting a page as an image leaves the editor open, since the PDF itself is still unsaved.
+
+### Fixed: Annotated PDFs Lost Their Table of Contents
+Saving a PDF you had annotated dropped its table of contents. Links and document details came through fine, so the loss was easy to miss until you went looking for the contents. This one was not SimplShot's doing: macOS 27 changed PDFKit so that it no longer writes an outline onto a document built the way the annotated save path builds one, which meant already-released versions started losing outlines as people upgraded. Annotated PDFs now keep their contents entries, exactly as unannotated ones always have.
+
 ### Fixed: The Template Menu Claimed a Template Was Applied
-With no background on an image, the Templates menu still showed a template name, as though that template were in effect. It now reads **None** whenever no template is applied, with the saved templates listed below it. Choosing one applies it as before, and choosing **None** strips the template back off: the background and the watermark are removed and no template is left selected. Padding, corners, shadow and alignment are kept — none of them show without a background, and picking a template again sets them all anyway. While None is showing, Save is dimmed, since there is no applied template for it to write back to — Save as new still works, and is the way to turn the current setup into a template.
+With no background on an image, the Templates menu still showed a template name, as though that template were in effect. It now reads **None** whenever no template is applied, with the saved templates listed below it. Choosing one applies it as before, and choosing **None** strips the template back off: the background and the watermark are removed and no template is left selected. Padding, corners, shadow and alignment are kept — none of them show without a background, and picking a template again sets them all anyway. Clearing the background from the Background section does the same to the template selection, so a template's name never reappears by itself once you have taken its background away. While None is showing, Save is dimmed, since there is no applied template for it to write back to — Save as new still works, and is the way to turn the current setup into a template.
 
 ### Fixed: Text Ran Outside Its Bubble While Editing
 Editing the text in a bubble whose width you had set by dragging its handles let the line run straight out through the side of the pill instead of wrapping inside it, and a bubble on two or more lines collapsed to one long line for as long as you were typing in it. The editor now lays text out exactly as the finished bubble does — wrapped into the bubble's width, centred, with the same line spacing — so what you type keeps the shape it will have when you click away. The pill also no longer flickers to a different size for an instant when you double-click into it.
@@ -48,6 +54,9 @@ Settings › General can now take SimplShot's icon out of the menu bar, for peop
 
 ### Check for Updates in Settings
 Check for Updates is now in Settings › About as well as the menu bar, so an update never depends on the icon being visible.
+
+### Template Preview Fixes
+Settings › Template now previews templates more accurately: Auto keeps even padding, ratio presets show the right canvas shape, and watermarks appear closer to their exported size.
 
 ## 2026-08-24 (1.7.5)
 

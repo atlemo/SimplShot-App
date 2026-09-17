@@ -18,6 +18,16 @@ struct WhatsNewEntry {
 let maxWhatsNewEntries = 4
 
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.7.7", items: [
+        "New: Build your own gradients — the + in the Gradients list now opens a gradient editor instead of a file picker. Pick linear or radial, set the angle, and add as many colour stops as you like: drag them along the ramp, or type an exact position, hex value and opacity. Your gradients sit alongside the built-in ones and can be edited or deleted from their right-click menu.",
+        "New: Emoji stickers — the Sticker tool stamps emoji onto a screenshot. Click it in the Tools list to choose one, then click anywhere on the image to place it. While the tool is active the pointer becomes a faded copy of the emoji at the size it will land, so you can see exactly what you are about to place. Drag a sticker to move it, drag a corner to resize it, and press Esc to put the tool away.",
+        "New: Drag pages between windows — a thumbnail can be dragged out of one editor window and dropped into another. Dropping copies the page and leaves the original where it was; hold ⌥ while you drop to move it instead. ⌘-click and ⇧-click to bring several pages at once, and drop after the last thumbnail to move a page to the very end of a document.",
+        "Your own background images have moved into a Custom Backgrounds category of their own, next to Gradients and Solid Colors, with its own + for adding more. Images you had already added are there waiting for you.",
+        "New: Save a PDF page as an image — Save As on a PDF now offers PNG, JPEG, HEIC and the rest alongside PDF. Choosing PDF writes the whole document; choosing an image format writes the page you are editing, at the resolution of the bitmap embedded in it rather than its page size, so a 300 DPI scan exports at 300 DPI. The format popup tells you which of the two you are about to get.",
+        "Fixed: saving a PDF you had annotated dropped its table of contents, while its links and document details came through fine. A change in macOS 27 was behind it, so it affected versions already released. Annotated PDFs now keep their contents entries, the same as unannotated ones always have.",
+        "Fixed: with no background on an image, the Templates menu still showed a template name, as though that template were in effect. It now reads None whenever no template is applied, and choosing None strips the template back off — background and watermark removed, padding and corners kept.",
+        "Fixed: editing the text in a bubble whose width you had set by dragging its handles let the line run out through the side of the pill instead of wrapping inside it. The editor now lays text out exactly as the finished bubble does, so what you type keeps the shape it will have when you click away.",
+    ]),
     WhatsNewEntry(version: "1.7.6", items: [
         "New: Organise PDF pages — the page strip can now add, delete and reorder pages. Drag a PDF or an image onto the strip to insert its pages where you drop them, use the × on a thumbnail to delete a page, and drag thumbnails to reorder. Every page change can be undone with ⌘Z, and nothing touches your file until you save.",
         "Saving a PDF now keeps its table of contents, links and document details. Previously they were discarded whenever a PDF was saved; a document you have only reorganised is no longer re-encoded at all.",
@@ -34,9 +44,6 @@ let whatsNewEntries: [WhatsNewEntry] = [
         "Alignment now keeps padding even — aligning to an edge puts the screenshot flush against it while the other sides keep their exact padding, instead of doubling the gap on the opposite side.",
         "Pixelation now exports exactly as previewed — saved and copied images use the same soft mosaic blocks you see in the editor.",
         "SimplShot uses much less memory — closed editing sessions are kept compressed in the background, so the app stays fast even after a long day of captures.",
-    ]),
-    WhatsNewEntry(version: "1.7.3", items: [
-        "Fixed a serious problem introduced in the last update: SimplShot was reserving ⌘C across the whole system, so pressing Copy in any other app quietly did nothing while SimplShot was running. The Save & Copy shortcut now stays inside the editor window where it belongs, and Copy works normally everywhere else again.",
     ]),
 ]
 
