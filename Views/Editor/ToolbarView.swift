@@ -204,7 +204,70 @@ struct RainbowColorPickerButton: View {
     }
 }
 
-// MARK: - BuiltInGradient SwiftUI helpers
+// MARK: - Gradient SwiftUI helpers
+
+extension CodableColor {
+    var swiftUIColor: Color {
+        Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+
+    init(_ color: Color) {
+        let resolved = NSColor(color).usingColorSpace(.deviceRGB) ?? NSColor(color)
+        self.init(
+            red: resolved.redComponent,
+            green: resolved.greenComponent,
+            blue: resolved.blueComponent,
+            alpha: resolved.alphaComponent
+        )
+    }
+
+    /// `RRGGBB`, the form the gradient editor's hex field reads and writes.
+    /// Opacity is a separate control there, so it is deliberately not encoded.
+    var hexString: String {
+        let clamp = { (v: CGFloat) in Int((min(max(v, 0), 1) * 255).rounded()) }
+        return String(format: "%02X%02X%02X", clamp(red), clamp(green), clamp(blue))
+    }
+
+    /// Parses `RRGGBB` / `#RRGGBB` / `RGB`, keeping `alpha`. Returns nil for
+    /// anything else, so a half-typed field leaves the stop alone.
+    static func fromHex(_ text: String, alpha: CGFloat = 1) -> CodableColor? {
+        var hex = text.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if hex.hasPrefix("#") { hex.removeFirst() }
+        if hex.count == 3 { hex = hex.map { "\($0)\($0)" }.joined() }
+        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return nil }
+        return CodableColor(
+            red: CGFloat((value >> 16) & 0xFF) / 255,
+            green: CGFloat((value >> 8) & 0xFF) / 255,
+            blue: CGFloat(value & 0xFF) / 255,
+            alpha: alpha
+        )
+    }
+}
+
+extension GradientDefinition {
+    var swiftUIStops: [Gradient.Stop] {
+        zip(colors, resolvedLocations).map {
+            Gradient.Stop(color: $0.swiftUIColor, location: $1)
+        }
+    }
+
+    /// The definition painted the way `TemplateRenderer` paints it: linear
+    /// along `angle`, or an ellipse filling the frame for radial (the CG side
+    /// stretches a square tile, which is the same shape).
+    @ViewBuilder
+    var swiftUIFill: some View {
+        switch kind {
+        case .linear:
+            LinearGradient(
+                stops: swiftUIStops,
+                startPoint: GradientSwatchView.startPoint(angle: angle),
+                endPoint: GradientSwatchView.endPoint(angle: angle)
+            )
+        case .radial:
+            EllipticalGradient(stops: swiftUIStops, center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
+        }
+    }
+}
 
 extension BuiltInGradient {
     /// A top-leading → bottom-trailing linear gradient for preview circles.

@@ -170,6 +170,8 @@ class TemplateRenderer {
             bgKey = "img_\(path)_\(canvasWidth)x\(canvasHeight)"
         case .customColor(let color):
             bgKey = "color_\(color.red)_\(color.green)_\(color.blue)_\(canvasWidth)x\(canvasHeight)"
+        case .customGradient(let definition):
+            bgKey = "cgrad_\(definition.cacheKey)_\(canvasWidth)x\(canvasHeight)"
         }
 
         if bgKey == cachedBackgroundKey, let cachedBG = cachedBackgroundImage {
@@ -185,6 +187,8 @@ class TemplateRenderer {
             case .customColor(let color):
                 context.setFillColor(color.cgColor)
                 context.fill(canvasRect)
+            case .customGradient(let definition):
+                drawGradient(definition, in: context, rect: canvasRect)
             }
             cachedBackgroundImage = context.makeImage()
             cachedBackgroundKey = bgKey
@@ -510,9 +514,7 @@ class TemplateRenderer {
             return
         }
 
-        let key = definition.colors
-            .map { "\($0.red),\($0.green),\($0.blue),\($0.alpha)" }
-            .joined(separator: ";") + "@\(definition.angle)"
+        let key = definition.cacheKey
         if key != cachedGradientTileKey || cachedGradientTile == nil {
             cachedGradientTile = renderGradientTile(definition, colors: cgColors)
             cachedGradientTileKey = key
@@ -530,16 +532,40 @@ class TemplateRenderer {
         guard let gradient = CGGradient(
             colorsSpace: CGColorSpaceCreateDeviceRGB(),
             colors: cgColors as CFArray,
-            locations: nil
+            locations: definition.resolvedLocations
         ) else { return }
 
-        let (startPoint, endPoint) = gradientPoints(for: definition.angle, in: rect)
-        context.drawLinearGradient(
-            gradient,
-            start: startPoint,
-            end: endPoint,
-            options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
-        )
+        draw(gradient, kind: definition.kind, angle: definition.angle, in: context, rect: rect)
+    }
+
+    /// Paints a prepared `CGGradient` across `rect`, linear along `angle` or
+    /// radial from its centre. The radial end radius is half the **width**, so
+    /// that a square tile stretched to the canvas becomes an ellipse touching
+    /// all four edges — the same look CSS `radial-gradient` gives, and the
+    /// reason the 1024px tile cache is still exact for radial gradients.
+    private func draw(
+        _ gradient: CGGradient,
+        kind: GradientKind,
+        angle: Double,
+        in context: CGContext,
+        rect: CGRect
+    ) {
+        let options: CGGradientDrawingOptions = [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+        switch kind {
+        case .linear:
+            let (start, end) = gradientPoints(for: angle, in: rect)
+            context.drawLinearGradient(gradient, start: start, end: end, options: options)
+        case .radial:
+            let center = CGPoint(x: rect.midX, y: rect.midY)
+            context.drawRadialGradient(
+                gradient,
+                startCenter: center,
+                startRadius: 0,
+                endCenter: center,
+                endRadius: rect.width / 2,
+                options: options
+            )
+        }
     }
 
     private func renderGradientTile(_ definition: GradientDefinition, colors: [CGColor]) -> CGImage? {
@@ -547,7 +573,7 @@ class TemplateRenderer {
         guard let gradient = CGGradient(
             colorsSpace: CGColorSpaceCreateDeviceRGB(),
             colors: colors as CFArray,
-            locations: nil
+            locations: definition.resolvedLocations
         ), let ctx = CGContext(
             data: nil,
             width: tileSize,
@@ -559,13 +585,7 @@ class TemplateRenderer {
         ) else { return nil }
 
         let tileRect = CGRect(x: 0, y: 0, width: tileSize, height: tileSize)
-        let (start, end) = gradientPoints(for: definition.angle, in: tileRect)
-        ctx.drawLinearGradient(
-            gradient,
-            start: start,
-            end: end,
-            options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
-        )
+        draw(gradient, kind: definition.kind, angle: definition.angle, in: ctx, rect: tileRect)
         return ctx.makeImage()
     }
 

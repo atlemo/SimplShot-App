@@ -142,6 +142,10 @@ struct EditorView: View {
     @State private var selectedAnnotationID: UUID?
     @State private var currentTool: AnnotationTool = .freeDraw
     @State private var currentStyle: AnnotationStyle = AnnotationStyle()
+    /// Emoji the sticker tool stamps. Persisted (and so shared across editor
+    /// windows) because it is a tool setting, not per-image state.
+    @AppStorage(Constants.UserDefaultsKeys.stickerEmoji)
+    private var currentStickerEmoji: String = StickerGeometry.defaultEmoji
 
     // Crop state
     @State private var isCropping: Bool = false
@@ -776,6 +780,7 @@ struct EditorView: View {
             showProSidebar: showProSidebarBinding,
             currentTool: $currentTool,
             currentStyle: $currentStyle,
+            currentStickerEmoji: $currentStickerEmoji,
             selectedAnnotationID: $selectedAnnotationID,
             annotations: $annotations,
             isCropping: $isCropping,
@@ -804,6 +809,10 @@ struct EditorView: View {
             customColors: appSettings?.customColors ?? [],
             onAddCustomColor: { appSettings?.addCustomColor($0) },
             onRemoveCustomColor: { appSettings?.removeCustomColor($0) },
+            customGradients: appSettings?.customGradients ?? [],
+            onAddCustomGradient: { appSettings?.addCustomGradient($0) },
+            onUpdateCustomGradient: { appSettings?.updateCustomGradient($0) },
+            onRemoveCustomGradient: { appSettings?.removeCustomGradient(id: $0) },
             onOverwriteTemplate: overwriteSelectedTemplate,
             onSaveAsNewTemplate: saveAsNewTemplate,
             canUndo: canUndo,
@@ -977,6 +986,7 @@ struct EditorView: View {
                                     selectedAnnotationID: $selectedAnnotationID,
                                     currentTool: $currentTool,
                                     currentStyle: $currentStyle,
+                                    currentStickerEmoji: $currentStickerEmoji,
                                     cropRect: $cropRect,
                                     isCropping: $isCropping,
                                     cropBoundsRect: screenshotBoundsInDisplay,
@@ -2754,6 +2764,19 @@ struct EditorView: View {
                 }
                 // Out of range (e.g. Cmd+3 in PDF mode) — swallow rather than passing through
                 // so it can't fall into some other shortcut.
+                return nil
+            }
+
+            // Esc → put the armed tool away and drop the selection. Tools that
+            // change the pointer (the sticker's emoji cursor) or keep placing on
+            // every click need a way out that isn't "find the Select button".
+            // Crop is left alone — it has its own Cancel, and swallowing Esc
+            // here would take that key away from it.
+            if event.keyCode == 53, !hasBlockedModifier, !isCropping,
+               let win = hostingWindow, event.window === win,
+               editorMode == .annotate {
+                currentTool = .select
+                selectedAnnotationID = nil
                 return nil
             }
 

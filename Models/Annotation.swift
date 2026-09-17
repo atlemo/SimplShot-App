@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreText
 
 // MARK: - Tool Types
 
@@ -18,6 +19,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     case pixelate
     case spotlight
     case numberedStep
+    case sticker
     case crop
 
     var id: String { rawValue }
@@ -39,6 +41,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .pixelate:     return String(localized: "Pixelate")
         case .spotlight:    return String(localized: "Spotlight")
         case .numberedStep: return String(localized: "Steps")
+        case .sticker:      return String(localized: "Sticker")
         case .crop:         return String(localized: "Crop")
         }
     }
@@ -60,6 +63,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .pixelate:     return ""       // uses customImageName instead
         case .spotlight:    return "light.overhead.left"
         case .numberedStep: return "1.circle.fill"
+        case .sticker:      return "face.smiling"
         case .crop:         return "crop"
         }
     }
@@ -563,6 +567,48 @@ enum TextBubbleGeometry {
                             fontSize: annotation.style.fontSize * scale)
     }
 
+    /// Paragraph style shared by the inline editor and the height
+    /// measurement below, matching `AnnotationRenderer.drawText`'s line
+    /// spacing so a bubble keeps its height across the edit.
+    static func paragraphStyle(fontSize: CGFloat) -> NSMutableParagraphStyle {
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        let lineHeight = font.ascender + abs(font.descender)
+        let p = NSMutableParagraphStyle()
+        p.alignment = .center
+        p.lineSpacing = max(0, fontSize * 0.22 - (lineHeight - fontSize))
+        return p
+    }
+
+    /// Laid-out size of `text` inside a container `containerWidth` wide, using
+    /// the very same text system the inline editor's `NSTextView` uses. The
+    /// editor frames itself from this **synchronously**: asking the text view
+    /// for its size and feeding it back through `@State` lands a frame late,
+    /// which is visible as a blink when edit mode opens.
+    static func layoutSize(text: String, fontSize: CGFloat, containerWidth: CGFloat) -> CGSize {
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        let storage = NSTextStorage(string: text, attributes: [
+            .font: font,
+            .paragraphStyle: paragraphStyle(fontSize: fontSize),
+        ])
+        let layout = NSLayoutManager()
+        let container = NSTextContainer(size: CGSize(width: max(1, containerWidth),
+                                                     height: .greatestFiniteMagnitude))
+        container.lineFragmentPadding = 0
+        container.widthTracksTextView = false
+        layout.addTextContainer(container)
+        storage.addLayoutManager(layout)
+        layout.ensureLayout(for: container)
+        var used = layout.usedRect(for: container)
+        // A trailing newline (or empty text) lays out no glyphs on the last
+        // line — the text view still needs room for it, and so does the
+        // committed pill, which counts that empty line too.
+        if layout.extraLineFragmentTextContainer != nil {
+            used = used.union(layout.extraLineFragmentRect)
+        }
+        return CGSize(width: ceil(used.width),
+                      height: ceil(max(used.height, font.ascender + abs(font.descender))))
+    }
+
     /// Pill width in **image-pixel space** at zoom `scale` — where hit testing
     /// and the resize drag work. Exactly `displayWidth / scale`.
     static func imageWidth(for annotation: Annotation, scale: CGFloat) -> CGFloat {
@@ -570,6 +616,75 @@ enum TextBubbleGeometry {
         guard scale > 0 else { return naturalWidth(text: annotation.text, fontSize: annotation.style.fontSize) }
         return naturalWidth(text: annotation.text,
                             fontSize: annotation.style.fontSize * scale) / scale
+    }
+}
+
+// MARK: - Sticker (Emoji) Geometry
+
+/// Sizing for the emoji sticker tool.
+///
+/// A sticker is stored as a **rect** (`startPoint`/`endPoint` = opposite
+/// corners, exactly like the shape tools) rather than as a centre point plus a
+/// font size. That way the bounding-box hit test, the four corner-resize
+/// handles and every whole-image point transform (padding shift, crop remap,
+/// resize, rotate, straighten) all work with no sticker-specific code.
+///
+/// The point size that fills that box is derived **here and only here**, so the
+/// SwiftUI preview and the Core Graphics export lay the glyph out identically.
+enum StickerGeometry {
+    /// The emoji a freshly opened picker offers, and the fallback for a
+    /// sticker whose emoji somehow went missing.
+    static let defaultEmoji = "\u{1F44D}"
+
+    /// Box side (image pixels) for a click-placed sticker.
+    static let defaultSize: CGFloat = 100
+    /// Smallest box a corner drag may produce.
+    static let minimumSize: CGFloat = 16
+
+    /// Typographic size of an emoji glyph at `fontSize`. Measured through Core
+    /// Text rather than hardcoded: every emoji resolves to the same colour-emoji
+    /// fallback face, so one reference glyph covers them all — and nothing here
+    /// names a font by its PostScript name (which would silently fall back to
+    /// Helvetica if that name were missing).
+    private static func layoutSize(fontSize: CGFloat) -> CGSize {
+        let line = CTLineCreateWithAttributedString(NSAttributedString(
+            string: "\u{1F600}",
+            attributes: [.font: NSFont.systemFont(ofSize: fontSize)]
+        ))
+        var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
+        let width = CGFloat(CTLineGetTypographicBounds(line, &ascent, &descent, &leading))
+        return CGSize(width: width, height: ascent + descent)
+    }
+
+    /// Nominal layout size per point, from one reference measurement.
+    private static let ratio: CGSize = {
+        let reference: CGFloat = 100
+        let size = layoutSize(fontSize: reference)
+        guard size.width > 0, size.height > 0 else { return CGSize(width: 1.08, height: 1.18) }
+        return CGSize(width: size.width / reference, height: size.height / reference)
+    }()
+
+    /// Point size at which the emoji's layout box fits inside `box`.
+    /// `box` and the result are in the same space (image pixels or view points).
+    ///
+    /// ⚠️ The colour-emoji face rounds its **advance up to a whole point**, so
+    /// the advance-per-point is not constant — it is 1.08 at 100pt but 1.5 at
+    /// 8pt. Scaling by the nominal ratio alone therefore overflows the box at
+    /// small sizes (a 17pt box came out 4pt too wide), which shows up as the
+    /// glyph spilling past its own selection rectangle and resize handles. The
+    /// first guess is corrected against a real measurement; rounding means one
+    /// pass can leave a sliver, so it repeats a couple of times. Correcting can
+    /// only ever shrink, so it is safe to stop early.
+    static func fontSize(forBox box: CGSize) -> CGFloat {
+        guard box.width > 0, box.height > 0 else { return 1 }
+        var size = max(1, min(box.width / ratio.width, box.height / ratio.height))
+        for _ in 0..<3 {
+            let measured = layoutSize(fontSize: size)
+            let overflow = max(measured.width / box.width, measured.height / box.height)
+            guard overflow > 1.0001, size > 1 else { break }
+            size = max(1, size / overflow)
+        }
+        return size
     }
 }
 
@@ -648,7 +763,10 @@ struct Annotation: Identifiable, Equatable {
     /// nil = the style's default (0.3 bow for .curved, straight for .double).
     var curvature: CGVector?
     var style: AnnotationStyle
-    var text: String           // only meaningful for .text tool
+    /// Body of a `.text` bubble — and the emoji of a `.sticker`. Reusing the
+    /// one string field means the Option+drag duplicate, the undo snapshots and
+    /// every cross-window copy carry the sticker's emoji for free.
+    var text: String
     /// Fixed wrap width for a `.text` bubble, in image-pixel space.
     /// nil = natural (no wrapping); a value = the bubble wraps at that width.
     /// Per-annotation *geometry*, deliberately NOT part of `AnnotationStyle`:

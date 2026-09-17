@@ -195,13 +195,9 @@ struct TemplatePreviewView: View {
     private func backgroundView(in size: CGSize) -> some View {
         switch template.wallpaperSource {
         case .builtInGradient(let gradient):
-            let def = gradient.gradientDefinition
-            let colors = def.colors.map { Color(cgColor: $0.cgColor) }
-            LinearGradient(
-                colors: colors,
-                startPoint: GradientSwatchView.startPoint(angle: def.angle),
-                endPoint: GradientSwatchView.endPoint(angle: def.angle)
-            )
+            gradient.gradientDefinition.swiftUIFill
+        case .customGradient(let definition):
+            definition.swiftUIFill
         case .customImage(let path):
             if let nsImage = NSImage(contentsOfFile: path) {
                 Image(nsImage: nsImage)

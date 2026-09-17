@@ -18,6 +18,11 @@ struct EditorSidebarView: View {
     @Binding var showProSidebar: Bool
     @Binding var currentTool: AnnotationTool
     @Binding var currentStyle: AnnotationStyle
+    /// Emoji stamped by the sticker tool. Kept out of `AnnotationStyle` on
+    /// purpose — `applyStyleToSelection` replaces a selection's whole style, so
+    /// a style-resident emoji would be rewritten by the next colour or size
+    /// tweak (the trap documented on `Annotation.textWidth`).
+    @Binding var currentStickerEmoji: String
     @Binding var selectedAnnotationID: UUID?
     @Binding var annotations: [Annotation]
     @Binding var isCropping: Bool
@@ -47,6 +52,10 @@ struct EditorSidebarView: View {
     var customColors: [CodableColor]
     var onAddCustomColor: (CodableColor) -> Void
     var onRemoveCustomColor: (CodableColor) -> Void
+    var customGradients: [CustomGradient]
+    var onAddCustomGradient: (CustomGradient) -> Void
+    var onUpdateCustomGradient: (CustomGradient) -> Void
+    var onRemoveCustomGradient: (UUID) -> Void
     var onOverwriteTemplate: () -> Void
     var onSaveAsNewTemplate: () -> Void
     var canUndo: Bool
@@ -85,6 +94,7 @@ struct EditorSidebarView: View {
     @State private var arrowStylePopoverVisible = false
     @State private var shapesPopoverVisible = false
     @State private var spotlightPopoverVisible = false
+    @State private var stickerPopoverVisible = false
     @State private var hoveredTool: AnnotationTool? = nil
     @State private var hoveredSection: SidebarSection? = nil
     /// Keyboard focus follows the active tool so the focus ring sits on it,
@@ -94,6 +104,8 @@ struct EditorSidebarView: View {
     private var collapsedSectionsStorage: String = ""
     @AppStorage(Constants.UserDefaultsKeys.editorSidebarBackgroundType)
     private var backgroundTypeRawValue: String = BackgroundType.gradients.rawValue
+    /// Non-nil while the gradient editor sheet is up.
+    @State private var gradientEditorRequest: GradientEditorRequest?
 
     private enum SidebarSection: String, Hashable {
         case templates
@@ -107,14 +119,33 @@ struct EditorSidebarView: View {
     enum BackgroundType: String, CaseIterable, Identifiable {
         case gradients = "Gradients"
         case solidColors = "Solid Colors"
+        case customBackgrounds = "Custom Backgrounds"
         var id: String { rawValue }
 
         /// Localized label for the picker. Kept separate from `rawValue`, which is
         /// persisted in @AppStorage and must stay English.
         var displayName: String {
             switch self {
-            case .gradients:   return String(localized: "Gradients")
-            case .solidColors: return String(localized: "Solid Colors")
+            case .gradients:         return String(localized: "Gradients")
+            case .solidColors:       return String(localized: "Solid Colors")
+            case .customBackgrounds: return String(localized: "Custom Backgrounds")
+            }
+        }
+
+        /// Which built-in swatches this category lists ahead of the user's own.
+        var builtInItems: [BuiltInGradient] {
+            switch self {
+            case .gradients:         return BuiltInGradient.gradients
+            case .solidColors:       return BuiltInGradient.solidColors
+            case .customBackgrounds: return []
+            }
+        }
+
+        var gridMode: BackgroundGridView.Mode {
+            switch self {
+            case .gradients:         return .gradients
+            case .solidColors:       return .solidColors
+            case .customBackgrounds: return .customImages
             }
         }
     }
@@ -134,7 +165,8 @@ struct EditorSidebarView: View {
     // distort the on-screen page and be silently dropped from the saved PDF.
     private var drawingTools: [AnnotationTool] {
         let base: [AnnotationTool] = [
-            .select, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep, .measurement, .angle, .pixelate, .spotlight, .crop
+            .select, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep, .sticker,
+            .measurement, .angle, .pixelate, .spotlight, .crop
         ]
         guard !hasTemplate else { return base }
         // PDF sessions: pixelate/crop don't apply (vector export draws the full
@@ -269,15 +301,22 @@ struct EditorSidebarView: View {
             if !isCollapsed(.templates) {
                 TemplatePopupPicker(
                     items: editorTemplates.map { ($0.id, templateDisplayName(for: $0)) },
-                    selection: $selectedEditorTemplateID
+                    selection: $selectedEditorTemplateID,
+                    noTemplateApplied: noTemplateApplied,
+                    onSelectNone: clearTemplate
                 )
                 .frame(maxWidth: .infinity, minHeight: 28)
 
                 HStack(spacing: 8) {
+                    // Also disabled while the picker reads "None": Save writes
+                    // into `selectedEditorTemplateID`, and with no template
+                    // applied that target is a template the UI is no longer
+                    // naming — the user could not tell what they were saving
+                    // into. "Save as new" stays available for exactly that case.
                     Button("Save", action: onOverwriteTemplate)
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
-                        .disabled(selectedEditorTemplateID == nil || !hasUnsavedTemplateChanges)
+                        .disabled(selectedEditorTemplateID == nil || noTemplateApplied || !hasUnsavedTemplateChanges)
 
                     Button("Save as new", action: onSaveAsNewTemplate)
                         .buttonStyle(.bordered)
@@ -289,8 +328,41 @@ struct EditorSidebarView: View {
         .padding(.vertical, 12)
     }
 
+    /// True when no template is in effect on this image — see
+    /// `EditorTemplatePreset.noTemplateApplied`, which owns the rule (and the
+    /// reason it is not simply "no wallpaper").
+    private var noTemplateApplied: Bool {
+        EditorTemplatePreset.noTemplateApplied(
+            wallpaper: selectedWallpaper,
+            selected: editorTemplates.first { $0.id == selectedEditorTemplateID }
+        )
+    }
+
+    /// "None": strip the template look off this image — background and
+    /// watermark, the two parts of a template that actually render.
+    ///
+    /// Padding, corners, shadow, aspect ratio and alignment are deliberately
+    /// left alone: none of them draw anything without a background (see
+    /// `EditorTemplatePreset.noTemplateApplied`), so clearing them would
+    /// silently discard the user's settings for no visible gain, and picking a
+    /// template again overwrites all of them anyway.
+    ///
+    /// Clearing the wallpaper through the binding runs `EditorView`'s own
+    /// `onChange(of: selectedWallpaper)`, which shifts the annotations to
+    /// follow the canvas — the same path the Background section's None cell
+    /// uses. Don't reimplement that shift here.
+    private func clearTemplate() {
+        selectedWallpaper = nil
+        watermarkSettings.isEnabled = false
+        // Deselect the template too, or a template that carries no background
+        // of its own still counts as applied and the picker snaps back to it.
+        selectedEditorTemplateID = nil
+    }
+
     private func templateDisplayName(for template: EditorTemplatePreset) -> String {
-        if template.id == selectedEditorTemplateID && hasUnsavedTemplateChanges {
+        // With nothing applied there is no baseline to have diverged from, so
+        // the "modified" marker would be noise next to a "None" selection.
+        if !noTemplateApplied, template.id == selectedEditorTemplateID, hasUnsavedTemplateChanges {
             return "\(template.name) *"
         }
         return template.name
@@ -358,24 +430,46 @@ struct EditorSidebarView: View {
                 )
                 .frame(maxWidth: .infinity)
 
-                let isSolidColors = backgroundType == .solidColors
-                let items = isSolidColors ? BuiltInGradient.solidColors : BuiltInGradient.gradients
+                let type = backgroundType
                 BackgroundGridView(
-                    gradientItems: items,
+                    gradientItems: type.builtInItems,
                     selectedWallpaper: selectedWallpaper,
-                    customBackgroundImages: isSolidColors ? [] : customBackgroundImages,
-                    customColors: isSolidColors ? customColors : [],
-                    showCustomColorPicker: isSolidColors,
+                    customBackgroundImages: customBackgroundImages,
+                    customColors: customColors,
+                    customGradients: customGradients,
+                    mode: type.gridMode,
                     onSelectWallpaper: { selectedWallpaper = $0 },
                     onRemoveCustomImage: onRemoveCustomImage,
-                    onAddCustomImage: isSolidColors ? {} : onAddCustomImage,
+                    onAddCustomImage: onAddCustomImage,
                     onAddCustomColor: onAddCustomColor,
-                    onRemoveCustomColor: onRemoveCustomColor
+                    onRemoveCustomColor: onRemoveCustomColor,
+                    onCreateCustomGradient: { gradientEditorRequest = .new() },
+                    onEditCustomGradient: { gradientEditorRequest = .edit($0) },
+                    onRemoveCustomGradient: onRemoveCustomGradient
                 )
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+        .sheet(item: $gradientEditorRequest) { request in
+            GradientEditorSheet(
+                gradient: request.gradient,
+                isNew: request.isNew
+            ) { saved in
+                if request.isNew {
+                    onAddCustomGradient(saved)
+                    selectedWallpaper = .customGradient(saved.definition)
+                } else {
+                    onUpdateCustomGradient(saved)
+                    // Only take over the canvas when the gradient being edited
+                    // is the one on screen — editing an unselected swatch
+                    // shouldn't silently change the image's background.
+                    if selectedWallpaper == .customGradient(request.gradient.definition) {
+                        selectedWallpaper = .customGradient(saved.definition)
+                    }
+                }
+            }
+        }
     }
 
     private var paddingShadowCornersSection: some View {
@@ -692,6 +786,18 @@ struct EditorSidebarView: View {
             let isActive = currentTool == tool
             let hasOptions = hasSecondaryOptions(tool)
             let button = Button {
+                if tool == .sticker {
+                    // Unlike the other option-bearing tools, the picker opens on
+                    // the FIRST click too: a sticker tool with no emoji chosen
+                    // has nothing to stamp.
+                    pixelatePopoverVisible = false
+                    arrowStylePopoverVisible = false
+                    shapesPopoverVisible = false
+                    spotlightPopoverVisible = false
+                    selectTool(.sticker)
+                    stickerPopoverVisible = true
+                    return
+                }
                 if tool == .spotlight, currentTool == .spotlight {
                     spotlightPopoverVisible.toggle()
                     return
@@ -710,11 +816,15 @@ struct EditorSidebarView: View {
                 arrowStylePopoverVisible = false
                 shapesPopoverVisible = false
                 spotlightPopoverVisible = false
+                stickerPopoverVisible = false
                 selectTool(tool)
             } label: {
                 HStack(spacing: 3) {
                     Group {
-                        if let assetName = tool.customImageName {
+                        if tool == .sticker {
+                            Text(currentStickerEmoji.isEmpty ? StickerGeometry.defaultEmoji : currentStickerEmoji)
+                                .font(.system(size: 14))
+                        } else if let assetName = tool.customImageName {
                             Image(assetName)
                                 .resizable()
                                 .scaledToFit()
@@ -730,7 +840,7 @@ struct EditorSidebarView: View {
                                 .font(.system(size: 14))
                         }
                     }
-                    if tool == .arrow || (isActive && hasOptions) {
+                    if tool == .arrow || tool == .sticker || (isActive && hasOptions) {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 7, weight: .semibold))
                             .foregroundStyle(.secondary)
@@ -745,11 +855,21 @@ struct EditorSidebarView: View {
                 .contentShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
-            .help(isActive && hasOptions ? String(localized: "Click again to change style") : tool.label)
+            .help(tool == .sticker
+                  ? tool.label
+                  : (isActive && hasOptions ? String(localized: "Click again to change style") : tool.label))
             .onHover { isHovering in hoveredTool = isHovering ? tool : nil }
             .focused($focusedTool, equals: tool)
 
-            if tool == .spotlight {
+            if tool == .sticker {
+                button.popover(isPresented: $stickerPopoverVisible, arrowEdge: .trailing) {
+                    EmojiPickerView(selected: currentStickerEmoji) { emoji in
+                        currentStickerEmoji = emoji
+                        applyStickerToSelection()
+                        stickerPopoverVisible = false
+                    }
+                }
+            } else if tool == .spotlight {
                 button.popover(isPresented: $spotlightPopoverVisible, arrowEdge: .trailing) {
                     spotlightPopoverContent
                 }
@@ -1115,6 +1235,16 @@ struct EditorSidebarView: View {
         .padding(8)
     }
 
+    /// Re-stamp the selected sticker when the user picks a different emoji —
+    /// so changing your mind doesn't mean delete-and-place-again.
+    private func applyStickerToSelection() {
+        guard let id = selectedAnnotationID,
+              let idx = annotations.firstIndex(where: { $0.id == id }),
+              annotations[idx].tool == .sticker
+        else { return }
+        annotations[idx].text = currentStickerEmoji
+    }
+
     private func applyArrowStyleToSelection() {
         guard let id = selectedAnnotationID,
               let idx = annotations.firstIndex(where: { $0.id == id }),
@@ -1263,7 +1393,7 @@ struct EditorSidebarView: View {
     // MARK: - Helpers
 
     private func hasSecondaryOptions(_ tool: AnnotationTool) -> Bool {
-        tool == .arrow || tool == .pixelate || tool == .spotlight
+        tool == .arrow || tool == .pixelate || tool == .spotlight || tool == .sticker
     }
 
     private func sectionLabel(_ text: LocalizedStringKey) -> some View {
@@ -1448,6 +1578,16 @@ private struct WatermarkFilePickerButton: NSViewRepresentable {
 private struct TemplatePopupPicker: NSViewRepresentable {
     let items: [(UUID, String)]
     @Binding var selection: UUID?
+    /// Shows the permanent "None" row as the selection instead of a template.
+    ///
+    /// The row is always in the menu, never only while it applies: a pop-up
+    /// whose *options* appear and disappear reads as a glitch, and you cannot
+    /// tell a missing row from a bug.
+    var noTemplateApplied: Bool = false
+    /// Invoked when the user picks "None" — strips the template look off the
+    /// image. Distinct from `selection`, which only ever carries a real
+    /// template's id.
+    var onSelectNone: () -> Void = {}
 
     func makeNSView(context: Context) -> NSPopUpButton {
         let button = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -1457,13 +1597,13 @@ private struct TemplatePopupPicker: NSViewRepresentable {
         button.translatesAutoresizingMaskIntoConstraints = false
         button.target = context.coordinator
         button.action = #selector(Coordinator.selectionChanged(_:))
-        context.coordinator.update(button: button, items: items, selection: selection)
+        context.coordinator.update(button: button, items: items, selection: selection, noTemplateApplied: noTemplateApplied)
         return button
     }
 
     func updateNSView(_ button: NSPopUpButton, context: Context) {
         context.coordinator.parent = self
-        context.coordinator.update(button: button, items: items, selection: selection)
+        context.coordinator.update(button: button, items: items, selection: selection, noTemplateApplied: noTemplateApplied)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -1477,21 +1617,44 @@ private struct TemplatePopupPicker: NSViewRepresentable {
             self.parent = parent
         }
 
-        func update(button: NSPopUpButton, items: [(UUID, String)], selection: UUID?) {
-            let existingTitles = button.itemArray.map(\.title)
-            let newTitles = items.map(\.1)
-            let needsReload = existingTitles != newTitles || button.numberOfItems != items.count
+        /// Title of the "no template applied" row.
+        private static var noneTitle: String { String(localized: "None") }
+        /// Marks the None row. A sentinel rather than "no representedObject",
+        /// so picking None is told apart from a click that resolved to no item
+        /// at all — the first clears the template, the second must do nothing.
+        private static let noneMarker = "none"
 
-            if needsReload {
+
+        func update(button: NSPopUpButton, items: [(UUID, String)], selection: UUID?, noTemplateApplied: Bool) {
+            // Separators have an empty title, so comparing titles positionally
+            // covers the None row and the separator as well as the templates.
+            let existingTitles = button.itemArray.map { $0.isSeparatorItem ? "" : $0.title }
+            let newTitles = [Self.noneTitle, ""] + items.map(\.1)
+
+            if existingTitles != newTitles {
                 button.removeAllItems()
+                // Manual enablement, or AppKit re-enables the None row for us.
+                button.menu?.autoenablesItems = false
+                let none = NSMenuItem(title: Self.noneTitle, action: nil, keyEquivalent: "")
+                none.representedObject = Self.noneMarker
+                button.menu?.addItem(none)
+                button.menu?.addItem(.separator())
                 for (id, title) in items {
-                    button.addItem(withTitle: title)
-                    button.lastItem?.representedObject = id.uuidString
+                    // Explicit items rather than `addItem(withTitle:)`, which
+                    // REMOVES an existing item of the same title — two templates
+                    // sharing a name would silently collapse into one row.
+                    let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                    item.representedObject = id.uuidString
+                    button.menu?.addItem(item)
                 }
             }
 
-            if let selection,
-               let item = button.itemArray.first(where: { ($0.representedObject as? String) == selection.uuidString }) {
+            // "None" wins whenever nothing is applied: the selected template's
+            // name would claim a look this image does not have — the whole point.
+            if noTemplateApplied {
+                button.selectItem(at: 0)
+            } else if let selection,
+                      let item = button.itemArray.first(where: { ($0.representedObject as? String) == selection.uuidString }) {
                 button.select(item)
             } else if button.numberOfItems > 0 {
                 button.selectItem(at: 0)
@@ -1499,9 +1662,12 @@ private struct TemplatePopupPicker: NSViewRepresentable {
         }
 
         @objc func selectionChanged(_ sender: NSPopUpButton) {
-            guard let idString = sender.selectedItem?.representedObject as? String,
-                  let id = UUID(uuidString: idString)
-            else { return }
+            guard let marker = sender.selectedItem?.representedObject as? String else { return }
+            if marker == Self.noneMarker {
+                parent.onSelectNone()
+                return
+            }
+            guard let id = UUID(uuidString: marker) else { return }
             parent.selection = id
         }
     }
@@ -1577,17 +1743,29 @@ private struct StringPopupPicker: NSViewRepresentable {
 /// SwiftUI compares this view's value-type inputs and SKIPS its body if unchanged.
 /// This avoids recreating 40+ gradient cells with LinearGradient fills on every slider tick.
 struct BackgroundGridView: View, Equatable {
+    /// Which family of swatches the grid is showing. Each one lists the user's
+    /// own entries after the built-ins, then its own "+" cell.
+    enum Mode: Equatable {
+        case gradients
+        case solidColors
+        case customImages
+    }
+
     let gradientItems: [BuiltInGradient]
     let selectedWallpaper: WallpaperSource?
     let customBackgroundImages: [String]
     var customColors: [CodableColor] = []
-    var showCustomColorPicker: Bool = false
+    var customGradients: [CustomGradient] = []
+    var mode: Mode = .gradients
     // Closures — excluded from Equatable comparison (they always change identity)
     var onSelectWallpaper: (WallpaperSource?) -> Void
     var onRemoveCustomImage: (String) -> Void
     var onAddCustomImage: () -> Void
     var onAddCustomColor: (CodableColor) -> Void = { _ in }
     var onRemoveCustomColor: (CodableColor) -> Void = { _ in }
+    var onCreateCustomGradient: () -> Void = {}
+    var onEditCustomGradient: (CustomGradient) -> Void = { _ in }
+    var onRemoveCustomGradient: (UUID) -> Void = { _ in }
 
     @State private var isPickingColor: Bool = false
     @State private var liveColor: Color = Color(red: 0.5, green: 0.5, blue: 1.0)
@@ -1597,7 +1775,8 @@ struct BackgroundGridView: View, Equatable {
         && lhs.selectedWallpaper == rhs.selectedWallpaper
         && lhs.customBackgroundImages == rhs.customBackgroundImages
         && lhs.customColors == rhs.customColors
-        && lhs.showCustomColorPicker == rhs.showCustomColorPicker
+        && lhs.customGradients == rhs.customGradients
+        && lhs.mode == rhs.mode
     }
 
     var body: some View {
@@ -1607,7 +1786,13 @@ struct BackgroundGridView: View, Equatable {
             ForEach(gradientItems) { gradient in
                 gradientCell(gradient)
             }
-            if showCustomColorPicker {
+            switch mode {
+            case .gradients:
+                ForEach(customGradients) { gradient in
+                    customGradientCell(gradient)
+                }
+                plusCell(help: "Create Gradient", action: onCreateCustomGradient)
+            case .solidColors:
                 ForEach(customColors, id: \.self) { color in
                     customColorCell(color: color)
                 }
@@ -1615,7 +1800,7 @@ struct BackgroundGridView: View, Equatable {
                     liveColorCell
                 }
                 colorPickerButton
-            } else {
+            case .customImages:
                 ForEach(customBackgroundImages, id: \.self) { path in
                     customImageCell(path: path)
                 }
@@ -1768,10 +1953,10 @@ struct BackgroundGridView: View, Equatable {
         }
     }
 
-    private var customImagePickerButton: some View {
-        Button {
-            onAddCustomImage()
-        } label: {
+    /// The trailing "+" cell. Every category has one; only the action and the
+    /// tooltip differ.
+    private func plusCell(help: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color(nsColor: .controlBackgroundColor))
                 .overlay(
@@ -1788,7 +1973,50 @@ struct BackgroundGridView: View, Equatable {
                 .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .help("Add Custom Image")
+        .help(help)
+    }
+
+    private var customImagePickerButton: some View {
+        plusCell(help: "Add Custom Image", action: onAddCustomImage)
+    }
+
+    private func isCustomGradientSelected(_ gradient: CustomGradient) -> Bool {
+        if case .customGradient(let current) = selectedWallpaper {
+            return current == gradient.definition
+        }
+        return false
+    }
+
+    private func customGradientCell(_ gradient: CustomGradient) -> some View {
+        let isSelected = isCustomGradientSelected(gradient)
+        return Button {
+            onSelectWallpaper(.customGradient(gradient.definition))
+        } label: {
+            Color.clear
+                .frame(height: 44)
+                .overlay(gradient.definition.swiftUIFill)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8).stroke(
+                        isSelected ? Color.accentColor : Color.primary.opacity(0.15),
+                        lineWidth: isSelected ? 2 : 0.5
+                    )
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .help("Custom Gradient")
+        .contextMenu {
+            Button("Edit Gradient…") { onEditCustomGradient(gradient) }
+            Button(role: .destructive) {
+                if isSelected {
+                    onSelectWallpaper(nil)
+                }
+                onRemoveCustomGradient(gradient.id)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
     private func isCustomColorSelected(_ color: CodableColor) -> Bool {
@@ -1855,32 +2083,701 @@ struct BackgroundGridView: View, Equatable {
     }
 
     private var colorPickerButton: some View {
-        Button {
+        plusCell(help: "Add Custom Color") {
             guard !isPickingColor else { return }
             isPickingColor = true
             let panel = NSColorPanel.shared
             panel.color = NSColor(liveColor)
             panel.isContinuous = true
             panel.orderFront(nil)
-        } label: {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .overlay(
-                    Image(systemName: "plus")
-                        .font(.system(size: 17))
-                        .foregroundStyle(.primary)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8).stroke(
-                        Color.primary.opacity(0.15), lineWidth: 0.5
-                    )
-                )
-                .frame(height: 44)
-                .contentShape(RoundedRectangle(cornerRadius: 8))
         }
-        .buttonStyle(.plain)
-        .help("Add Custom Color")
     }
 }
 
 // Note: BuiltInGradient.swiftUIGradient is defined in ToolbarView.swift (shared extension).
+
+
+// MARK: - Emoji Picker (Sticker Tool)
+
+/// One page of the sticker picker.
+private struct EmojiCategory: Identifiable {
+    let id: String
+    /// SF Symbol for the tab strip. The tabs are icon-only, so only the
+    /// tooltip needs translating.
+    let symbol: String
+    let title: LocalizedStringKey
+    let emoji: [String]
+}
+
+/// Emoji offered by the sticker tool: a hand-picked set aimed at marking up
+/// screenshots, not the whole Unicode catalogue. There is no public API that
+/// enumerates the emoji the running system can actually draw, and deriving the
+/// list from Unicode ranges yields plenty of glyphs that render as tofu — so
+/// this list is deliberately curated and deliberately finite.
+private let emojiCategories: [EmojiCategory] = [
+        EmojiCategory(
+            id: "smileys",
+            symbol: "face.smiling",
+            title: "Smileys",
+            emoji: [
+            "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃",
+            "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😋", "😜", "🤪",
+            "🤗", "🤭", "🤫", "🤔", "🤐", "🤨", "😐", "😑", "😶", "😏",
+            "😒", "🙄", "😬", "😌", "😔", "😴", "🤒", "🤕", "🤢", "🥵",
+            "🥶", "😵", "🤯", "🤠", "🥳", "😎", "🤓", "🧐", "😕", "😟",
+            "🙁", "😮", "😯", "😲", "😳", "🥺", "😨", "😰", "😢", "😭",
+            "😱", "😖", "😞", "😤", "😡", "🤬", "😈", "💀", "💩", "🤡",
+            "👻", "👽", "🤖", "🙈", "🙉", "🙊"
+            ]
+        ),
+        EmojiCategory(
+            id: "gestures",
+            symbol: "hand.raised",
+            title: "Gestures",
+            emoji: [
+            "👍", "👎", "👌", "🤌", "🤏", "✌️", "🤞", "🤟", "🤘", "🤙",
+            "👈", "👉", "👆", "👇", "☝️", "✋", "🤚", "🖐️", "🖖", "👋",
+            "🤝", "🙏", "✍️", "💪", "🦾", "👀", "👁️", "🧠", "👂", "👃",
+            "👏", "🙌", "👐", "💁", "🙋", "🤷", "🤦", "🕵️", "🧑‍💻", "👩‍💻",
+            "👨‍💻"
+            ]
+        ),
+        EmojiCategory(
+            id: "marks",
+            symbol: "checkmark.circle",
+            title: "Marks",
+            emoji: [
+            "✅", "☑️", "✔️", "❌", "❎", "⭕️", "🚫", "⛔️", "❗️", "❕",
+            "❓", "❔", "‼️", "⁉️", "⚠️", "🔺", "🔻", "🔶", "🔷", "🔴",
+            "🟠", "🟡", "🟢", "🔵", "🟣", "⚫️", "⚪️", "🟤", "⭐️", "🌟",
+            "✨", "⚡️", "🔥", "💥", "💫", "💯", "💢", "💬", "💭", "🗯️",
+            "🔔", "🔕", "♻️", "🆕", "🆗", "🆙", "🆒", "🆓", "🔝", "➕",
+            "➖", "✖️", "➗", "〰️"
+            ]
+        ),
+        EmojiCategory(
+            id: "arrows",
+            symbol: "arrow.right",
+            title: "Arrows",
+            emoji: [
+            "➡️", "⬅️", "⬆️", "⬇️", "↗️", "↘️", "↙️", "↖️", "↕️", "↔️",
+            "↩️", "↪️", "⤴️", "⤵️", "🔃", "🔄", "🔁", "🔂", "🔀", "▶️",
+            "⏸️", "⏹️", "⏺️", "⏭️", "⏮️", "⏩", "⏪", "🔼", "🔽", "⏫",
+            "⏬", "🔚", "🔙", "🔛", "🔜", "🔝"
+            ]
+        ),
+        EmojiCategory(
+            id: "objects",
+            symbol: "desktopcomputer",
+            title: "Objects",
+            emoji: [
+            "💻", "🖥️", "📱", "⌨️", "🖱️", "🖨️", "💾", "💿", "🔌", "🔋",
+            "📷", "📸", "🎥", "🎬", "🎙️", "🎧", "📺", "📻", "⏰", "⏱️",
+            "⌛️", "⏳", "📅", "📆", "📌", "📍", "📎", "🖇️", "🔗", "📁",
+            "📂", "🗂️", "📄", "📋", "📊", "📈", "📉", "🗒️", "📝", "✏️",
+            "🖊️", "🖍️", "🗑️", "🔒", "🔓", "🔑", "🗝️", "🔨", "🛠️", "⚙️",
+            "🧰", "🔧", "🧲", "🔍", "🔎", "💡", "🔦", "🧪", "🧬", "📦",
+            "✉️", "📢", "📣", "🔊", "🔇", "💰", "💳", "🎁", "🏆", "🥇",
+            "🎯", "🎲", "🕹️", "🎮", "🧩", "🔮"
+            ]
+        ),
+        EmojiCategory(
+            id: "nature",
+            symbol: "leaf",
+            title: "Nature",
+            emoji: [
+            "🌈", "☀️", "🌤️", "⛅️", "☁️", "🌧️", "⛈️", "🌩️", "❄️", "☃️",
+            "💧", "🌊", "🌸", "🌺", "🌻", "🌷", "🌹", "🌼", "🍀", "🌱",
+            "🌿", "🌳", "🌲", "🍁", "🍂", "🌙", "🌞", "🌍", "🐶", "🐱",
+            "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮",
+            "🐷", "🐸", "🐵", "🐔", "🐧", "🐦", "🦄", "🐝", "🐞", "🦋",
+            "🐢", "🐙", "🐬", "🐳"
+            ]
+        ),
+        EmojiCategory(
+            id: "food",
+            symbol: "cup.and.saucer",
+            title: "Food",
+            emoji: [
+            "☕️", "🍵", "🧋", "🥤", "🍺", "🍻", "🥂", "🍷", "🍾", "🍕",
+            "🍔", "🍟", "🌭", "🥪", "🌮", "🌯", "🥗", "🍿", "🧀", "🥐",
+            "🍞", "🥨", "🍳", "🥞", "🍜", "🍣", "🍱", "🍩", "🍪", "🎂",
+            "🍰", "🧁", "🍫", "🍬", "🍭", "🍎", "🍌", "🍇", "🍓", "🍒",
+            "🍑", "🥑", "🥕", "🌶️", "🍄"
+            ]
+        ),
+        EmojiCategory(
+            id: "travel",
+            symbol: "car",
+            title: "Travel",
+            emoji: [
+            "🚗", "🚕", "🚙", "🚌", "🚓", "🚑", "🚒", "🚚", "🏎️", "🏍️",
+            "🛵", "🚲", "🛴", "🛹", "✈️", "🚀", "🛸", "🚁", "⛵️", "🚢",
+            "🚂", "🚆", "🗺️", "🧭", "🏠", "🏡", "🏢", "🏥", "🏦", "🏫",
+            "🏭", "🏰", "🗽", "🗼", "🎡", "🎢", "⛰️", "🏖️", "🏕️", "🚦",
+            "🚧", "🏁", "🚩"
+            ]
+        ),
+]
+
+/// Grid of emoji shown from the sticker tool's sidebar button.
+private struct EmojiPickerView: View {
+    /// The currently stamped emoji, highlighted in the grid.
+    let selected: String
+    let onPick: (String) -> Void
+
+    @AppStorage(Constants.UserDefaultsKeys.stickerRecentEmoji)
+    private var recentStorage: String = ""
+    @State private var activeCategoryID: String?
+
+    private static let columns = 9
+    private static let cellSize: CGFloat = 30
+    private static let maximumRecents = 9
+
+    /// Height of the grid: the rows this category needs, capped so a long
+    /// category scrolls instead of growing the popover past the screen.
+    private var gridHeight: CGFloat {
+        let rows = (activeCategory.emoji.count + Self.columns - 1) / Self.columns
+        let spacing: CGFloat = 2
+        let needed = CGFloat(rows) * (Self.cellSize + spacing)
+        return min(max(needed, Self.cellSize + spacing), 7 * (Self.cellSize + spacing))
+    }
+
+    /// Most recent first. Newline-separated so multi-scalar emoji survive.
+    private var recents: [String] {
+        recentStorage.components(separatedBy: "\n").filter { !$0.isEmpty }
+    }
+
+    private var categories: [EmojiCategory] {
+        let recent = recents
+        guard !recent.isEmpty else { return emojiCategories }
+        return [EmojiCategory(id: "recent", symbol: "clock", title: "Recent", emoji: recent)]
+            + emojiCategories
+    }
+
+    private var activeCategory: EmojiCategory {
+        categories.first { $0.id == activeCategoryID } ?? categories[0]
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 2) {
+                ForEach(categories) { category in
+                    let isActive = category.id == activeCategory.id
+                    Button {
+                        activeCategoryID = category.id
+                    } label: {
+                        Image(systemName: category.symbol)
+                            .font(.system(size: 13))
+                            .foregroundStyle(isActive ? Color.accentColor : .secondary)
+                            .frame(width: 26, height: 22)
+                            .background(
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(isActive ? Color.accentColor.opacity(0.12) : Color.clear)
+                            )
+                            .contentShape(RoundedRectangle(cornerRadius: 5))
+                    }
+                    .buttonStyle(.plain)
+                    .help(category.title)
+                }
+            }
+
+            Divider()
+
+            ScrollView {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.fixed(Self.cellSize), spacing: 2),
+                                   count: Self.columns),
+                    spacing: 2
+                ) {
+                    // Emoji repeat across categories (and in Recent), so the
+                    // character alone is not a unique id.
+                    ForEach(Array(activeCategory.emoji.enumerated()), id: \.offset) { _, emoji in
+                        Button {
+                            remember(emoji)
+                            onPick(emoji)
+                        } label: {
+                            Text(emoji)
+                                .font(.system(size: 19))
+                                .frame(width: Self.cellSize, height: Self.cellSize)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .fill(emoji == selected ? Color.accentColor.opacity(0.18) : Color.clear)
+                                )
+                                .contentShape(RoundedRectangle(cornerRadius: 5))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+            // Fit the rows, up to a scrollable maximum — a Recent tab holding
+            // one row shouldn't open a popover of mostly empty space.
+            .frame(height: gridHeight)
+        }
+        .padding(10)
+        .frame(width: CGFloat(Self.columns) * (Self.cellSize + 2) + 20)
+        .onAppear {
+            // Land on Recent when there is one, so the emoji you actually use
+            // are one click away.
+            if activeCategoryID == nil { activeCategoryID = categories[0].id }
+        }
+    }
+
+    private func remember(_ emoji: String) {
+        var updated = recents.filter { $0 != emoji }
+        updated.insert(emoji, at: 0)
+        recentStorage = updated.prefix(Self.maximumRecents).joined(separator: "\n")
+    }
+}
+
+// MARK: - Gradient Editor
+
+/// What the gradient editor sheet was opened for. `.sheet(item:)` keys on `id`,
+/// and a "new" request carries the id its `CustomGradient` will keep once
+/// saved, so re-opening the editor for the same swatch reuses the sheet.
+struct GradientEditorRequest: Identifiable {
+    let id: UUID
+    let gradient: CustomGradient
+    let isNew: Bool
+
+    /// The gradient a fresh "+" starts from — the neutral two-stop ramp, so
+    /// what the editor opens with is predictable rather than a copy of
+    /// whatever happened to be selected.
+    static func new() -> GradientEditorRequest {
+        let gradient = CustomGradient(
+            definition: GradientDefinition(
+                colors: [
+                    CodableColor(red: 0.851, green: 0.851, blue: 0.851),
+                    CodableColor(red: 0.451, green: 0.451, blue: 0.451),
+                ],
+                angle: 135,
+                locations: [0, 1],
+                kind: .linear
+            )
+        )
+        return GradientEditorRequest(id: gradient.id, gradient: gradient, isNew: true)
+    }
+
+    static func edit(_ gradient: CustomGradient) -> GradientEditorRequest {
+        GradientEditorRequest(id: gradient.id, gradient: gradient, isNew: false)
+    }
+}
+
+/// One stop while it is being edited. Carries its own identity so a row keeps
+/// its text-field state when the list re-sorts under a dragged handle —
+/// positions in `GradientDefinition` are a parallel array with no identity of
+/// their own.
+struct EditableGradientStop: Identifiable, Equatable {
+    let id = UUID()
+    var color: CodableColor
+    var location: Double
+}
+
+/// Builds a `CustomGradient`: type, angle, and any number of colour stops that
+/// can be dragged on the ramp or typed exactly.
+struct GradientEditorSheet: View {
+    let gradient: CustomGradient
+    let isNew: Bool
+    let onSave: (CustomGradient) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var stops: [EditableGradientStop] = []
+    @State private var kind: GradientKind = .linear
+    @State private var angle: Double = 135
+    @State private var selectedStopID: UUID?
+
+    private static let maximumStops = 12
+    private static let barCoordinateSpace = "gradientStopBar"
+
+    /// The gradient as currently edited — the single source the preview, the
+    /// ramp and the saved value all read, so they cannot drift apart.
+    private var definition: GradientDefinition {
+        let sorted = stops.sorted { $0.location < $1.location }
+        return GradientDefinition(
+            colors: sorted.map(\.color),
+            angle: angle,
+            locations: sorted.map(\.location),
+            kind: kind
+        )
+    }
+
+    private var sortedStops: [EditableGradientStop] {
+        stops.sorted { $0.location < $1.location }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(isNew ? "New Gradient" : "Edit Gradient")
+                .font(.headline)
+
+            preview
+            typeRow
+            if kind == .linear {
+                angleRow
+            }
+            stopBar
+            stopsList
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(isNew ? "Add Gradient" : "Save") {
+                    onSave(CustomGradient(id: gradient.id, definition: definition))
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(stops.count < 2)
+            }
+        }
+        .padding(18)
+        .frame(width: 440)
+        .onAppear(perform: loadGradient)
+    }
+
+    private func loadGradient() {
+        guard stops.isEmpty else { return }
+        let definition = gradient.definition
+        let locations = definition.resolvedLocations
+        stops = zip(definition.colors, locations).map {
+            EditableGradientStop(color: $0, location: Double($1))
+        }
+        kind = definition.kind
+        angle = definition.angle
+        selectedStopID = stops.first?.id
+    }
+
+    // MARK: Preview
+
+    private var preview: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .fill(.clear)
+            .frame(height: 120)
+            .overlay(CheckerboardView())
+            .overlay(definition.swiftUIFill)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
+            )
+    }
+
+    // MARK: Type / angle
+
+    private var typeRow: some View {
+        HStack(spacing: 8) {
+            Picker("", selection: $kind) {
+                ForEach(GradientKind.allCases) { kind in
+                    Text(kind.displayName).tag(kind)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 130)
+
+            Spacer()
+
+            Button(action: reverseStops) {
+                Image(systemName: "arrow.left.arrow.right")
+            }
+            .help("Reverse Stops")
+
+            Button {
+                angle = (angle + 90).truncatingRemainder(dividingBy: 360)
+            } label: {
+                Image(systemName: "rotate.right")
+            }
+            .help("Rotate 90°")
+            .disabled(kind != .linear)
+        }
+    }
+
+    private var angleRow: some View {
+        HStack(spacing: 8) {
+            Text("Angle")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Slider(value: $angle, in: 0...360, step: 1)
+            Text("\(Int(angle.rounded()))°")
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 34, alignment: .trailing)
+        }
+    }
+
+    private func reverseStops() {
+        for index in stops.indices {
+            stops[index].location = 1 - stops[index].location
+        }
+    }
+
+    // MARK: Stop ramp
+
+    /// The ramp is always drawn left → right, whatever `kind` and `angle` are:
+    /// it is the axis the stops are positioned along, not a preview of the
+    /// finished gradient (that is what `preview` above is for).
+    private var stopBar: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(.clear)
+                    .overlay(CheckerboardView())
+                    .overlay(
+                        LinearGradient(
+                            stops: definition.swiftUIStops,
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
+                    )
+                    .frame(height: 24)
+                    .contentShape(Rectangle())
+                    .onTapGesture { location in
+                        addStop(at: location.x / max(width, 1))
+                    }
+
+                ForEach(sortedStops) { stop in
+                    handle(for: stop, barWidth: width)
+                }
+            }
+        }
+        .frame(height: 30)
+        .coordinateSpace(name: Self.barCoordinateSpace)
+    }
+
+    private func handle(for stop: EditableGradientStop, barWidth: CGFloat) -> some View {
+        let isSelected = selectedStopID == stop.id
+        return Circle()
+            .fill(stop.color.swiftUIColor)
+            .overlay(
+                Circle().stroke(isSelected ? Color.accentColor : Color.white, lineWidth: isSelected ? 2.5 : 2)
+            )
+            .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
+            .frame(width: 16, height: 16)
+            .position(x: CGFloat(stop.location) * barWidth, y: 12)
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.barCoordinateSpace))
+                    .onChanged { value in
+                        selectedStopID = stop.id
+                        guard let index = stops.firstIndex(where: { $0.id == stop.id }) else { return }
+                        stops[index].location = min(max(Double(value.location.x / max(barWidth, 1)), 0), 1)
+                    }
+            )
+    }
+
+    /// Inserts a stop at `fraction`, taking the colour the gradient already has
+    /// there so the ramp does not jump when a stop is added.
+    private func addStop(at fraction: Double) {
+        guard stops.count < Self.maximumStops else { return }
+        let clamped = min(max(fraction, 0), 1)
+        let new = EditableGradientStop(color: color(at: clamped), location: clamped)
+        stops.append(new)
+        selectedStopID = new.id
+    }
+
+    /// Samples the current ramp, interpolating between the two stops that
+    /// straddle `fraction`.
+    private func color(at fraction: Double) -> CodableColor {
+        let ordered = sortedStops
+        guard let first = ordered.first, let last = ordered.last else {
+            return CodableColor(red: 0.5, green: 0.5, blue: 0.5)
+        }
+        if fraction <= first.location { return first.color }
+        if fraction >= last.location { return last.color }
+        for (lower, upper) in zip(ordered, ordered.dropFirst()) {
+            guard fraction >= lower.location, fraction <= upper.location else { continue }
+            let span = upper.location - lower.location
+            let t = span > 0 ? (fraction - lower.location) / span : 0
+            let mix = { (a: CGFloat, b: CGFloat) in a + (b - a) * CGFloat(t) }
+            return CodableColor(
+                red: mix(lower.color.red, upper.color.red),
+                green: mix(lower.color.green, upper.color.green),
+                blue: mix(lower.color.blue, upper.color.blue),
+                alpha: mix(lower.color.alpha, upper.color.alpha)
+            )
+        }
+        return last.color
+    }
+
+    // MARK: Stops list
+
+    private var stopsList: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Stops")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    addStop(at: nextStopFraction())
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.borderless)
+                .help("Add Stop")
+                .disabled(stops.count >= Self.maximumStops)
+            }
+
+            ScrollView {
+                VStack(spacing: 4) {
+                    ForEach(sortedStops) { stop in
+                        GradientStopRow(
+                            stop: binding(for: stop.id),
+                            isSelected: selectedStopID == stop.id,
+                            canRemove: stops.count > 2,
+                            onSelect: { selectedStopID = stop.id },
+                            onRemove: {
+                                stops.removeAll { $0.id == stop.id }
+                                if selectedStopID == stop.id { selectedStopID = stops.first?.id }
+                            }
+                        )
+                    }
+                }
+            }
+            .frame(maxHeight: 148)
+        }
+    }
+
+    /// Where the "+" button drops a new stop: the middle of the widest gap, so
+    /// repeated clicks spread out instead of stacking on one spot.
+    private func nextStopFraction() -> Double {
+        let ordered = sortedStops
+        guard ordered.count > 1 else { return 0.5 }
+        var best = (gap: -1.0, middle: 0.5)
+        for (lower, upper) in zip(ordered, ordered.dropFirst()) {
+            let gap = upper.location - lower.location
+            if gap > best.gap { best = (gap, lower.location + gap / 2) }
+        }
+        return best.middle
+    }
+
+    private func binding(for id: UUID) -> Binding<EditableGradientStop> {
+        Binding(
+            get: {
+                stops.first { $0.id == id }
+                    ?? EditableGradientStop(color: CodableColor(red: 0, green: 0, blue: 0), location: 0)
+            },
+            set: { updated in
+                guard let index = stops.firstIndex(where: { $0.id == id }) else { return }
+                stops[index] = updated
+            }
+        )
+    }
+}
+
+/// One row of the gradient editor's stop list: position, colour well, hex and
+/// opacity — the same four fields Figma's gradient panel offers.
+private struct GradientStopRow: View {
+    @Binding var stop: EditableGradientStop
+    let isSelected: Bool
+    let canRemove: Bool
+    let onSelect: () -> Void
+    let onRemove: () -> Void
+
+    /// The hex field needs its own text so a half-typed value isn't parsed
+    /// away mid-keystroke; it is re-synced whenever the stop's colour changes
+    /// from somewhere else (the colour well, a drag on the ramp).
+    @State private var hexText: String = ""
+
+    private var percentBinding: Binding<Int> {
+        Binding(
+            get: { Int((stop.location * 100).rounded()) },
+            set: { stop.location = min(max(Double($0) / 100, 0), 1) }
+        )
+    }
+
+    private var opacityBinding: Binding<Int> {
+        Binding(
+            get: { Int((stop.color.alpha * 100).rounded()) },
+            set: {
+                let alpha = min(max(CGFloat($0) / 100, 0), 1)
+                stop.color = CodableColor(
+                    red: stop.color.red,
+                    green: stop.color.green,
+                    blue: stop.color.blue,
+                    alpha: alpha
+                )
+            }
+        )
+    }
+
+    /// The colour well edits RGB only — opacity has its own field, and two
+    /// controls writing one value fight each other.
+    private var colorBinding: Binding<Color> {
+        Binding(
+            get: { Color(red: stop.color.red, green: stop.color.green, blue: stop.color.blue) },
+            set: { newValue in
+                let resolved = CodableColor(newValue)
+                stop.color = CodableColor(
+                    red: resolved.red,
+                    green: resolved.green,
+                    blue: resolved.blue,
+                    alpha: stop.color.alpha
+                )
+            }
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            TextField("", value: percentBinding, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 46)
+            Text("%")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+
+            ColorPicker("", selection: colorBinding, supportsOpacity: false)
+                .labelsHidden()
+
+            TextField("", text: $hexText)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 78)
+                .onSubmit(commitHex)
+
+            TextField("", value: opacityBinding, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 42)
+            Text("%")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+
+            Button(action: onRemove) {
+                Image(systemName: "minus")
+            }
+            .buttonStyle(.borderless)
+            .disabled(!canRemove)
+            .help("Remove Stop")
+        }
+        .padding(.vertical, 3)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 5)
+                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
+        .onAppear { hexText = stop.color.hexString }
+        .onChange(of: stop.color) { _, newValue in
+            guard newValue.hexString != hexText.trimmingCharacters(in: .whitespaces).uppercased() else { return }
+            hexText = newValue.hexString
+        }
+    }
+
+    private func commitHex() {
+        guard let parsed = CodableColor.fromHex(hexText, alpha: stop.color.alpha) else {
+            hexText = stop.color.hexString
+            return
+        }
+        stop.color = parsed
+        hexText = parsed.hexString
+    }
+}

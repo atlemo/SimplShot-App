@@ -215,6 +215,12 @@ class AppSettings {
         didSet { saveCustomColors() }
     }
 
+    /// User-built gradients from the gradient editor, shown after the built-in
+    /// ones in the Gradients category.
+    var customGradients: [CustomGradient] {
+        didSet { saveCustomGradients() }
+    }
+
     var selectedEditorTemplate: EditorTemplatePreset? {
         editorTemplates.first { $0.id == selectedEditorTemplateID }
     }
@@ -306,6 +312,14 @@ class AppSettings {
             self.customColors = colors
         } else {
             self.customColors = []
+        }
+
+        // Load custom gradients
+        if let data = UserDefaults.standard.data(forKey: Constants.UserDefaultsKeys.customGradients),
+           let gradients = try? JSONDecoder().decode([CustomGradient].self, from: data) {
+            self.customGradients = gradients
+        } else {
+            self.customGradients = []
         }
         self.editorTemplates = []
         self.selectedEditorTemplateID = nil
@@ -443,6 +457,26 @@ class AppSettings {
         if let data = try? JSONEncoder().encode(customColors) {
             UserDefaults.standard.set(data, forKey: Constants.UserDefaultsKeys.customColors)
         }
+    }
+
+    private func saveCustomGradients() {
+        if let data = try? JSONEncoder().encode(customGradients) {
+            UserDefaults.standard.set(data, forKey: Constants.UserDefaultsKeys.customGradients)
+        }
+    }
+
+    func addCustomGradient(_ gradient: CustomGradient) {
+        customGradients.append(gradient)
+    }
+
+    /// Replaces a gradient in place, keeping its position in the grid.
+    func updateCustomGradient(_ gradient: CustomGradient) {
+        guard let index = customGradients.firstIndex(where: { $0.id == gradient.id }) else { return }
+        customGradients[index] = gradient
+    }
+
+    func removeCustomGradient(id: UUID) {
+        customGradients.removeAll { $0.id == id }
     }
 
     func addCustomColor(_ color: CodableColor) {

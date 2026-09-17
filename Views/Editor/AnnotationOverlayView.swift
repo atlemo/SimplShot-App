@@ -292,6 +292,24 @@ struct AnnotationOverlayView: View {
             }
             .position(x: start.x, y: start.y)
 
+        case .sticker:
+            // Font size comes from StickerGeometry so the glyph is laid out at
+            // the identical point size the export uses; both centre the emoji's
+            // own layout box on the stored rect's centre.
+            let stickerFontSize = StickerGeometry.fontSize(forBox: annotation.boundingRect.size) * scale
+            ZStack {
+                if isSelected {
+                    // Selection chrome is fixed-size in view points, like HandleDot.
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(Color.accentColor, lineWidth: 1.5)
+                        .frame(width: rect.width, height: rect.height)
+                }
+                Text(annotation.text.isEmpty ? StickerGeometry.defaultEmoji : annotation.text)
+                    .font(.system(size: stickerFontSize))
+                    .fixedSize()
+            }
+            .position(x: rect.midX, y: rect.midY)
+
         case .select, .textSelect, .crop:
             EmptyView()
         }
@@ -318,7 +336,7 @@ struct AnnotationOverlayView: View {
             HandleDot(center: end)
             HandleDot(center: scaled(annotation.angleVertex))
 
-        case .rectangle, .circle, .triangle, .star, .pixelate, .spotlight:
+        case .rectangle, .circle, .triangle, .star, .pixelate, .spotlight, .sticker:
             let rect = scaledBoundingRect
             HandleDot(center: CGPoint(x: rect.minX, y: rect.minY))
             HandleDot(center: CGPoint(x: rect.maxX, y: rect.minY))

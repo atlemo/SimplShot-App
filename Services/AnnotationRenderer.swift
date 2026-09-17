@@ -374,6 +374,8 @@ class AnnotationRenderer {
             break
         case .numberedStep:
             drawNumberedStep(annotation.stepNumber, at: annotation.startPoint, style: annotation.style, in: context)
+        case .sticker:
+            drawSticker(annotation.text, in: annotation.boundingRect, in: context)
         case .select, .textSelect, .crop, .pixelate:
             break // Not drawn here (.pixelate is handled before the coordinate flip)
         }
@@ -1047,6 +1049,34 @@ class AnnotationRenderer {
 
         context.saveGState()
         context.translateBy(x: textX, y: textY)
+        context.scaleBy(x: 1, y: -1)
+        context.textPosition = .zero
+        CTLineDraw(line, context)
+        context.restoreGState()
+    }
+
+    /// Emoji sticker, filling `rect` (image-pixel space).
+    ///
+    /// Not scaled by `styleScale` — the glyph's size IS the stored rect, which
+    /// is already in image pixels. The point size comes from `StickerGeometry`,
+    /// the same helper the live overlay uses, so preview and export agree.
+    private func drawSticker(_ emoji: String, in rect: CGRect, in context: CGContext) {
+        guard !emoji.isEmpty, rect.width > 0, rect.height > 0 else { return }
+
+        // System font + Core Text's fallback resolves emoji to the colour
+        // emoji face. Never name that font directly — a PostScript name that
+        // isn't installed silently degrades to Helvetica.
+        let font = NSFont.systemFont(ofSize: StickerGeometry.fontSize(forBox: rect.size))
+        let line = CTLineCreateWithAttributedString(
+            NSAttributedString(string: emoji, attributes: [.font: font])
+        )
+        var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
+        let width = CGFloat(CTLineGetTypographicBounds(line, &ascent, &descent, &leading))
+
+        // Centre the glyph's own layout box on the rect, matching the overlay's
+        // centred `Text`.
+        context.saveGState()
+        context.translateBy(x: rect.midX - width / 2, y: rect.midY + (ascent - descent) / 2)
         context.scaleBy(x: 1, y: -1)
         context.textPosition = .zero
         CTLineDraw(line, context)

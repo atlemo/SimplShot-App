@@ -60,12 +60,20 @@ enum Constants {
         static let screenshotSaveBookmark = "screenshotSaveBookmark"
         static let customBackgroundImages = "customBackgroundImages"
         static let customColors = "customColors"
+        /// User-built gradients from the gradient editor.
+        static let customGradients = "customGradients"
         static let annotationSaveCount = "annotationSaveCount"
         static let editorTemplates = "editorTemplates"
         static let selectedEditorTemplateID = "selectedEditorTemplateID"
         static let defaultCaptureTemplateID = "defaultCaptureTemplateID"
         static let editorSidebarCollapsedSections = "editorSidebarCollapsedSections"
         static let editorSidebarBackgroundType = "editorSidebarBackgroundType"
+        /// The emoji the sticker tool currently stamps.
+        static let stickerEmoji = "stickerEmoji"
+        /// Recently picked sticker emoji, most recent first, newline-separated —
+        /// a separator no emoji contains, so multi-scalar sequences (flags,
+        /// ZWJ, variation selectors) survive the round trip intact.
+        static let stickerRecentEmoji = "stickerRecentEmoji"
         static let screenRecordingWasEverGranted = "screenRecordingWasEverGranted"
         static let screenRecordingLastGrantDate = "screenRecordingLastGrantDate"
         static let screenRecordingHasRequested = "screenRecordingHasRequested"

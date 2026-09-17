@@ -57,6 +57,11 @@ struct EditorCanvasView: View {
     @Binding var selectedAnnotationID: UUID?
     @Binding var currentTool: AnnotationTool
     @Binding var currentStyle: AnnotationStyle
+    /// The emoji the sticker tool stamps. Deliberately NOT part of
+    /// `AnnotationStyle`: the sidebar replaces a selection's whole style
+    /// wholesale, which would rewrite an existing sticker's emoji on the next
+    /// colour tweak — the same trap documented on `Annotation.textWidth`.
+    @Binding var currentStickerEmoji: String
     @Binding var cropRect: CGRect
     @Binding var isCropping: Bool
     /// The allowed crop area in image-pixel space. When a background gradient is
@@ -87,8 +92,6 @@ struct EditorCanvasView: View {
     /// Drives undo bookkeeping in `commitTextEdit`: a new bubble must not leave
     /// an empty ghost annotation in the undo snapshot.
     @State private var editingTextIsNew: Bool = false
-    /// Measured content size reported back by GrowingTextField
-    @State private var editingContentSize: CGSize = .zero
     /// Drag state for moving / reshaping selected annotations
     @State private var isDraggingAnnotation: Bool = false
     /// Pre-drag snapshot of the annotation being moved/resized
@@ -116,6 +119,14 @@ struct EditorCanvasView: View {
     /// silently stopped engaging. The monitor updates this on every press/release.
     @State private var isShiftKeyDown: Bool = false
     @State private var flagsMonitor: Any?
+
+    /// The emoji cursor for the sticker tool, or nil when it shouldn't show.
+    /// Cached rather than rebuilt per body pass so the cursor keeps a stable
+    /// object identity — `StickerCursorOverlay` re-applies only on a real change.
+    @State private var stickerCursor: NSCursor?
+    /// What `stickerCursor` was built from, so an unchanged emoji + size is a
+    /// no-op instead of a fresh `NSCursor` every layout pass.
+    @State private var stickerCursorKey: String?
 
     private var canvasWidth: CGFloat { imagePixelSize.width * scale }
     private var canvasHeight: CGFloat { imagePixelSize.height * scale }
@@ -198,6 +209,9 @@ struct EditorCanvasView: View {
                 .allowsHitTesting(false)
             )
             .contentShape(Rectangle())
+            // The emoji cursor covers exactly the area where a click places a
+            // sticker — the same layer the tap gesture is on.
+            .overlay(StickerCursorOverlay(cursor: stickerCursor).allowsHitTesting(false))
             // Canvas gestures attach only while actively marking up (see
             // `annotationGesturesEnabled`). When the Text Selection tool is
             // active, or in View mode, no SwiftUI gesture is installed on the
@@ -222,7 +236,16 @@ struct EditorCanvasView: View {
                     NSEvent.removeMonitor(monitor)
                     flagsMonitor = nil
                 }
+                stickerCursor = nil
+                stickerCursorKey = nil
             }
+            .onAppear { refreshStickerCursor() }
+            .onChange(of: currentTool) { _, _ in refreshStickerCursor() }
+            .onChange(of: currentStickerEmoji) { _, _ in refreshStickerCursor() }
+            // Zoom changes the size a sticker lands at, so the cursor resizes too.
+            .onChange(of: scale) { _, _ in refreshStickerCursor() }
+            .onChange(of: editorMode) { _, _ in refreshStickerCursor() }
+            .onChange(of: isCropping) { _, _ in refreshStickerCursor() }
             // Live straighten preview — rotate the image about the canvas center.
             // Annotations get the identical rotation below so they stay glued.
             .rotationEffect(.degrees(cropStraightenAngle), anchor: .center)
@@ -288,35 +311,58 @@ struct EditorCanvasView: View {
                let idx = annotations.firstIndex(where: { $0.id == editID }) {
                 let ann = annotations[idx]
                 let scaledFontSize = ann.style.fontSize * scale
-                let hPad = scaledFontSize * 0.55
+                let hPad = TextBubbleGeometry.horizontalPadding(fontSize: scaledFontSize)
+                let cornerRadius = scaledFontSize * 0.45
+                let borderWidth = max(2, 2 * scale)
                 let pos = CGPoint(
                     x: ann.startPoint.x * scale,
                     y: ann.startPoint.y * scale
                 )
+                // Inner (text) width of the pill. A bubble the user has resized
+                // has a fixed width and the editor must WRAP into it, exactly
+                // like the committed pill does — otherwise the text runs
+                // straight out of its container while typing. An unsized bubble
+                // grows to its natural width, derived synchronously from the
+                // live text (same source as the committed pill) so the pill
+                // never lags a keystroke behind the caret.
                 let fixedInnerW: CGFloat? = ann.textWidth.map { $0 * scale - hPad * 2 }
-                let contentW = fixedInnerW ?? max(editingContentSize.width, scaledFontSize * 2)
-                let contentH = max(editingContentSize.height, scaledFontSize * 1.2)
+                let naturalInnerW = ceil(
+                    TextBubbleGeometry.naturalWidth(text: editingText, fontSize: scaledFontSize)
+                    - hPad * 2
+                )
+                let contentW = fixedInnerW ?? max(naturalInnerW, scaledFontSize * 2)
+                // Measured with the same text system the field lays out with,
+                // so the pill is the right height on its very first frame —
+                // taking the size back from the text view arrives a frame late
+                // and blinks as edit mode opens.
+                let contentH = max(
+                    TextBubbleGeometry.layoutSize(text: editingText,
+                                                  fontSize: scaledFontSize,
+                                                  containerWidth: contentW).height,
+                    scaledFontSize * 1.2
+                )
                 GrowingTextField(
                     text: $editingText,
                     fontSize: scaledFontSize,
                     textColor: NSColor(ann.style.textBubbleForeground),
-                    onSizeChange: { editingContentSize = $0 }
+                    contentWidth: contentW,
+                    wraps: fixedInnerW != nil
                 )
                 .frame(width: contentW, height: contentH)
                 .padding(.horizontal, hPad)
                 .padding(.vertical, scaledFontSize * 0.25)
                 .background(
-                    RoundedRectangle(cornerRadius: scaledFontSize * 0.45, style: .continuous)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(ann.style.textBubbleBackground)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: scaledFontSize * 0.45, style: .continuous)
-                        .stroke(.white, lineWidth: 2)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(.white, lineWidth: borderWidth)
                 )
-                .padding(2)
+                .padding(borderWidth)
                 .overlay(
-                    RoundedRectangle(cornerRadius: scaledFontSize * 0.45, style: .continuous)
-                        .stroke(ann.style.textBubbleBackground, lineWidth: 2)
+                    RoundedRectangle(cornerRadius: cornerRadius + borderWidth, style: .continuous)
+                        .stroke(ann.style.textBubbleBackground, lineWidth: borderWidth)
                 )
                 .position(x: pos.x, y: pos.y)
             }
@@ -432,8 +478,10 @@ struct EditorCanvasView: View {
                         applyDragDelta(currentInImage)
                         return
                     }
-                    // Nothing hit — start drawing (only if not select/text/numberedStep)
-                    if currentTool != .select && currentTool != .text && currentTool != .numberedStep {
+                    // Nothing hit — start drawing. Select and the click-placed
+                    // tools (text, numbered step, sticker) have nothing to drag out.
+                    if currentTool != .select && currentTool != .text
+                        && currentTool != .numberedStep && currentTool != .sticker {
                         if currentTool == .freeDraw {
                             pendingAnnotation = Annotation(
                                 tool: currentTool,
@@ -540,6 +588,12 @@ struct EditorCanvasView: View {
         // Numbered step tool: place new step
         if currentTool == .numberedStep {
             placeNumberedStep(at: pointInImage)
+            return
+        }
+
+        // Sticker tool: stamp the picked emoji
+        if currentTool == .sticker {
+            placeSticker(at: pointInImage)
             return
         }
 
@@ -671,10 +725,18 @@ struct EditorCanvasView: View {
 
         case .corner(let minXFixed, let minYFixed):
             let origRect = ann.boundingRect
-            let draggedX = minXFixed ? origRect.maxX + dx : origRect.minX + dx
-            let draggedY = minYFixed ? origRect.maxY + dy : origRect.minY + dy
+            var draggedX = minXFixed ? origRect.maxX + dx : origRect.minX + dx
+            var draggedY = minYFixed ? origRect.maxY + dy : origRect.minY + dy
             let fixedX = minXFixed ? origRect.minX : origRect.maxX
             let fixedY = minYFixed ? origRect.minY : origRect.maxY
+            if ann.tool == .sticker {
+                // An emoji glyph is square — keep its box square (and above a
+                // floor) so the drawn sticker always fills the selection rect.
+                let side = max(abs(draggedX - fixedX), abs(draggedY - fixedY),
+                               StickerGeometry.minimumSize)
+                draggedX = fixedX + (draggedX < fixedX ? -side : side)
+                draggedY = fixedY + (draggedY < fixedY ? -side : side)
+            }
             ann.startPoint = CGPoint(x: min(fixedX, draggedX),
                                      y: min(fixedY, draggedY))
             ann.endPoint   = CGPoint(x: max(fixedX, draggedX),
@@ -737,7 +799,6 @@ struct EditorCanvasView: View {
         editingTextID = annotation.id
         editingTextIsNew = true
         editingText = ""
-        editingContentSize = .zero
     }
 
     // MARK: - Numbered Step Tool
@@ -755,6 +816,81 @@ struct EditorCanvasView: View {
             endPoint: point,
             style: style,
             stepNumber: nextNumber
+        )
+        onCommit()
+        annotations.append(annotation)
+        selectedAnnotationID = annotation.id
+    }
+
+    // MARK: - Sticker Tool
+
+    /// Smallest / largest emoji cursor, in view points. A sticker lands at
+    /// `StickerGeometry.defaultSize` image pixels, so at typical zooms the
+    /// cursor is a true-to-life preview; the clamp keeps it usable as a pointer
+    /// when the image is zoomed far out or far in.
+    private static let stickerCursorSizeRange: ClosedRange<CGFloat> = 24...80
+    /// How solid the cursor emoji is — a ghost, so it reads as a preview of
+    /// what will be placed rather than as something already on the image.
+    private static let stickerCursorOpacity: CGFloat = 0.6
+
+    /// Whether the emoji cursor should be showing while the pointer is over the
+    /// canvas. "Over the canvas" is the tracking area's business, not ours.
+    private var wantsStickerCursor: Bool {
+        annotationGesturesEnabled && !isCropping && currentTool == .sticker
+    }
+
+    /// Side of the emoji cursor in view points: the size the sticker will
+    /// actually land at, clamped to a usable pointer size.
+    private var stickerCursorSide: CGFloat {
+        min(max(StickerGeometry.defaultSize * scale, Self.stickerCursorSizeRange.lowerBound),
+            Self.stickerCursorSizeRange.upperBound)
+    }
+
+    /// Rebuilds `stickerCursor` when the emoji, its size, or the tool changes.
+    /// A no-op when nothing that affects the image changed, so the overlay
+    /// isn't handed a new object on every layout pass.
+    private func refreshStickerCursor() {
+        let emoji = currentStickerEmoji.isEmpty ? StickerGeometry.defaultEmoji : currentStickerEmoji
+        let side = stickerCursorSide
+        let key = wantsStickerCursor ? "\(emoji)@\(Int(side.rounded()))" : nil
+        guard key != stickerCursorKey else { return }
+        stickerCursorKey = key
+        stickerCursor = key == nil ? nil : Self.stickerCursor(emoji: emoji, side: side)
+    }
+
+    /// The emoji drawn at `side` points, ghosted, with the hot spot at its
+    /// centre — which is exactly where `placeSticker` centres the sticker.
+    private static func stickerCursor(emoji: String, side: CGFloat) -> NSCursor? {
+        let box = CGSize(width: side, height: side)
+        let attributed = NSAttributedString(
+            string: emoji,
+            attributes: [.font: NSFont.systemFont(ofSize: StickerGeometry.fontSize(forBox: box))]
+        )
+        let image = NSImage(size: box, flipped: false) { rect in
+            guard let context = NSGraphicsContext.current else { return false }
+            // A context-wide alpha ghosts the colour bitmap glyph too; drawing
+            // the emoji in a translucent colour would not, since the colour
+            // comes from the font's own bitmaps.
+            context.cgContext.setAlpha(stickerCursorOpacity)
+            let glyph = attributed.size()
+            attributed.draw(at: CGPoint(x: rect.midX - glyph.width / 2,
+                                        y: rect.midY - glyph.height / 2))
+            return true
+        }
+        guard image.isValid else { return nil }
+        return NSCursor(image: image, hotSpot: CGPoint(x: side / 2, y: side / 2))
+    }
+
+    private func placeSticker(at point: CGPoint) {
+        // Stored as a rect (see StickerGeometry) so the corner handles, the
+        // bounding-box hit test and every whole-image transform apply as-is.
+        let half = StickerGeometry.defaultSize / 2
+        let annotation = Annotation(
+            tool: .sticker,
+            startPoint: CGPoint(x: point.x - half, y: point.y - half),
+            endPoint: CGPoint(x: point.x + half, y: point.y + half),
+            style: currentStyle,
+            text: currentStickerEmoji.isEmpty ? StickerGeometry.defaultEmoji : currentStickerEmoji
         )
         onCommit()
         annotations.append(annotation)
@@ -792,7 +928,6 @@ struct EditorCanvasView: View {
         }
         editingTextID = nil
         editingTextIsNew = false
-        editingContentSize = .zero
     }
 
     /// Begin inline editing of an existing text annotation.
@@ -801,26 +936,9 @@ struct EditorCanvasView: View {
         editingTextID = id
         editingTextIsNew = false
         editingText = text
-        // Pre-compute the content size from the existing text so the bubble
-        // shows at the correct size immediately (no zero-size flash).
-        if let ann = annotations.first(where: { $0.id == id }) {
-            editingContentSize = measureTextContentSize(text: text, fontSize: ann.style.fontSize * scale)
-        } else {
-            editingContentSize = .zero
-        }
-    }
-
-    /// Measures the natural (unwrapped) size of `text` rendered with the given font size.
-    private func measureTextContentSize(text: String, fontSize: CGFloat) -> CGSize {
-        guard !text.isEmpty else { return .zero }
-        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
-        let attrs: [NSAttributedString.Key: Any] = [.font: font]
-        let lines = text.components(separatedBy: "\n")
-        let maxW = lines.map { line -> CGFloat in
-            (line.isEmpty ? " " : line as NSString).size(withAttributes: attrs).width
-        }.max() ?? 0
-        let lineH = font.ascender + abs(font.descender)
-        return CGSize(width: ceil(maxW), height: ceil(CGFloat(lines.count) * lineH))
+        // No size to pre-compute: the editing pill measures itself
+        // synchronously (TextBubbleGeometry.layoutSize), so its first frame is
+        // already the right size.
     }
 
     /// Double-tap on a text annotation to edit it.
@@ -878,7 +996,7 @@ struct EditorCanvasView: View {
             if dist(point, annotation.angleVertex) < r { return .vertexHandle }
             return nil
 
-        case .rectangle, .circle, .triangle, .star, .pixelate, .spotlight:
+        case .rectangle, .circle, .triangle, .star, .pixelate, .spotlight, .sticker:
             let rect = annotation.boundingRect
             let inset = cornerHitInset / scale
             let corners: [(CGPoint, DragMode)] = [
@@ -955,6 +1073,13 @@ struct EditorCanvasView: View {
             case .rectangle, .circle, .triangle, .star, .pixelate, .spotlight:
                 let rect = annotation.boundingRect.insetBy(dx: -threshold, dy: -threshold)
                 if rect.contains(point) {
+                    return annotation.id
+                }
+
+            case .sticker:
+                // The glyph fills its rect, so the rect alone is the hit area —
+                // no stroke-width slop, which would swallow clicks around it.
+                if annotation.boundingRect.contains(point) {
                     return annotation.id
                 }
 
@@ -1597,16 +1722,131 @@ final class _PDFPageNSView: NSView {
     }
 }
 
+// MARK: - Sticker Cursor Overlay
+
+/// Shows a custom cursor over the canvas — the sticker tool's ghosted emoji.
+///
+/// ⚠️ **Not `NSCursor.push()`.** A pushed cursor is silently replaced whenever
+/// AppKit re-asserts the cursor from cursor rects, which it does on any view
+/// hierarchy change — and *placing a sticker inserts an overlay view*, so the
+/// emoji reverted to the arrow on the very next stamp. Nothing noticed, because
+/// the cursor was still on the stack: the push/pop bookkeeping saw "already
+/// showing" and skipped the re-push. The symptom was an emoji cursor that
+/// vanished after the first sticker, intermittently.
+///
+/// A tracking area is AppKit's own mechanism for "the cursor over this region
+/// is X". It is re-established by `updateTrackingAreas` after every layout, and
+/// re-asserting on `mouseMoved` means nothing can leave a stale cursor on
+/// screen for longer than one mouse movement. `_PDFPageNSView` above drives its
+/// link tooltip from the same `.mouseMoved` option, so this delivery path is
+/// already proven in this window.
+private struct StickerCursorOverlay: NSViewRepresentable {
+    let cursor: NSCursor?
+
+    func makeNSView(context: Context) -> StickerCursorView { StickerCursorView() }
+
+    func updateNSView(_ view: StickerCursorView, context: Context) {
+        view.cursor = cursor
+    }
+}
+
+final class StickerCursorView: NSView {
+    var cursor: NSCursor? {
+        didSet {
+            guard cursor !== oldValue else { return }
+            // Read this BEFORE rebuilding: tearing the tracking area down also
+            // clears `isInside`, and asking afterwards would always say "not
+            // ours", so the emoji would stay on screen after the tool changed.
+            let wasInside = isInside
+            updateTrackingAreas()
+            if cursor == nil {
+                // Hand the pointer back. `.set()` is transient, but the canvas's
+                // resting cursor is the arrow anyway, and with the tracking area
+                // gone nothing of ours will override it again.
+                if wasInside { NSCursor.arrow.set() }
+            } else {
+                applyCursor()
+            }
+        }
+    }
+
+    private var isInside = false
+
+    /// Never intercept mouse events — the SwiftUI gesture layer underneath owns
+    /// clicks and drags. Tracking areas are dispatched by geometry to their
+    /// owner, not through hit testing, so the cursor still updates.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        guard cursor != nil else {
+            isInside = false
+            return
+        }
+        addTrackingArea(NSTrackingArea(
+            rect: .zero,   // ignored with .inVisibleRect
+            options: [.activeInKeyWindow, .inVisibleRect,
+                      .mouseEnteredAndExited, .mouseMoved, .cursorUpdate],
+            owner: self
+        ))
+        // A freshly added tracking area sends no retroactive mouseEntered, and
+        // the pointer is very often already inside — this view is rebuilt right
+        // under the cursor every time a sticker is placed.
+        if let window {
+            isInside = bounds.contains(convert(window.mouseLocationOutsideOfEventStream, from: nil))
+            applyCursor()
+        }
+    }
+
+    /// Leaving the hierarchy (session switch, window close) tears the tracking
+    /// area down without a `mouseExited`, so hand the pointer back here too —
+    /// otherwise the emoji outlives the canvas it belonged to.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard window == nil, isInside else { return }
+        isInside = false
+        NSCursor.arrow.set()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isInside = true
+        applyCursor()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isInside = false
+        NSCursor.arrow.set()
+    }
+
+    override func mouseMoved(with event: NSEvent) { applyCursor() }
+    override func cursorUpdate(with event: NSEvent) { applyCursor() }
+
+    private func applyCursor() {
+        guard let cursor, isInside else { return }
+        // Leave ⌥ alone: EditorView shows the duplicate cursor while it is held.
+        guard !NSEvent.modifierFlags.contains(.option) else { return }
+        cursor.set()
+    }
+}
+
 // MARK: - Growing Text Field
 
-/// An NSTextView-backed input that grows horizontally as the user types and
-/// only breaks to a new line on an explicit Return key press.
-/// The content size is reported via `onSizeChange` so the parent can frame it.
+/// An NSTextView-backed input that lays the text out exactly like the
+/// committed pill (`AnnotationOverlayView` / `AnnotationRenderer.drawText`):
+/// centered, same line spacing, and wrapped into the pill's inner width when
+/// the bubble has a user-set `textWidth`. Without a fixed width it grows
+/// horizontally and only breaks on an explicit Return. The parent sizes the
+/// pill itself, from the same measurement (`TextBubbleGeometry.layoutSize`).
 private struct GrowingTextField: NSViewRepresentable {
     @Binding var text: String
     let fontSize: CGFloat
     let textColor: NSColor
-    var onSizeChange: (CGSize) -> Void = { _ in }
+    /// Inner width of the pill, in view points — the text is centered in it.
+    let contentWidth: CGFloat
+    /// True when the bubble has a fixed width: text must wrap into
+    /// `contentWidth` instead of running outside the pill.
+    let wraps: Bool
 
     func makeNSView(context: Context) -> NSTextView {
         let tv = NSTextView()
@@ -1620,28 +1860,15 @@ private struct GrowingTextField: NSViewRepresentable {
         tv.isAutomaticQuoteSubstitutionEnabled = false
         tv.isAutomaticDashSubstitutionEnabled = false
         tv.isGrammarCheckingEnabled = false
-        // Use left alignment: centering within an infinite-width container pushes
-        // text to a huge X offset and clips it. Visual centering comes from equal
-        // horizontal padding in the SwiftUI bubble wrapper instead.
-        let paraStyle = NSMutableParagraphStyle()
-        paraStyle.alignment = .left
-        tv.defaultParagraphStyle = paraStyle
-        tv.typingAttributes = [
-            .paragraphStyle: paraStyle,
-            .font: NSFont.systemFont(ofSize: fontSize, weight: .medium),
-            .foregroundColor: textColor,
-        ]
-
-        // Disable line wrapping so the view grows horizontally instead.
-        tv.textContainer?.widthTracksTextView = false
-        tv.textContainer?.containerSize = NSSize(
-            width: CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude
-        )
-        tv.isHorizontallyResizable = true
+        // No implicit insets: the container must line up with the pill's own
+        // padding, or the text sits off-center and the measured natural width
+        // (which the parent derives from the string) no longer matches layout.
+        tv.textContainerInset = .zero
+        tv.textContainer?.lineFragmentPadding = 0
         tv.isVerticallyResizable = true
         tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
                             height: CGFloat.greatestFiniteMagnitude)
+        applyLayout(to: tv, restyleExistingText: true)
 
         // Grab focus as soon as the view is inserted into the window.
         DispatchQueue.main.async {
@@ -1651,19 +1878,51 @@ private struct GrowingTextField: NSViewRepresentable {
     }
 
     func updateNSView(_ tv: NSTextView, context: Context) {
+        var replacedString = false
         if tv.string != text {
             tv.string = text
+            replacedString = true
         }
+        applyLayout(to: tv, restyleExistingText: replacedString)
+        tv.textColor = textColor
+    }
+
+    private func applyLayout(to tv: NSTextView, restyleExistingText: Bool) {
         let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
-        let paraStyle = NSMutableParagraphStyle()
-        paraStyle.alignment = .left
-        tv.typingAttributes = [
+        // Shared with the parent's height measurement — the two must lay the
+        // text out identically or the pill mis-fits its own content.
+        let paraStyle = TextBubbleGeometry.paragraphStyle(fontSize: fontSize)
+        let attributes: [NSAttributedString.Key: Any] = [
             .paragraphStyle: paraStyle,
             .font: font,
             .foregroundColor: textColor,
         ]
-        tv.textColor = textColor
-        context.coordinator.reportSize(tv)
+        tv.font = font
+        tv.defaultParagraphStyle = paraStyle
+        tv.typingAttributes = attributes
+        // Text already in the view (an existing bubble being re-opened, or a
+        // font-size change) keeps its own attributes, so restyle it — but never
+        // mid-IME-composition, where rewriting the storage drops marked text.
+        if let storage = tv.textStorage, storage.length > 0, !tv.hasMarkedText() {
+            let current = storage.attributes(at: 0, effectiveRange: nil)
+            let sameFont = (current[.font] as? NSFont) == font
+            let samePara = (current[.paragraphStyle] as? NSParagraphStyle)?.isEqual(paraStyle) ?? false
+            if restyleExistingText || !sameFont || !samePara {
+                storage.setAttributes(attributes,
+                                      range: NSRange(location: 0, length: storage.length))
+            }
+        }
+        // Centering needs a finite container. In the growing case it is the
+        // natural width of the longest line (+1pt of slack so a sub-point
+        // measurement difference can never wrap it); in the fixed-width case
+        // it is the pill's inner width, which is exactly what must wrap.
+        let containerWidth = wraps ? contentWidth : contentWidth + 1
+        tv.textContainer?.widthTracksTextView = false
+        tv.textContainer?.containerSize = NSSize(
+            width: max(1, containerWidth),
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        tv.isHorizontallyResizable = !wraps
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -1675,19 +1934,6 @@ private struct GrowingTextField: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
             parent.text = tv.string
-            reportSize(tv)
-        }
-
-        func reportSize(_ tv: NSTextView) {
-            guard let lm = tv.layoutManager, let tc = tv.textContainer else { return }
-            lm.ensureLayout(for: tc)
-            let used = lm.usedRect(for: tc).size
-            let minH = tv.font?.pointSize ?? parent.fontSize
-            let size = CGSize(width: ceil(used.width), height: ceil(max(used.height, minH)))
-            // Defer to avoid "modifying state during view update" — reportSize is
-            // called from updateNSView which runs inside a SwiftUI layout pass.
-            let callback = parent.onSizeChange
-            DispatchQueue.main.async { callback(size) }
         }
     }
 }

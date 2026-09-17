@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-09-17 (1.7.7)
+
+### Build Your Own Gradients
+The **+** in the Gradients list now opens a gradient editor instead of a file picker. Pick linear or radial, set the angle, and add as many colour stops as you like: drag them along the ramp, or type an exact position, hex value and opacity. Clicking the ramp inserts a stop in the colour that is already there, so nothing jumps, and there are buttons to reverse the stops or turn the whole thing 90°. Saved gradients sit alongside the built-in ones and can be edited or deleted from their right-click menu. They work anywhere a background does — in templates, and on captures taken with one.
+
+### Custom Backgrounds
+Your own background images have moved into a **Custom Backgrounds** category of their own, next to Gradients and Solid Colors, with its own **+** for adding more. Images you had already added are there waiting for you.
+
+### Drag Pages Between Windows
+A thumbnail can now be dragged out of one editor window and dropped into another. Dropping copies the page and leaves the original where it was; hold ⌥ while you drop to move it instead. Windows showing a single image have no page strip, so the canvas itself accepts the drop and appends the page.
+
+Pages convert to suit where they land. A PDF page dropped into another PDF joins that document, keeping any crop, rotation and adjustments you had applied. An image dropped into a PDF becomes a page at the size it is displayed, with its crop, background and adjustments already drawn in. A page dropped into an image window arrives as an ordinary image. Annotations come across with the page and stay where you put them, whichever direction the drop goes and whatever the two screens' resolutions are.
+
+Several pages can travel at once: ⌘-click a thumbnail to add it to the selection or take it out again, ⇧-click to extend the selection from the page you are on, and drag any of them to bring the whole set. A drop position is shown as a caret between thumbnails, including after the last one — which also makes it possible to move a page to the very end of a document, something the strip would not do before. Moving pages out of a window never empties it: the last page stays behind.
+
+### Emoji Stickers
+A new Sticker tool stamps emoji onto a screenshot. Click it in the Tools list to open the picker, choose an emoji, then click anywhere on the image to place it — click again for another, as many as you like. The picker is grouped into smileys, gestures, marks, arrows, objects, nature, food and travel, and keeps the ones you reach for most in a Recent tab at the front.
+
+While the tool is active the pointer becomes a faded copy of the emoji at the size it will land, so you can see exactly what you are about to place and where. Press Esc to put the tool away again and go back to selecting. A placed sticker then behaves like any other annotation: drag it to move it, drag a corner to resize it, and ⌘Z to undo. Picking a different emoji while one is selected swaps it in place rather than making you delete and start again. Stickers survive cropping, rotating, straightening and flipping like everything else, and they are burned into saved images and PDFs alike, so they look the same in every viewer.
+
+### Fixed: The Template Menu Claimed a Template Was Applied
+With no background on an image, the Templates menu still showed a template name, as though that template were in effect. It now reads **None** whenever no template is applied, with the saved templates listed below it. Choosing one applies it as before, and choosing **None** strips the template back off: the background and the watermark are removed and no template is left selected. Padding, corners, shadow and alignment are kept — none of them show without a background, and picking a template again sets them all anyway. While None is showing, Save is dimmed, since there is no applied template for it to write back to — Save as new still works, and is the way to turn the current setup into a template.
+
+### Fixed: Text Ran Outside Its Bubble While Editing
+Editing the text in a bubble whose width you had set by dragging its handles let the line run straight out through the side of the pill instead of wrapping inside it, and a bubble on two or more lines collapsed to one long line for as long as you were typing in it. The editor now lays text out exactly as the finished bubble does — wrapped into the bubble's width, centred, with the same line spacing — so what you type keeps the shape it will have when you click away. The pill also no longer flickers to a different size for an instant when you double-click into it.
+
 ## 2026-09-02 (1.7.6)
 
 ### Add, Remove and Reorder PDF Pages
@@ -22,9 +48,6 @@ Settings › General can now take SimplShot's icon out of the menu bar, for peop
 
 ### Check for Updates in Settings
 Check for Updates is now in Settings › About as well as the menu bar, so an update never depends on the icon being visible.
-
-### Template Preview Fixes
-Settings › Template now previews templates more accurately: Auto keeps even padding, ratio presets show the right canvas shape, and watermarks appear closer to their exported size.
 
 ## 2026-08-24 (1.7.5)
 
