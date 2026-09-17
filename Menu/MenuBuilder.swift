@@ -242,7 +242,7 @@ class MenuBuilder: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // --- Open existing image ---
-        let historyItem = NSMenuItem(title: String(localized: "Capture History"), action: #selector(showCaptureHistoryAction), keyEquivalent: "")
+        let historyItem = NSMenuItem(title: String(localized: "Show Capture History"), action: #selector(showCaptureHistoryAction), keyEquivalent: "")
         historyItem.target = self
         historyItem.isEnabled = !CaptureHistoryService.shared.isEmpty
         historyItem.image = NSImage(systemSymbolName: "photo.stack", accessibilityDescription: nil)?
