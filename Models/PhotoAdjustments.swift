@@ -86,7 +86,8 @@ struct PhotoAdjustments: Equatable, Codable {
     /// CISharpenLuminance `inputSharpness`. Range: 0…2. Default: 0 (no sharpening).
     var sharpness: Float = 0.0
     /// Grain / film-noise amount blended over the image. Range: 0…1. Default: 0 (none).
-    /// Implemented as a grayscale CIRandomGenerator layer composited at this alpha.
+    /// A grey CIRandomGenerator layer blended in **overlay** mode, with this
+    /// value as the grain's contrast about mid-grey (see `apply(to:)`).
     var noise: Float = 0.0
 
     /// True when all values are at their defaults — the filter chain can be skipped entirely.
@@ -150,27 +151,59 @@ struct PhotoAdjustments: Equatable, Codable {
             ci = ci.applyingFilter("CISharpenLuminance", parameters: ["inputSharpness": sharpness])
         }
 
-        // Noise — composite a grayscale random pattern over the image at `noise` alpha.
+        // Noise — film grain, blended in OVERLAY mode.
+        //
+        // ⚠️ NOT source-over. Core Image composites premultiplied, so a grain
+        // layer whose alpha is scaled while its RGB stays at full strength is
+        // *added* rather than blended: `CISourceOverCompositing` computes
+        // `src + dst·(1 − src_a)`, which lifts the image instead of texturing
+        // it. Measured on flat patches, the old chain took a grey-40 shadow to
+        // 74 at slider 0.10 while producing almost no visible grain.
+        //
+        // Overlay is the identity at mid-grey, so the strength knob is the
+        // grain's **contrast about the midpoint** — `inputContrast` pivots
+        // there, 0 is exactly a no-op, and the grain fades in symmetrically.
+        // Measured on flat patches, the mean now holds to 0.1/255 in shadows,
+        // midtones and highlights alike, with the grain strongest in the
+        // midtones the way film is.
         if noise > 0 {
             let extent = ci.extent
-            // CIRandomGenerator is infinite — crop it to the source extent first.
-            let grayscaleNoise = CIFilter(name: "CIRandomGenerator")?
+            // CIRandomGenerator is infinite — crop it to the source extent
+            // first. It is deterministic, so the preview and the export get
+            // the same grain.
+            //
+            // ⚠️ The grain is taken from the generator's **alpha** channel, not
+            // its RGB. The generator emits premultiplied RGBA with a random
+            // alpha, and `CIColorMatrix` unpremultiplies before it multiplies
+            // — so reading RGB divides each pixel by its own small random
+            // alpha and blows ~10% of them to pure white. That is bright salt,
+            // not grain, and no amount of contrast scaling pulls it back
+            // because the values are already clipped. The alpha channel is
+            // untouched by that divide: uniform over 0…1 and independent of
+            // RGB. Building grey from it also makes the layer monochrome by
+            // construction, with no desaturation step.
+            let grain = CIFilter(name: "CIRandomGenerator")?
                 .outputImage?
                 .cropped(to: extent)
-                .applyingFilter("CIColorControls", parameters: [
-                    "inputSaturation": 0,                 // strip color → film-grain look
-                    "inputBrightness": 0,
-                    "inputContrast":   1
-                ])
                 .applyingFilter("CIColorMatrix", parameters: [
-                    // Scale the alpha channel by `noise` so the noise layer is semi-transparent.
-                    "inputAVector": CIVector(x: 0, y: 0, z: 0, w: CGFloat(noise))
+                    // grey = input alpha, alpha = 1
+                    "inputRVector":    CIVector(x: 0, y: 0, z: 0, w: 1),
+                    "inputGVector":    CIVector(x: 0, y: 0, z: 0, w: 1),
+                    "inputBVector":    CIVector(x: 0, y: 0, z: 0, w: 1),
+                    "inputAVector":    CIVector(x: 0, y: 0, z: 0, w: 0),
+                    "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 1)
                 ])
-            if let noiseLayer = grayscaleNoise {
-                ci = noiseLayer.applyingFilter("CISourceOverCompositing", parameters: [
+                .applyingFilter("CIColorControls", parameters: [
+                    // Strength: compress the grain toward overlay's identity point.
+                    "inputSaturation": 1,
+                    "inputBrightness": 0,
+                    "inputContrast":   noise
+                ])
+            if let grain {
+                ci = grain.applyingFilter("CIOverlayBlendMode", parameters: [
                     "inputBackgroundImage": ci
                 ])
-                // Compositing with a random layer can extend the extent; clamp back.
+                // Blending with a generated layer can extend the extent; clamp back.
                 ci = ci.cropped(to: extent)
             }
         }

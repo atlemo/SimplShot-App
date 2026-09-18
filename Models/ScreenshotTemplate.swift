@@ -85,17 +85,24 @@ struct GradientDefinition: Codable, Equatable, Hashable {
     /// SwiftUI's `Gradient` both do for a bare colour list.
     let locations: [Double]?
     let kind: GradientKind
+    /// Film grain blended over the gradient, 0…1. Default 0 (smooth).
+    /// Painted by `GrainTexture`, which owns the blend — and which is also
+    /// the cheapest cure for the banding a wide, subtle gradient shows on an
+    /// 8-bit canvas.
+    let noise: Double
 
     init(
         colors: [CodableColor],
         angle: Double,
         locations: [Double]? = nil,
-        kind: GradientKind = .linear
+        kind: GradientKind = .linear,
+        noise: Double = 0
     ) {
         self.colors = colors
         self.angle = angle
         self.locations = locations
         self.kind = kind
+        self.noise = noise
     }
 
     /// `locations` / `kind` were added with custom gradients — anything encoded
@@ -106,6 +113,7 @@ struct GradientDefinition: Codable, Equatable, Hashable {
         angle = try container.decode(Double.self, forKey: .angle)
         locations = try container.decodeIfPresent([Double].self, forKey: .locations)
         kind = try container.decodeIfPresent(GradientKind.self, forKey: .kind) ?? .linear
+        noise = try container.decodeIfPresent(Double.self, forKey: .noise) ?? 0
     }
 
     /// One position per colour, always — the stored array is used only when it
@@ -132,7 +140,114 @@ struct GradientDefinition: Codable, Equatable, Hashable {
         let stops = zip(colors, resolvedLocations)
             .map { "\($0.red),\($0.green),\($0.blue),\($0.alpha)@\($1)" }
             .joined(separator: ";")
-        return "\(kind.rawValue)|\(angle)|\(stops)"
+        return "\(kind.rawValue)|\(angle)|\(noise)|\(stops)"
+    }
+
+    /// True when every stop is fully opaque — the ordinary case, and the one
+    /// where grain needs no alpha mask (see `GrainTexture`).
+    var isOpaque: Bool { colors.allSatisfy { $0.alpha >= 1 } }
+}
+
+/// The film grain blended over a gradient: one tile, generated once, and the
+/// rule for painting it.
+///
+/// **Overlay, never source-over.** Compositing a grey layer over the gradient
+/// pulls it toward mid-grey — it lightens the shadows and flattens the
+/// contrast, which is not grain. Overlay is the *identity* at mid-grey, so the
+/// gradient keeps its own tones and the grain only perturbs them. (The Edit
+/// panel's Noise slider blends the same way, through Core Image; the two were
+/// fixed together.)
+///
+/// **Strength is the alpha the tile is drawn at.** For overlay, compressing
+/// the grain toward mid-grey and cross-fading the blended result are the same
+/// operation — `overlay(d, ½+(u−½)a)` and `lerp(d, overlay(d,u), a)` both reduce
+/// to `d + 2a(u−½)·(d or 1−d)`. That is what lets the CG renderer express the
+/// amount as a context alpha and the SwiftUI preview as a view opacity while
+/// staying in exact agreement, with no second tile per strength.
+enum GrainTexture {
+    /// Edge of the square tile, in texels. Large enough that the repeat is not
+    /// legible on a canvas, small enough to stay a cheap blit.
+    static let tileSize = 256
+
+    /// One texel per **point**, not per pixel, so the grain reads at the same
+    /// size whatever the render's backing scale — the same reason every style
+    /// value in the app is scaled by the backing scale instead of assuming 2×.
+    /// It is also what makes the SwiftUI preview match: SwiftUI lays the tile
+    /// out in points.
+    static let texelsPerPoint: CGFloat = 1
+
+    /// Monochrome, opaque, uniform over 0…1, generated once from a fixed seed.
+    /// Seeded rather than random so a gradient grains identically every render
+    /// — no shimmer between frames, and the export matches the preview.
+    static let tile: CGImage? = makeTile()
+
+    /// Blends the grain over `rect` at `amount` strength.
+    ///
+    /// `mask` clips it to a translucent gradient's own alpha. Without one, CG
+    /// composites the grain against the *absence* of a backdrop wherever the
+    /// canvas is clear and raises its alpha (measured: alpha 0 → 153 at 0.6
+    /// strength), so a gradient fading to transparent would export speckle in
+    /// the clear area. An opaque gradient needs no mask.
+    static func draw(
+        amount: Double,
+        backingScale: CGFloat,
+        mask: CGImage? = nil,
+        in context: CGContext,
+        rect: CGRect
+    ) {
+        let strength = min(max(amount, 0), 1)
+        guard strength > 0, let tile else { return }
+
+        context.saveGState()
+        defer { context.restoreGState() }
+
+        context.clip(to: rect)
+        if let mask { context.clip(to: rect, mask: mask) }
+        context.setBlendMode(.overlay)
+        context.setAlpha(CGFloat(strength))
+        // Nearest-neighbour: the texels ARE the grain, and smoothing them
+        // across the backing scale turns it into a haze.
+        context.interpolationQuality = .none
+
+        let side = CGFloat(tileSize) * max(backingScale, 1) / texelsPerPoint
+        context.draw(
+            tile,
+            in: CGRect(x: rect.minX, y: rect.minY, width: side, height: side),
+            byTiling: true
+        )
+    }
+
+    private static func makeTile() -> CGImage? {
+        let side = tileSize
+        var pixels = [UInt8](repeating: 255, count: side * side * 4)
+        // SplitMix64, the same generator the sketch arrows use for their grit.
+        var state: UInt64 = 0x5E3D_9A17_C0FF_EE01
+        for i in stride(from: 0, to: pixels.count, by: 4) {
+            state = state &+ 0x9E37_79B9_7F4A_7C15
+            var z = state
+            z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+            z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+            z ^= z >> 31
+            let value = UInt8(truncatingIfNeeded: z >> 40)
+            pixels[i] = value
+            pixels[i + 1] = value
+            pixels[i + 2] = value
+        }
+
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData) else { return nil }
+        return CGImage(
+            width: side,
+            height: side,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: side * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        )
     }
 }
 

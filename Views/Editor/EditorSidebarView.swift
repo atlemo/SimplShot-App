@@ -2409,6 +2409,7 @@ struct GradientEditorSheet: View {
     @State private var stops: [EditableGradientStop] = []
     @State private var kind: GradientKind = .linear
     @State private var angle: Double = 0
+    @State private var noise: Double = 0
     @State private var selectedStopID: UUID?
     /// The stop currently under the pointer, resolved once at mouse-down and
     /// held for the whole drag — re-resolving per event would hand the drag to
@@ -2440,7 +2441,8 @@ struct GradientEditorSheet: View {
             colors: sorted.map(\.color),
             angle: angle,
             locations: sorted.map(\.location),
-            kind: kind
+            kind: kind,
+            noise: noise
         )
     }
 
@@ -2458,6 +2460,7 @@ struct GradientEditorSheet: View {
             if kind == .linear {
                 angleRow
             }
+            noiseRow
             stopBar
             stopsList
 
@@ -2489,6 +2492,7 @@ struct GradientEditorSheet: View {
         }
         kind = definition.kind
         angle = definition.angle
+        noise = definition.noise
         selectedStopID = stops.first?.id
     }
 
@@ -2554,6 +2558,23 @@ struct GradientEditorSheet: View {
             zeroPoint: 0,
             step: 1,
             display: { "\(Int($0.rounded()))°" }
+        )
+    }
+
+    /// Film grain over the finished gradient. Sits outside the `kind == .linear`
+    /// branch above because it applies to a radial gradient just as well — and
+    /// it is what breaks up the banding a wide, subtle ramp shows on an 8-bit
+    /// canvas, which radial gradients are the worst for.
+    private var noiseRow: some View {
+        AdjustmentSlider(
+            label: "Noise",
+            value: Binding(
+                get: { Float(noise) },
+                set: { noise = Double($0) }
+            ),
+            range: 0...1,
+            zeroPoint: 0,
+            display: { "\(Int(($0 * 100).rounded()))%" }
         )
     }
 

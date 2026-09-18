@@ -746,18 +746,36 @@ private final class StatusItemDragView: NSView {
         return iv
     }()
 
+    private let iconSize: CGFloat = 16
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         registerForDraggedTypes([.fileURL])
+        addSubview(imageView)
+        layoutIcon()
+    }
 
-        let iconSize: CGFloat = 16
+    /// Centres the icon in the current bounds.
+    ///
+    /// This must NOT be left to an autoresizing mask. AppKit resizes a legacy
+    /// `statusItem.view` to width 0 and back while installing it; springs-and-struts
+    /// distributes a width delta *proportionally* to the flexible margins, and once
+    /// both have collapsed to 0 there is no proportion to split by — the whole 22pt
+    /// went to `.maxXMargin`, leaving the icon pinned at x = 0, i.e. exactly
+    /// `(thickness - iconSize) / 2` = 3pt left of centre. Height never hits 0, so the
+    /// symptom was an icon centred vertically but visibly left of the selection
+    /// highlight, unlike every `statusItem.button`-based item (NSStatusBarButton
+    /// centres its image at draw time, which we can't use — see the drag note above).
+    private func layoutIcon() {
         imageView.frame = NSRect(
-            x: (frame.width  - iconSize) / 2,
-            y: (frame.height - iconSize) / 2,
+            x: ((bounds.width  - iconSize) / 2).rounded(),
+            y: ((bounds.height - iconSize) / 2).rounded(),
             width: iconSize, height: iconSize
         )
-        imageView.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin, .maxYMargin]
-        addSubview(imageView)
+    }
+
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        layoutIcon()
     }
 
     required init?(coder: NSCoder) { fatalError() }

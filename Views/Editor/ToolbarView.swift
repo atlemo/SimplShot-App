@@ -251,11 +251,11 @@ extension GradientDefinition {
         }
     }
 
-    /// The definition painted the way `TemplateRenderer` paints it: linear
-    /// along `angle`, or an ellipse filling the frame for radial (the CG side
-    /// stretches a square tile, which is the same shape).
+    /// The colour ramp alone, painted the way `TemplateRenderer` paints it:
+    /// linear along `angle`, or an ellipse filling the frame for radial (the
+    /// CG side stretches a square tile, which is the same shape).
     @ViewBuilder
-    var swiftUIFill: some View {
+    private var colorFill: some View {
         switch kind {
         case .linear:
             LinearGradient(
@@ -265,6 +265,49 @@ extension GradientDefinition {
             )
         case .radial:
             EllipticalGradient(stops: swiftUIStops, center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
+        }
+    }
+
+    /// The definition as the renderer draws it — ramp plus grain. This is the
+    /// SwiftUI twin of `TemplateRenderer.drawGradient`; keep the two in step.
+    @ViewBuilder
+    var swiftUIFill: some View {
+        if noise <= 0 {
+            colorFill
+        } else if isOpaque {
+            grainedFill
+        } else {
+            // Same rule as the renderer's alpha mask: grain must not reach
+            // past the gradient's own alpha, or a fade to transparent picks up
+            // speckle where there is nothing to texture.
+            grainedFill.mask(colorFill)
+        }
+    }
+
+    private var grainedFill: some View {
+        colorFill
+            .overlay { GrainTexture.overlayLayer(amount: noise) }
+            .compositingGroup()
+    }
+}
+
+extension GrainTexture {
+    /// The grain tile as a SwiftUI layer, tiled one texel per **point** — the
+    /// size the CG renderer draws it at, which is what keeps a preview and an
+    /// export grained alike on any display.
+    ///
+    /// Strength is this layer's opacity. For an overlay blend that is
+    /// algebraically identical to compressing the grain toward mid-grey, which
+    /// is how the renderer expresses it (see `GrainTexture`).
+    @ViewBuilder
+    static func overlayLayer(amount: Double) -> some View {
+        if let tile {
+            Image(decorative: tile, scale: 1)
+                .interpolation(.none)
+                .resizable(resizingMode: .tile)
+                .blendMode(.overlay)
+                .opacity(min(max(amount, 0), 1))
+                .allowsHitTesting(false)
         }
     }
 }

@@ -2735,6 +2735,7 @@
       }
     },
     "Capture History" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -6418,70 +6419,70 @@
         }
       }
     },
-    "Fixed: editing the text in a bubble whose width you had set by dragging its handles let the line run out through the side of the pill instead of wrapping inside it. The editor now lays text out exactly as the finished bubble does, so what you type keeps the shape it will have when you click away." : {
+    "Fixed: text ran out the side of a bubble while editing if you had set its width by hand. The editor now wraps exactly as the finished bubble does." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Behoben: Beim Bearbeiten des Texts in einer Sprechblase, deren Breite du zuvor an den Anfassern eingestellt hattest, lief die Zeile seitlich aus der Blase heraus, statt darin umzubrechen. Der Editor setzt den Text jetzt genau so wie die fertige Sprechblase — was du tippst, behält also die Form, die es nach dem Klick daneben haben wird."
+            "value" : "Behoben: Beim Bearbeiten lief der Text seitlich aus einer Sprechblase heraus, deren Breite du selbst eingestellt hattest. Der Editor bricht den Text jetzt genau so um wie die fertige Sprechblase."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Corrigé : lors de la modification du texte d’une bulle dont vous aviez fixé la largeur en tirant ses poignées, la ligne sortait par le côté de la pastille au lieu de passer à la ligne à l’intérieur. L’éditeur compose désormais le texte exactement comme le fait la bulle terminée : ce que vous tapez garde la forme qu’il aura une fois que vous aurez cliqué ailleurs."
+            "value" : "Corrigé : lors de la modification, le texte sortait par le côté d’une bulle dont vous aviez fixé la largeur vous-même. L’éditeur passe désormais à la ligne exactement comme le fait la bulle terminée."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修正：ハンドルをドラッグして幅を決めた吹き出しのテキストを編集すると、文字が吹き出しの中で折り返されず、横からはみ出していました。エディタが完成後の吹き出しとまったく同じようにテキストを配置するようになったため、入力中の文字も、クリックして確定したあとの形のまま表示されます。"
+            "value" : "修正：幅を自分で決めた吹き出しのテキストを編集すると、文字が横からはみ出していました。エディタは完成後の吹き出しとまったく同じように折り返すようになりました。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Исправлено: при правке текста в выноске, ширину которой вы задали, потянув за её маркеры, строка выходила за боковой край плашки вместо переноса внутри неё. Теперь редактор вёрстает текст точно так же, как готовая выноска, и набранный текст сохраняет ту форму, которую примет после щелчка в стороне."
+            "value" : "Исправлено: при правке текст выходил за боковой край выноски, ширину которой вы задали сами. Теперь редактор переносит строки точно так же, как готовая выноска."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修复：编辑那些曾用手柄拖动设定过宽度的气泡文字时，文字不会在气泡内换行，而是直接从侧边溢出。编辑器现在与完成后的气泡采用完全相同的排版方式，你输入的内容会保持点按别处后最终呈现的形状。"
+            "value" : "修复：编辑曾手动设定过宽度的气泡时，文字会从侧边溢出。编辑器现在与完成后的气泡采用完全相同的换行方式。"
           }
         }
       }
     },
-    "Fixed: with no background on an image, the Templates menu still showed a template name, as though that template were in effect. It now reads None whenever no template is applied, and choosing None strips the template back off — background and watermark removed, padding and corners kept." : {
+    "Fixed: the Templates menu named a template even when no background was applied. It now reads None, and choosing None removes the background and watermark while keeping padding and corners." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Behoben: Hatte ein Bild keinen Hintergrund, zeigte das Menü „Vorlagen“ trotzdem einen Vorlagennamen an, als wäre diese Vorlage in Kraft. Es steht jetzt auf „Keine“, solange keine Vorlage angewendet ist, und die Auswahl von „Keine“ entfernt die Vorlage wieder: Hintergrund und Wasserzeichen verschwinden, Abstand und Ecken bleiben erhalten."
+            "value" : "Behoben: Das Menü „Vorlagen“ nannte eine Vorlage, obwohl gar kein Hintergrund angewendet war. Es steht jetzt auf „Keine“, und die Auswahl von „Keine“ entfernt Hintergrund und Wasserzeichen, behält aber Abstand und Ecken."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Corrigé : lorsqu’une image n’avait aucun arrière-plan, le menu Modèles affichait quand même un nom de modèle, comme si celui-ci était appliqué. Il indique désormais « Aucun » tant qu’aucun modèle n’est appliqué, et choisir « Aucun » retire le modèle : l’arrière-plan et le filigrane disparaissent, la marge et les coins sont conservés."
+            "value" : "Corrigé : le menu Modèles affichait un nom de modèle alors qu’aucun arrière-plan n’était appliqué. Il indique désormais « Aucun », et choisir « Aucun » retire l’arrière-plan et le filigrane tout en conservant la marge et les coins."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修正：画像に背景がない場合でも、「テンプレート」メニューにはそのテンプレートが適用されているかのように名前が表示されていました。テンプレートが適用されていないときは「なし」と表示されるようになり、「なし」を選ぶとテンプレートが解除されます。背景とウォーターマークは取り除かれ、余白と角の丸みはそのまま残ります。"
+            "value" : "修正：背景が適用されていないのに、「テンプレート」メニューにテンプレート名が表示されていました。適用されていないときは「なし」と表示され、「なし」を選ぶと背景とウォーターマークが取り除かれ、余白と角の丸みは残ります。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Исправлено: если у изображения не было фона, меню «Шаблоны» всё равно показывало название шаблона, будто он применён. Теперь, пока шаблон не применён, там написано «Нет», а выбор «Нет» снимает шаблон: фон и водяной знак убираются, отступы и скругления остаются."
+            "value" : "Исправлено: меню «Шаблоны» показывало название шаблона, хотя фон не был применён. Теперь там написано «Нет», а выбор «Нет» убирает фон и водяной знак, сохраняя отступы и скругления."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修复：图片没有背景时，“模板”菜单仍会显示某个模板名称，仿佛该模板正在生效。现在只要没有应用模板，菜单就显示“无”；选择“无”会移除模板——背景和水印被清除，内边距和圆角则保留。"
+            "value" : "修复：没有应用背景时，“模板”菜单仍显示某个模板名称。现在菜单显示“无”；选择“无”会移除背景和水印，同时保留内边距和圆角。"
           }
         }
       }
@@ -8462,36 +8463,36 @@
         }
       }
     },
-    "New: Build your own gradients — the + in the Gradients list now opens a gradient editor instead of a file picker. Pick linear or radial, set the angle, and add as many colour stops as you like: drag them along the ramp, or type an exact position, hex value and opacity. Your gradients sit alongside the built-in ones and can be edited or deleted from their right-click menu." : {
+    "New: Build your own gradients — the + in the Gradients list now opens a gradient editor instead of a file picker. Pick linear or radial, set the angle, and add as many colour stops as you like; your gradients then sit alongside the built-in ones." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neu: Eigene Verläufe — das + in der Liste „Verläufe“ öffnet jetzt einen Verlaufseditor statt einer Dateiauswahl. Wähle linear oder radial, stelle den Winkel ein und füge beliebig viele Farbstopps hinzu: Zieh sie auf dem Farbbalken entlang oder tippe Position, Hex-Wert und Deckkraft exakt ein. Deine Verläufe stehen neben den mitgelieferten und lassen sich über ihr Rechtsklick-Menü bearbeiten oder löschen."
+            "value" : "Neu: Eigene Verläufe — das + in der Liste „Verläufe“ öffnet jetzt einen Verlaufseditor statt einer Dateiauswahl. Wähle linear oder radial, stelle den Winkel ein und füge beliebig viele Farbstopps hinzu; deine Verläufe stehen danach neben den mitgelieferten."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nouveau : créez vos propres dégradés — le + de la liste « Dégradés » ouvre désormais un éditeur de dégradé au lieu d’un sélecteur de fichiers. Choisissez linéaire ou radial, réglez l’angle et ajoutez autant d’arrêts de couleur que vous voulez : faites-les glisser le long de la rampe, ou saisissez la position, la valeur hexadécimale et l’opacité exactes. Vos dégradés côtoient ceux fournis avec l’app et se modifient ou se suppriment depuis leur menu contextuel."
+            "value" : "Nouveau : créez vos propres dégradés — le + de la liste « Dégradés » ouvre désormais un éditeur de dégradé au lieu d’un sélecteur de fichiers. Choisissez linéaire ou radial, réglez l’angle et ajoutez autant d’arrêts de couleur que vous voulez ; vos dégradés côtoient ensuite ceux fournis avec l’app."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新機能：自分だけのグラデーション — 「グラデーション」リストの + が、ファイル選択ではなくグラデーションエディタを開くようになりました。線形か放射状かを選び、角度を設定して、カラーストップを好きなだけ追加できます。カラーバー上でドラッグするか、位置・16進数の値・不透明度を正確に入力してください。作成したグラデーションは標準のものと並んで表示され、右クリックメニューから編集や削除ができます。"
+            "value" : "新機能：自分だけのグラデーション — 「グラデーション」リストの + が、ファイル選択ではなくグラデーションエディタを開くようになりました。線形か放射状かを選び、角度を設定して、カラーストップを好きなだけ追加できます。作成したグラデーションは標準のものと並んで表示されます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Новое: собственные градиенты — знак + в списке «Градиенты» теперь открывает редактор градиента, а не выбор файла. Выберите линейный или радиальный, задайте угол и добавьте сколько угодно цветовых точек: перетаскивайте их по полосе или вводите точную позицию, шестнадцатеричное значение и непрозрачность. Ваши градиенты стоят рядом со встроенными, а изменить или удалить их можно через контекстное меню."
+            "value" : "Новое: собственные градиенты — знак + в списке «Градиенты» теперь открывает редактор градиента, а не выбор файла. Выберите линейный или радиальный, задайте угол и добавьте сколько угодно цветовых точек — ваши градиенты встанут рядом со встроенными."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增：自制渐变 — “渐变”列表中的 + 现在打开的是渐变编辑器，而不是文件选择器。选择线性或径向，设置角度，并添加任意数量的色标：在色带上拖动，或直接输入精确的位置、十六进制值和不透明度。你创建的渐变与内置渐变并排显示，可通过右键菜单编辑或删除。"
+            "value" : "新增：自制渐变 — “渐变”列表中的 + 现在打开的是渐变编辑器，而不是文件选择器。选择线性或径向，设置角度，并添加任意数量的色标；你创建的渐变会与内置渐变并排显示。"
           }
         }
       }
@@ -8530,70 +8531,70 @@
         }
       }
     },
-    "New: Drag pages between windows — a thumbnail can be dragged out of one editor window and dropped into another. Dropping copies the page and leaves the original where it was; hold ⌥ while you drop to move it instead. ⌘-click and ⇧-click to bring several pages at once, and drop after the last thumbnail to move a page to the very end of a document." : {
+    "New: Drag pages between windows — drag a thumbnail out of one editor window and drop it into another to copy the page, or hold ⌥ while dropping to move it instead." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neu: Seiten zwischen Fenstern ziehen — eine Miniatur lässt sich aus einem Editor-Fenster herausziehen und in einem anderen ablegen. Beim Ablegen wird die Seite kopiert und das Original bleibt, wo es war; halte ⌥ gedrückt, um sie stattdessen zu verschieben. Mit ⌘-Klick und ⇧-Klick nimmst du mehrere Seiten auf einmal mit, und wenn du hinter der letzten Miniatur ablegst, wandert eine Seite ganz ans Ende des Dokuments."
+            "value" : "Neu: Seiten zwischen Fenstern ziehen — zieh eine Miniatur aus einem Editor-Fenster in ein anderes, um die Seite zu kopieren, oder halte ⌥ beim Ablegen gedrückt, um sie stattdessen zu verschieben."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nouveau : faites glisser des pages d’une fenêtre à l’autre — une vignette peut être sortie d’une fenêtre d’édition et déposée dans une autre. Le dépôt copie la page et laisse l’originale en place ; maintenez ⌥ pendant le dépôt pour la déplacer à la place. Faites ⌘-clic et ⇧-clic pour emporter plusieurs pages d’un coup, et déposez après la dernière vignette pour envoyer une page tout à la fin du document."
+            "value" : "Nouveau : faites glisser des pages d’une fenêtre à l’autre — sortez une vignette d’une fenêtre d’édition et déposez-la dans une autre pour copier la page, ou maintenez ⌥ pendant le dépôt pour la déplacer à la place."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新機能：ウィンドウ間でページをドラッグ — サムネイルをひとつのエディタウィンドウから別のウィンドウへドラッグして放せます。ドロップするとページはコピーされ、元のページはそのまま残ります。移動したい場合は ⌥ キーを押しながらドロップしてください。⌘クリックと⇧クリックで複数ページをまとめて運べるほか、最後のサムネイルより後ろにドロップすればページを文書の末尾へ移動できます。"
+            "value" : "新機能：ウィンドウ間でページをドラッグ — サムネイルを別のエディタウィンドウにドラッグして放すとページがコピーされます。⌥ キーを押しながらドロップすれば移動になります。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Новое: перетаскивание страниц между окнами — миниатюру можно вытащить из одного окна редактора и бросить в другое. При этом страница копируется, а оригинал остаётся на месте; удерживайте ⌥ при отпускании, чтобы вместо этого переместить её. ⌘-клик и ⇧-клик берут сразу несколько страниц, а если отпустить после последней миниатюры, страница встанет в самый конец документа."
+            "value" : "Новое: перетаскивание страниц между окнами — вытащите миниатюру из одного окна редактора и бросьте в другое, чтобы скопировать страницу, или удерживайте ⌥ при отпускании, чтобы переместить её."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增：在窗口之间拖动页面 — 缩略图可以从一个编辑器窗口拖出并放入另一个窗口。放下时会复制该页面，原页面留在原处；放下时按住 ⌥ 键则改为移动。⌘-点按和 ⇧-点按可一次带走多个页面；放在最后一张缩略图之后，即可把页面移到文稿的最末尾。"
+            "value" : "新增：在窗口之间拖动页面 — 把缩略图从一个编辑器窗口拖到另一个窗口即可复制该页面；放下时按住 ⌥ 键则改为移动。"
           }
         }
       }
     },
-    "New: Emoji stickers — the Sticker tool stamps emoji onto a screenshot. Click it in the Tools list to choose one, then click anywhere on the image to place it. While the tool is active the pointer becomes a faded copy of the emoji at the size it will land, so you can see exactly what you are about to place. Drag a sticker to move it, drag a corner to resize it, and press Esc to put the tool away." : {
+    "New: Emoji stickers — the Sticker tool stamps emoji onto a screenshot. Pick one from the Tools list, click anywhere to place it, then drag to move or drag a corner to resize." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neu: Emoji-Sticker — das Sticker-Werkzeug stempelt Emojis auf einen Screenshot. Klick es in der Werkzeugliste an, um eines auszuwählen, und klick dann irgendwo auf das Bild, um es zu platzieren. Solange das Werkzeug aktiv ist, wird der Zeiger zu einer blassen Kopie des Emojis in genau der Größe, in der es landet — du siehst also vorab, was du setzt. Zieh einen Sticker, um ihn zu bewegen, zieh an einer Ecke, um seine Größe zu ändern, und drück Esc, um das Werkzeug wieder wegzulegen."
+            "value" : "Neu: Emoji-Sticker — das Sticker-Werkzeug stempelt Emojis auf einen Screenshot. Wähl eines in der Werkzeugliste, klick zum Platzieren irgendwo aufs Bild und zieh es dann zum Bewegen oder an einer Ecke zum Skalieren."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nouveau : autocollants emoji — l’outil Autocollant appose des emoji sur une capture. Cliquez dessus dans la liste des outils pour en choisir un, puis cliquez n’importe où sur l’image pour le placer. Tant que l’outil est actif, le pointeur devient une copie estompée de l’emoji à la taille qu’il aura, ce qui vous montre exactement ce que vous êtes sur le point de poser. Faites glisser un autocollant pour le déplacer, tirez un coin pour le redimensionner, et appuyez sur Échap pour ranger l’outil."
+            "value" : "Nouveau : autocollants emoji — l’outil Autocollant appose des emoji sur une capture. Choisissez-en un dans la liste des outils, cliquez n’importe où sur l’image pour le placer, puis faites-le glisser pour le déplacer ou tirez un coin pour le redimensionner."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新機能：絵文字ステッカー — ステッカーツールでスクリーンショットに絵文字を貼れます。ツールリストでクリックして絵文字を選び、画像の好きな場所をクリックすると配置されます。ツールが有効な間は、ポインタが実際に配置されるサイズの薄い絵文字になるので、何をどこに貼るのかがひと目で分かります。ドラッグで移動、角をドラッグしてサイズ変更、Escキーでツールを解除できます。"
+            "value" : "新機能：絵文字ステッカー — ステッカーツールでスクリーンショットに絵文字を貼れます。ツールリストで絵文字を選び、画像の好きな場所をクリックして配置し、ドラッグで移動、角のドラッグでサイズ変更ができます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Новое: эмодзи-стикеры — инструмент «Стикер» ставит эмодзи на снимок. Нажмите его в списке инструментов, чтобы выбрать эмодзи, а затем щёлкните в любом месте изображения, чтобы поставить его. Пока инструмент активен, указатель превращается в бледную копию эмодзи того же размера, каким оно будет, так что вы заранее видите, что именно ставите. Перетащите стикер, чтобы сдвинуть его, потяните за угол, чтобы изменить размер, и нажмите Esc, чтобы убрать инструмент."
+            "value" : "Новое: эмодзи-стикеры — инструмент «Стикер» ставит эмодзи на снимок. Выберите эмодзи в списке инструментов, щёлкните в любом месте изображения, чтобы поставить его, а потом перетащите, чтобы сдвинуть, или потяните за угол, чтобы изменить размер."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增：表情贴纸 — 贴纸工具可将 emoji 盖在截图上。在工具列表中点按它选择一个表情，然后点按图片上任意位置即可放置。工具处于启用状态时，指针会变成该表情的半透明预览，大小与实际放置的一致，你能清楚看到将要贴上的内容。拖动贴纸可移动，拖动边角可调整大小，按 Esc 键收起工具。"
+            "value" : "新增：表情贴纸 — 贴纸工具可将 emoji 盖在截图上。在工具列表中选择一个表情，点按图片上任意位置即可放置，之后拖动可移动，拖动边角可调整大小。"
           }
         }
       }
@@ -15544,36 +15545,36 @@
         }
       }
     },
-    "Your own background images have moved into a Custom Backgrounds category of their own, next to Gradients and Solid Colors, with its own + for adding more. Images you had already added are there waiting for you." : {
+    "Your own background images now have their own Custom Backgrounds category, next to Gradients and Solid Colors. Everything you had already added is still there." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Deine eigenen Hintergrundbilder sind in eine eigene Kategorie „Eigene Hintergründe“ umgezogen, direkt neben „Verläufe“ und „Einfarbig“, mit einem eigenen + zum Hinzufügen. Bereits hinzugefügte Bilder warten dort auf dich."
+            "value" : "Deine eigenen Hintergrundbilder haben jetzt eine eigene Kategorie „Eigene Hintergründe“, direkt neben „Verläufe“ und „Einfarbig“. Alles, was du schon hinzugefügt hattest, ist weiterhin da."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vos images d’arrière-plan personnelles ont migré vers une catégorie « Arrière-plans personnalisés » à part entière, à côté de « Dégradés » et « Couleurs unies », avec son propre + pour en ajouter. Les images que vous aviez déjà ajoutées vous y attendent."
+            "value" : "Vos images d’arrière-plan personnelles ont désormais leur propre catégorie « Arrière-plans personnalisés », à côté de « Dégradés » et « Couleurs unies ». Tout ce que vous aviez déjà ajouté s’y trouve toujours."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自分で追加した背景画像は、「グラデーション」「単色」と並ぶ独立したカテゴリ「カスタム背景」に移動しました。追加用の + もこのカテゴリにあります。これまでに追加した画像はそのまま残っています。"
+            "value" : "自分で追加した背景画像は、「グラデーション」「単色」と並ぶ独立したカテゴリ「カスタム背景」に移動しました。これまでに追加した画像はそのまま残っています。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ваши собственные фоновые изображения переехали в отдельную категорию «Свои фоны» — рядом с «Градиентами» и «Сплошными цветами», со своим знаком + для добавления новых. Всё, что вы добавили раньше, ждёт вас там."
+            "value" : "У ваших собственных фоновых изображений теперь есть отдельная категория «Свои фоны» — рядом с «Градиентами» и «Сплошными цветами». Всё, что вы добавили раньше, осталось на месте."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你自己添加的背景图片已移到独立的“自定背景”类别中，与“渐变”和“纯色”并列，并有专属的 + 用于继续添加。此前添加过的图片都还在那里。"
+            "value" : "你自己添加的背景图片现在有了独立的“自定背景”类别，与“渐变”和“纯色”并列。此前添加过的图片都还在。"
           }
         }
       }
@@ -15782,70 +15783,70 @@
         }
       }
     },
-    "New: Save a PDF page as an image — Save As on a PDF now offers PNG, JPEG, HEIC and the rest alongside PDF. Choosing PDF writes the whole document; choosing an image format writes the page you are editing, at the resolution of the bitmap embedded in it rather than its page size, so a 300 DPI scan exports at 300 DPI. The format popup tells you which of the two you are about to get." : {
+    "New: Save a PDF page as an image — Save As now offers PNG, JPEG, HEIC and the rest alongside PDF. PDF writes the whole document; an image format writes the current page at the resolution of the bitmap inside it, so a 300 DPI scan exports at 300 DPI." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neu: Eine PDF-Seite als Bild sichern — „Sichern unter“ bietet bei einem PDF jetzt PNG, JPEG, HEIC und die übrigen Formate neben PDF an. Mit PDF wird das ganze Dokument geschrieben; mit einem Bildformat die Seite, die du gerade bearbeitest — und zwar in der Auflösung der darin eingebetteten Bitmap statt in der Seitengröße, ein 300-dpi-Scan also mit 300 dpi. Das Format-Menü sagt dir, welches von beidem du bekommst."
+            "value" : "Neu: Eine PDF-Seite als Bild sichern — „Sichern unter“ bietet jetzt PNG, JPEG, HEIC und die übrigen Formate neben PDF an. PDF schreibt das ganze Dokument; ein Bildformat schreibt die aktuelle Seite in der Auflösung der darin eingebetteten Bitmap, ein 300-dpi-Scan also mit 300 dpi."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nouveau : enregistrer une page de PDF comme image — « Enregistrer sous » propose désormais PNG, JPEG, HEIC et les autres formats à côté de PDF. PDF écrit le document entier ; un format d’image écrit la page que vous modifiez, à la résolution du bitmap qu’elle contient plutôt qu’à la taille de la page — un scan à 300 ppp est donc exporté à 300 ppp. Le menu de format vous indique lequel des deux vous obtiendrez."
+            "value" : "Nouveau : enregistrer une page de PDF comme image — « Enregistrer sous » propose désormais PNG, JPEG, HEIC et les autres formats à côté de PDF. PDF écrit le document entier ; un format d’image écrit la page en cours à la résolution du bitmap qu’elle contient, un scan à 300 ppp est donc exporté à 300 ppp."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新機能：PDFのページを画像として保存 — PDFの「別名で保存」で、PDFに加えてPNG・JPEG・HEICなどを選べるようになりました。PDFを選べば文書全体が、画像形式を選べば編集中のページが書き出されます。しかもページサイズではなく、埋め込まれたビットマップの解像度で書き出されるので、300 dpiのスキャンは300 dpiのまま書き出せます。どちらになるかは形式メニューに表示されます。"
+            "value" : "新機能：PDFのページを画像として保存 — 「別名で保存」で、PDFに加えてPNG・JPEG・HEICなどを選べるようになりました。PDFなら文書全体、画像形式なら編集中のページが、埋め込まれたビットマップの解像度で書き出されます。300 dpiのスキャンは300 dpiのままです。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Новое: сохранение страницы PDF как изображения — в «Сохранить как» для PDF теперь есть PNG, JPEG, HEIC и остальные форматы наряду с PDF. Выбор PDF запишет весь документ, выбор графического формата — ту страницу, которую вы редактируете, причём в разрешении встроенного в неё растра, а не в размере страницы, так что скан 300 dpi сохранится в 300 dpi. Меню формата показывает, что именно вы получите."
+            "value" : "Новое: сохранение страницы PDF как изображения — в «Сохранить как» теперь есть PNG, JPEG, HEIC и остальные форматы наряду с PDF. PDF запишет весь документ, графический формат — текущую страницу в разрешении встроенного в неё растра, так что скан 300 dpi сохранится в 300 dpi."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增：将 PDF 页面存为图片 — PDF 的“存储为”现在除 PDF 外还提供 PNG、JPEG、HEIC 等格式。选择 PDF 会写入整个文稿；选择图片格式则写入你正在编辑的那一页，并且按其中嵌入位图的分辨率而非页面尺寸输出，因此 300 DPI 的扫描件会以 300 DPI 导出。格式菜单会告诉你将得到哪一种。"
+            "value" : "新增：将 PDF 页面存为图片 — “存储为”现在除 PDF 外还提供 PNG、JPEG、HEIC 等格式。选择 PDF 会写入整个文稿，选择图片格式则按页面中嵌入位图的分辨率写入当前页，因此 300 DPI 的扫描件会以 300 DPI 导出。"
           }
         }
       }
     },
-    "Fixed: saving a PDF you had annotated dropped its table of contents, while its links and document details came through fine. A change in macOS 27 was behind it, so it affected versions already released. Annotated PDFs now keep their contents entries, the same as unannotated ones always have." : {
+    "Fixed: annotated PDFs lost their table of contents when saved. A change in macOS 27 was behind it, so released versions were affected too; contents entries now survive." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Behoben: Beim Sichern eines PDFs, das du mit Anmerkungen versehen hattest, ging sein Inhaltsverzeichnis verloren, während Links und Dokumentangaben unversehrt ankamen. Ursache war eine Änderung in macOS 27, sie betraf also bereits veröffentlichte Versionen. Kommentierte PDFs behalten ihre Inhaltsverzeichnis-Einträge jetzt genauso wie unkommentierte seit jeher."
+            "value" : "Behoben: Kommentierte PDFs verloren beim Sichern ihr Inhaltsverzeichnis. Ursache war eine Änderung in macOS 27, sie betraf also auch bereits veröffentlichte Versionen; die Inhaltsverzeichnis-Einträge bleiben jetzt erhalten."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Corrigé : l’enregistrement d’un PDF que vous aviez annoté faisait disparaître sa table des matières, alors que ses liens et ses informations de document passaient sans encombre. Un changement dans macOS 27 en était la cause, ce qui touchait donc des versions déjà publiées. Les PDF annotés conservent désormais leurs entrées de table des matières, comme les PDF non annotés l’ont toujours fait."
+            "value" : "Corrigé : les PDF annotés perdaient leur table des matières à l’enregistrement. Un changement dans macOS 27 en était la cause, ce qui touchait aussi des versions déjà publiées ; les entrées de table des matières sont désormais conservées."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修正：注釈を加えたPDFを保存すると目次が失われていました（リンクや文書情報は正常に保持されていました）。原因はmacOS 26からmacOS 27への変更にあり、既に公開済みのバージョンにも影響していました。注釈付きPDFも、注釈なしのPDFと同じように目次を保持するようになりました。"
+            "value" : "修正：注釈を加えたPDFを保存すると目次が失われていました。原因はmacOS 27側の変更で、公開済みのバージョンにも影響していました。目次は保持されるようになりました。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Исправлено: при сохранении PDF с добавленными пометками терялось его оглавление, хотя ссылки и сведения о документе сохранялись. Причиной было изменение в macOS 27, так что это затрагивало и уже вышедшие версии. Теперь PDF с пометками сохраняют оглавление так же, как это всегда было с PDF без пометок."
+            "value" : "Исправлено: при сохранении PDF с пометками терялось оглавление. Причиной было изменение в macOS 27, так что это затрагивало и уже вышедшие версии; теперь оглавление сохраняется."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修复：保存添加过标注的 PDF 时，其目录会丢失，而链接和文稿信息却能正常保留。起因是 macOS 27 的一项变更，因此已发布的版本也受影响。现在带标注的 PDF 也会保留目录条目，与无标注的 PDF 一直以来的表现一致。"
+            "value" : "修复：带标注的 PDF 在保存时会丢失目录。起因是 macOS 27 的一项变更，已发布的版本也受影响；现在目录条目会保留。"
           }
         }
       }
@@ -15880,6 +15881,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "显示截图历史"
+          }
+        }
+      }
+    },
+    "New: Grain for your gradients — a Noise slider in the gradient editor lays a fine film grain over the whole gradient, which also smooths the faint banding wide gradients can show." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Körnung für deine Verläufe — ein Regler „Rauschen“ im Verlaufseditor legt eine feine Filmkörnung über den ganzen Verlauf und glättet nebenbei die zarten Streifen, die breite Verläufe zeigen können."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : du grain pour vos dégradés — un curseur Bruit dans l’éditeur de dégradé dépose un grain fin sur tout le dégradé et gomme au passage les légères bandes que peuvent laisser apparaître les dégradés larges."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：グラデーションにノイズ — グラデーションエディタの「ノイズ」スライダーが、グラデーション全体に細かなフィルムグレインをのせます。広いグラデーションに出がちな薄いバンディングもあわせてなめらかになります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: зерно для градиентов — ползунок «Шум» в редакторе градиентов накладывает мелкое плёночное зерно на весь градиент и заодно сглаживает едва заметные полосы, которые бывают видны на широких градиентах."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：为渐变添加噪点 — 渐变编辑器中的“噪点”滑块可在整个渐变上覆盖一层细腻的胶片颗粒，同时抹平大面积渐变容易出现的轻微色带。"
+          }
+        }
+      }
+    },
+    "Fixed: the Noise slider in Edit mode washed pictures out instead of graining them. Grain is now blended in properly, leaving tones and colours alone and falling strongest through the midtones." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behoben: Der Regler „Rauschen“ im Bearbeiten-Modus wusch das Bild aus, statt es zu körnen. Die Körnung wird jetzt richtig eingerechnet: Tonwerte und Farben bleiben, wie sie waren, und die Struktur liegt am stärksten in den Mitteltönen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigé : le curseur Bruit du mode Édition délavait l’image au lieu de la grainer. Le grain est désormais fondu correctement : vos tons et vos couleurs restent intacts, et la texture se concentre dans les tons moyens."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正：編集モードの「ノイズ」スライダーが、粒状感を加えるのではなく画像を白っぽく褪せさせていました。ノイズが正しく合成されるようになり、明暗と色はそのままに、中間調をいちばん強く粒立たせます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправлено: ползунок «Шум» в режиме редактирования обесцвечивал снимок, вместо того чтобы добавлять зерно. Теперь зерно смешивается правильно: тона и цвета остаются прежними, а текстура сильнее всего в средних тонах."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复：编辑模式中的“噪点”滑块并不会增加颗粒，而是把画面冲淡。现在噪点会正确融入画面：明暗和色彩保持原样，颗粒在中间调最为明显。"
           }
         }
       }

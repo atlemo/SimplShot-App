@@ -181,14 +181,16 @@ class TemplateRenderer {
             // Slow path: render the background and cache it
             switch template.wallpaperSource {
             case .builtInGradient(let gradient):
-                drawGradient(gradient.gradientDefinition, in: context, rect: canvasRect)
+                drawGradient(gradient.gradientDefinition, in: context,
+                             rect: canvasRect, backingScale: backingScale)
             case .customImage(let path):
                 try drawCustomImage(path: path, in: context, rect: canvasRect)
             case .customColor(let color):
                 context.setFillColor(color.cgColor)
                 context.fill(canvasRect)
             case .customGradient(let definition):
-                drawGradient(definition, in: context, rect: canvasRect)
+                drawGradient(definition, in: context,
+                             rect: canvasRect, backingScale: backingScale)
             }
             cachedBackgroundImage = context.makeImage()
             cachedBackgroundKey = bgKey
@@ -503,7 +505,8 @@ class TemplateRenderer {
     private func drawGradient(
         _ definition: GradientDefinition,
         in context: CGContext,
-        rect: CGRect
+        rect: CGRect,
+        backingScale: CGFloat
     ) {
         let cgColors = definition.colors.map { $0.cgColor }
 
@@ -511,6 +514,7 @@ class TemplateRenderer {
         if cgColors.count == 1, let color = cgColors.first {
             context.setFillColor(color)
             context.fill(rect)
+            drawGrain(definition, in: context, rect: rect, backingScale: backingScale)
             return
         }
 
@@ -525,6 +529,7 @@ class TemplateRenderer {
             context.interpolationQuality = .high
             context.draw(tile, in: rect)
             context.restoreGState()
+            drawGrain(definition, in: context, rect: rect, backingScale: backingScale)
             return
         }
 
@@ -536,6 +541,83 @@ class TemplateRenderer {
         ) else { return }
 
         draw(gradient, kind: definition.kind, angle: definition.angle, in: context, rect: rect)
+        drawGrain(definition, in: context, rect: rect, backingScale: backingScale)
+    }
+
+    /// Blends the gradient's grain over the canvas.
+    ///
+    /// ⚠️ Deliberately **after** the tile blit, not baked into the tile: the
+    /// 1024px tile is stretched to the canvas, which would stretch each grain
+    /// texel into a large rectangle (and a non-square one on a non-square
+    /// canvas). Grain is the one part of a gradient that must be rendered at
+    /// canvas resolution. It still lands inside the full-canvas background
+    /// cache above — `GradientDefinition.cacheKey` covers `noise` — so a
+    /// padding drag is unaffected.
+    private func drawGrain(
+        _ definition: GradientDefinition,
+        in context: CGContext,
+        rect: CGRect,
+        backingScale: CGFloat
+    ) {
+        guard definition.noise > 0 else { return }
+
+        var mask: CGImage?
+        if !definition.isOpaque {
+            // No mask, no grain — speckle left behind in a clear area is worse
+            // than a missing texture.
+            guard let alphaMask = gradientAlphaMask(definition) else { return }
+            mask = alphaMask
+        }
+
+        GrainTexture.draw(
+            amount: definition.noise,
+            backingScale: backingScale,
+            mask: mask,
+            in: context,
+            rect: rect
+        )
+    }
+
+    // Cache for the grain's alpha mask — the gradient's own alpha as a
+    // greyscale tile, stretched over the canvas by `clip(to:mask:)` exactly as
+    // the colour tile is. Only built for a gradient that is not fully opaque.
+    private var cachedGradientAlphaMask: CGImage?
+    private var cachedGradientAlphaMaskKey: String = ""
+
+    private func gradientAlphaMask(_ definition: GradientDefinition) -> CGImage? {
+        let key = definition.cacheKey
+        if key != cachedGradientAlphaMaskKey || cachedGradientAlphaMask == nil {
+            cachedGradientAlphaMask = renderGradientAlphaMask(definition)
+            cachedGradientAlphaMaskKey = key
+        }
+        return cachedGradientAlphaMask
+    }
+
+    private func renderGradientAlphaMask(_ definition: GradientDefinition) -> CGImage? {
+        let tileSize = 1024
+        let gray = CGColorSpaceCreateDeviceGray()
+        // Each stop's alpha as a grey level. `clip(to:mask:)` wants DeviceGray
+        // with no alpha channel of its own, so the alpha ramp is carried as
+        // luminance — and goes through the same `draw` as the colours, so the
+        // mask cannot describe a different shape than the gradient it masks.
+        let maskColors = definition.colors.map { CGColor(gray: $0.alpha, alpha: 1) }
+        guard let gradient = CGGradient(
+            colorsSpace: gray,
+            colors: maskColors as CFArray,
+            locations: definition.resolvedLocations
+        ), let ctx = CGContext(
+            data: nil,
+            width: tileSize,
+            height: tileSize,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: gray,
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else { return nil }
+
+        let tileRect = CGRect(x: 0, y: 0, width: tileSize, height: tileSize)
+        draw(gradient, kind: definition.kind, angle: definition.angle, in: ctx, rect: tileRect)
+        return ctx.makeImage()
     }
 
     /// Paints a prepared `CGGradient` across `rect`, linear along `angle` or
