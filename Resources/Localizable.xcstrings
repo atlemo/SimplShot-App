@@ -16021,36 +16021,70 @@
         }
       }
     },
-    "New: Save open images as one PDF — Save As now offers PDF for ordinary images too. With several images open, each one becomes a page of the document, in the order they sit in the page strip." : {
+    "New: Save open images as one PDF — pick PDF in Save As and every open image becomes a page." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neu: Offene Bilder als ein PDF sichern — „Sichern unter“ bietet PDF jetzt auch für gewöhnliche Bilder an. Sind mehrere Bilder geöffnet, wird jedes davon zu einer Seite des Dokuments, in der Reihenfolge der Seitenübersicht."
+            "value" : "Neu: Offene Bilder als ein PDF sichern — wählen Sie unter „Sichern unter“ PDF, und jedes geöffnete Bild wird zu einer Seite."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nouveau : enregistrer les images ouvertes en un seul PDF — « Enregistrer sous » propose désormais PDF pour les images ordinaires aussi. Si plusieurs images sont ouvertes, chacune devient une page du document, dans l’ordre de la bande de pages."
+            "value" : "Nouveau : enregistrer les images ouvertes en un seul PDF — choisissez PDF dans « Enregistrer sous » et chaque image ouverte devient une page."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新機能：開いている画像をまとめて 1 つの PDF に — 「別名で保存」で、通常の画像でも PDF を選べるようになりました。複数の画像を開いていれば、ページストリップの並び順どおりに、それぞれが文書の 1 ページになります。"
+            "value" : "新機能：開いている画像をまとめて 1 つの PDF に — 「別名で保存」で PDF を選ぶと、開いている画像がそれぞれ 1 ページになります。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Новое: сохранение открытых изображений в один PDF — в «Сохранить как» формат PDF теперь доступен и для обычных изображений. Если открыто несколько изображений, каждое станет страницей документа в том порядке, в каком они идут на панели страниц."
+            "value" : "Новое: сохранение открытых изображений в один PDF — выберите PDF в «Сохранить как», и каждое открытое изображение станет страницей."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增：将打开的图像存为一个 PDF — “存储为”现在也为普通图像提供 PDF。若同时打开了多张图像，每一张都会成为文稿中的一页，顺序与页面栏一致。"
+            "value" : "新增：将打开的图像存为一个 PDF — 在“存储为”中选择 PDF，每张打开的图像都会成为一页。"
+          }
+        }
+      }
+    },
+    "Fixed: pixelated areas flickered while dragging the Padding slider, and could keep showing the previous background after a change." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behoben: Verpixelte Bereiche flackerten beim Ziehen des Reglers „Innenabstand“ und zeigten nach einem Wechsel des Hintergrunds mitunter noch den vorherigen an."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigé : les zones pixellisées scintillaient pendant le glissement du curseur « Marge » et pouvaient continuer d’afficher l’arrière-plan précédent après un changement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正：「余白」スライダーのドラッグ中にモザイク部分がちらつき、背景を変えたあとも前の背景が残って見えることがありました。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправлено: пикселизованные области мерцали при перетаскивании ползунка «Отступы» и могли показывать прежний фон после его замены."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复：拖动“边距”滑块时像素化区域会闪烁，更换背景后还可能继续显示之前的背景。"
           }
         }
       }

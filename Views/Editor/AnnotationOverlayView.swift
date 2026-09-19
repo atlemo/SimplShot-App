@@ -657,6 +657,26 @@ struct StarShape: Shape {
 /// Downscales the crop to a tiny bitmap, then SwiftUI scales it back up with
 /// `.interpolation(.none)` to produce sharp pixel blocks.
 /// Falls back to a checkerboard placeholder when no source image is available.
+///
+/// This is the only annotation whose appearance is *sampled from the composited
+/// canvas* rather than drawn from its own geometry, which makes it the only one
+/// that has to care when the canvas is re-composed underneath it. Two rules keep
+/// that from turning into flicker during a template drag:
+///
+/// - The mosaic is produced **off the main thread**, and the one already on
+///   screen stays there until a complete replacement lands. `.task(id:)` cancels
+///   a sample that a newer one has superseded, so a burst of render commits
+///   settles into one sample instead of a queue of them.
+/// - A **new canvas** under a patch of unchanged size is a re-compose around it
+///   (a padding / alignment / ratio drag shifts the screenshot and the
+///   annotations together), so the pixels it covers are the same ones and the
+///   sample waits out the burst. Everything else — the user drawing, resizing or
+///   dragging the patch on a canvas that hasn't changed — re-samples at once.
+///
+/// ⚠️ The sample key includes the source image's identity. Keyed on the rect
+/// alone it went stale whenever the canvas changed without moving the patch —
+/// a new background, a corner-radius or photo-adjustment change — and showed a
+/// mosaic of the previous canvas until the patch was moved.
 private struct PixelatePreviewView: View {
     let sourceImage: NSImage?
     let imagePixelSize: CGSize       // CGImage pixel dimensions
@@ -664,80 +684,138 @@ private struct PixelatePreviewView: View {
     let pixelationScale: CGFloat
     let viewSize: CGSize             // display size in view points
 
-    // Cache key: rounded pixelRect + pixelationScale to avoid re-rendering on sub-pixel drag jitter
-    @State private var cachedImage: NSImage?
-    @State private var cacheKey: String = ""
+    /// The mosaic on screen, and what it was sampled from. Held across refreshes
+    /// so a re-sample never blanks the patch or drops it back to the placeholder.
+    @State private var mosaic: CGImage?
+    @State private var mosaicSample: Sample?
+
+    /// Everything that changes the sampled pixels: which canvas, which part of
+    /// it, and how coarse the blocks are. Rounded so sub-pixel drag jitter
+    /// doesn't re-sample.
+    private struct Sample: Equatable {
+        let image: ObjectIdentifier?
+        let x: Int, y: Int, width: Int, height: Int, block: Int
+    }
+
+    private var sample: Sample {
+        Sample(
+            image: sourceImage.map(ObjectIdentifier.init),
+            x: Int(pixelRect.minX), y: Int(pixelRect.minY),
+            width: Int(pixelRect.width), height: Int(pixelRect.height),
+            block: Int(pixelationScale)
+        )
+    }
 
     var body: some View {
-        let key = "\(Int(pixelRect.minX)),\(Int(pixelRect.minY)),\(Int(pixelRect.width)),\(Int(pixelRect.height)),\(Int(pixelationScale))"
-        if let cached = cachedImage, cacheKey == key {
-            Image(nsImage: cached)
+        content
+            .frame(width: viewSize.width, height: viewSize.height)
+            .task(id: sample) { await refreshMosaic() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let mosaic {
+            Image(decorative: mosaic, scale: 1)
                 .interpolation(.none)
                 .resizable()
-                .frame(width: viewSize.width, height: viewSize.height)
-        } else if let small = makePixelated() {
-            Image(nsImage: small)
+        } else if let first = makeMosaic() {
+            // First paint only: `.task` runs after this pass, and a placeholder
+            // flashing under a freshly placed patch is its own flicker. Every
+            // later sample comes from the task.
+            Image(decorative: first, scale: 1)
                 .interpolation(.none)
                 .resizable()
-                .frame(width: viewSize.width, height: viewSize.height)
-                .onAppear {
-                    cachedImage = small
-                    cacheKey = key
-                }
         } else {
-            // Fallback: deterministic checkerboard pattern
-            Canvas { ctx, size in
-                let bs = max(4.0, min(size.width, size.height) / 14.0)
-                var col = 0; var x = 0.0
-                while x < size.width {
-                    var row = 0; var y = 0.0
-                    while y < size.height {
-                        let b: CGFloat = (row + col) % 2 == 0 ? 0.55 : 0.38
-                        ctx.fill(
-                            Path(CGRect(x: x, y: y,
-                                        width: min(bs, size.width - x),
-                                        height: min(bs, size.height - y))),
-                            with: .color(.init(white: b, opacity: 0.75))
-                        )
-                        row += 1; y += bs
-                    }
-                    col += 1; x += bs
+            placeholder
+        }
+    }
+
+    /// Deterministic checkerboard, shown only when there is nothing to sample.
+    private var placeholder: some View {
+        Canvas { ctx, size in
+            let bs = max(4.0, min(size.width, size.height) / 14.0)
+            var col = 0; var x = 0.0
+            while x < size.width {
+                var row = 0; var y = 0.0
+                while y < size.height {
+                    let b: CGFloat = (row + col) % 2 == 0 ? 0.55 : 0.38
+                    ctx.fill(
+                        Path(CGRect(x: x, y: y,
+                                    width: min(bs, size.width - x),
+                                    height: min(bs, size.height - y))),
+                        with: .color(.init(white: b, opacity: 0.75))
+                    )
+                    row += 1; y += bs
                 }
+                col += 1; x += bs
             }
         }
     }
 
-    /// Crops the source image to `pixelRect` and downscales to blockSize-sized mosaic blocks.
-    /// Returns a tiny NSImage; SwiftUI's `.interpolation(.none)` makes it appear blocky.
-    private func makePixelated() -> NSImage? {
-        guard let img = sourceImage, imagePixelSize.width > 0, imagePixelSize.height > 0 else { return nil }
+    /// Samples a new mosaic for the current `sample`, off the main thread, and
+    /// swaps it in only once it is complete.
+    @MainActor
+    private func refreshMosaic() async {
+        let target = sample
+        guard let source = sourceCGImage() else {
+            mosaic = nil
+            mosaicSample = nil
+            return
+        }
 
-        // Scale factors from image-pixel space to NSImage point space.
-        // NSImage uses bottom-left origin; annotation uses top-left.
-        let sx = img.size.width  / imagePixelSize.width
-        let sy = img.size.height / imagePixelSize.height
+        // A different canvas with the patch still the same size is a re-compose
+        // around it — a padding / alignment / ratio drag shifts the screenshot
+        // and the annotations together, so the pixels under the patch are the
+        // same ones. Let the burst settle; the next sample cancels this sleep,
+        // so only the one the user stops on is actually taken.
+        //
+        // Gated on the canvas having changed, not just on the size: the user
+        // dragging the patch across a canvas that hasn't moved lands here too,
+        // and there the content really does change under it, every frame.
+        if let current = mosaicSample,
+           current.image != target.image,
+           current.width == target.width,
+           current.height == target.height,
+           current.block == target.block {
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            if Task.isCancelled { return }
+        }
 
-        let fromRect = NSRect(
-            x: pixelRect.minX * sx,
-            y: img.size.height - pixelRect.maxY * sy,   // flip Y to bottom-left
-            width:  pixelRect.width  * sx,
-            height: pixelRect.height * sy
-        )
-        guard fromRect.width > 0, fromRect.height > 0 else { return nil }
+        let rect = pixelRect
+        let block = pixelationScale
+        let produced = await Task.detached(priority: .userInitiated) {
+            Self.mosaic(from: source, pixelRect: rect, pixelationScale: block)
+        }.value
 
-        // Destination: one pixel per mosaic block
-        let blockSize = max(2, pixelationScale)
-        let smallW = max(1, Int(pixelRect.width  / blockSize))
-        let smallH = max(1, Int(pixelRect.height / blockSize))
+        if Task.isCancelled { return }
+        guard let produced else { return }
+        mosaic = produced
+        mosaicSample = target
+    }
 
-        let small = NSImage(size: NSSize(width: CGFloat(smallW), height: CGFloat(smallH)))
-        small.lockFocus()
-        img.draw(in: NSRect(x: 0, y: 0, width: CGFloat(smallW), height: CGFloat(smallH)),
-                 from: fromRect,
-                 operation: .copy,
-                 fraction: 1.0)
-        small.unlockFocus()
-        return small
+    /// The synchronous first paint (see `content`).
+    private func makeMosaic() -> CGImage? {
+        guard let source = sourceCGImage() else { return nil }
+        return Self.mosaic(from: source, pixelRect: pixelRect, pixelationScale: pixelationScale)
+    }
+
+    /// The canvas as a CGImage. `sourceImage` is always built from one bitmap
+    /// rep of exactly this size (`EditorView.commitDisplayImage`), so this hands
+    /// back that rep's image rather than re-scaling anything.
+    private func sourceCGImage() -> CGImage? {
+        guard let sourceImage, imagePixelSize.width > 0, imagePixelSize.height > 0 else { return nil }
+        return sourceImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    }
+
+    /// The preview's half of the mosaic, which is `PixelateMosaic`'s whole job —
+    /// the export fills the same blocks from the same helper.
+    nonisolated private static func mosaic(
+        from source: CGImage,
+        pixelRect: CGRect,
+        pixelationScale: CGFloat
+    ) -> CGImage? {
+        let rect = PixelateMosaic.sampledRect(pixelRect, in: source)
+        return PixelateMosaic.downsample(source, rect: rect, blockScale: pixelationScale)
     }
 }
 

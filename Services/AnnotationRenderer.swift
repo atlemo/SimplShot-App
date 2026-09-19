@@ -761,30 +761,10 @@ class AnnotationRenderer {
     /// and anchors its grid at `inputCenter`, so the exported blocks land in
     /// different places with different colors than the preview showed.
     private func drawPixelate(annotationRect: CGRect, scale: CGFloat, from sourceImage: CGImage, imageHeight: Int, in context: CGContext) {
-        let imageBounds = CGRect(x: 0, y: 0, width: sourceImage.width, height: sourceImage.height)
-        let pixelRect = annotationRect.intersection(imageBounds)
-        guard !pixelRect.isEmpty else { return }
-
-        // CGImage.cropping uses the image's own top-left-origin space — same as
-        // the annotation rect, no flip needed.
-        guard let cropped = sourceImage.cropping(to: pixelRect) else { return }
-
-        // One pixel per mosaic block — identical formula to the preview.
-        let blockSize = max(2, scale)
-        let smallW = max(1, Int(pixelRect.width / blockSize))
-        let smallH = max(1, Int(pixelRect.height / blockSize))
-        guard let smallCtx = CGContext(
-            data: nil,
-            width: smallW,
-            height: smallH,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return }
-        smallCtx.interpolationQuality = .high
-        smallCtx.draw(cropped, in: CGRect(x: 0, y: 0, width: smallW, height: smallH))
-        guard let smallImage = smallCtx.makeImage() else { return }
+        let pixelRect = PixelateMosaic.sampledRect(annotationRect, in: sourceImage)
+        guard !pixelRect.isEmpty,
+              let smallImage = PixelateMosaic.downsample(sourceImage, rect: pixelRect, blockScale: scale)
+        else { return }
 
         // Scale back up with interpolation off so the blocks stay sharp.
         let destY = CGFloat(imageHeight) - pixelRect.maxY
@@ -1081,5 +1061,53 @@ class AnnotationRenderer {
         context.textPosition = .zero
         CTLineDraw(line, context)
         context.restoreGState()
+    }
+}
+
+
+// MARK: - Pixelate Mosaic
+
+/// The mosaic behind the pixelate tool, shared by the on-canvas preview
+/// (`PixelatePreviewView`) and the export (`AnnotationRenderer.drawPixelate`).
+///
+/// One source, because the two have to agree block for block and the comment
+/// claiming they did was wrong for years: the preview built its mosaic with
+/// `NSImage.lockFocus()`, which renders at the *screen's* backing scale, so a
+/// 10×6-block mosaic came back 20×12 pixels (measured) and every block arrived
+/// as four unequal ones. It was also AppKit drawing, which pinned sampling to
+/// the main thread; this is plain CoreGraphics and runs anywhere.
+enum PixelateMosaic {
+
+    /// The part of `annotationRect` that actually lies on the image. Empty when
+    /// the annotation is entirely outside it.
+    static func sampledRect(_ annotationRect: CGRect, in source: CGImage) -> CGRect {
+        let bounds = CGRect(x: 0, y: 0, width: source.width, height: source.height)
+        return annotationRect.intersection(bounds)
+    }
+
+    /// Crops `source` to `rect` and downscales to one pixel per mosaic block.
+    /// Draw the result back at `rect`'s size with `interpolationQuality = .none`
+    /// (CoreGraphics) or `.interpolation(.none)` (SwiftUI) for sharp blocks.
+    ///
+    /// `rect` is in the image's own top-left-origin space — the same space
+    /// annotations live in, so no flip is needed on either side.
+    static func downsample(_ source: CGImage, rect: CGRect, blockScale: CGFloat) -> CGImage? {
+        guard !rect.isEmpty, let cropped = source.cropping(to: rect) else { return nil }
+
+        let blockSize = max(2, blockScale)
+        let smallW = max(1, Int(rect.width / blockSize))
+        let smallH = max(1, Int(rect.height / blockSize))
+        guard let context = CGContext(
+            data: nil,
+            width: smallW,
+            height: smallH,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.interpolationQuality = .high
+        context.draw(cropped, in: CGRect(x: 0, y: 0, width: smallW, height: smallH))
+        return context.makeImage()
     }
 }

@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-09-17 (1.7.7)
+## 2026-09-19 (1.7.7)
 
 ### Build Your Own Gradients
 The **+** in the Gradients list now opens a gradient editor instead of a file picker. Pick linear or radial, set the angle, and add as many colour stops as you like: drag them along the ramp, or type an exact position, hex value and opacity. Clicking the ramp inserts a stop in the colour that is already there, so nothing jumps, and there are buttons to reverse the stops or turn the whole thing 90°. Saved gradients sit alongside the built-in ones and can be edited or deleted from their right-click menu. They work anywhere a background does — in templates, and on captures taken with one.
@@ -22,6 +22,12 @@ While the tool is active the pointer becomes a faded copy of the emoji at the si
 
 ### Save a PDF Page as an Image
 Save As on a PDF now offers PNG, JPEG, HEIC and the rest alongside PDF. Choosing PDF writes the whole document as before; choosing an image format writes the page you are editing, at the resolution of the bitmap actually embedded in it rather than its much smaller page size — so a 300 DPI scan exports at 300 DPI, not at 72. The format popup says which of the two you are about to get. Exporting a page as an image leaves the editor open, since the PDF itself is still unsaved.
+
+### Save Open Images as One PDF
+Save As on a window of images now offers PDF alongside the image formats. Pick it and every open image becomes a page of one document, in the order the thumbnails sit in. Every other format still writes only the image you are editing — with more than one open, the format popup now says which of the two you are about to get. Each page is sized at its image's own resolution, and annotations, backgrounds and adjustments are all drawn in, so the document looks exactly like the editor did. A PDF that happens to be open in the same window keeps its own pages as text rather than pictures of text.
+
+### Fixed: Pixelation Flickered While Dragging Padding
+A pixelated area flickered while the Padding slider moved. Pixelation is the one annotation drawn from the picture underneath it rather than from its own shape, so it was being rebuilt from scratch on every frame of the drag, in step with the canvas being rebuilt around it. It is now rebuilt in the background and only swapped in once it is ready, and it is left alone entirely while padding moves — the pixels it covers do not change, only where it sits. The same fix cures a pixelated area that could keep showing the previous background after you changed it. Pixelation on the canvas now also matches the saved file exactly; it had been drawing each block slightly soft on Retina displays.
 
 ### Fixed: Annotated PDFs Lost Their Table of Contents
 Saving a PDF you had annotated dropped its table of contents. Links and document details came through fine, so the loss was easy to miss until you went looking for the contents. This one was not SimplShot's doing: macOS 27 changed PDFKit so that it no longer writes an outline onto a document built the way the annotated save path builds one, which meant already-released versions started losing outlines as people upgraded. Annotated PDFs now keep their contents entries, exactly as unannotated ones always have.
