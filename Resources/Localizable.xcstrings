@@ -15952,6 +15952,108 @@
           }
         }
       }
+    },
+    "All images, one per page" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Bilder, eines pro Seite"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toutes les images, une par page"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての画像を1ページに1枚ずつ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все изображения, по одному на страницу"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有图像，每页一张"
+          }
+        }
+      }
+    },
+    "Current image only" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur aktuelles Bild"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image actuelle uniquement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の画像のみ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только текущее изображение"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅当前图像"
+          }
+        }
+      }
+    },
+    "New: Save open images as one PDF — Save As now offers PDF for ordinary images too. With several images open, each one becomes a page of the document, in the order they sit in the page strip." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Offene Bilder als ein PDF sichern — „Sichern unter“ bietet PDF jetzt auch für gewöhnliche Bilder an. Sind mehrere Bilder geöffnet, wird jedes davon zu einer Seite des Dokuments, in der Reihenfolge der Seitenübersicht."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : enregistrer les images ouvertes en un seul PDF — « Enregistrer sous » propose désormais PDF pour les images ordinaires aussi. Si plusieurs images sont ouvertes, chacune devient une page du document, dans l’ordre de la bande de pages."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：開いている画像をまとめて 1 つの PDF に — 「別名で保存」で、通常の画像でも PDF を選べるようになりました。複数の画像を開いていれば、ページストリップの並び順どおりに、それぞれが文書の 1 ページになります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: сохранение открытых изображений в один PDF — в «Сохранить как» формат PDF теперь доступен и для обычных изображений. Если открыто несколько изображений, каждое станет страницей документа в том порядке, в каком они идут на панели страниц."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：将打开的图像存为一个 PDF — “存储为”现在也为普通图像提供 PDF。若同时打开了多张图像，每一张都会成为文稿中的一页，顺序与页面栏一致。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

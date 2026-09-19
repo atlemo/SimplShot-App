@@ -25,6 +25,7 @@ let whatsNewEntries: [WhatsNewEntry] = [
         "New: Drag pages between windows — drag a thumbnail out of one editor window and drop it into another to copy the page, or hold ⌥ while dropping to move it instead.",
         "Your own background images now have their own Custom Backgrounds category, next to Gradients and Solid Colors. Everything you had already added is still there.",
         "New: Save a PDF page as an image — Save As now offers PNG, JPEG, HEIC and the rest alongside PDF. PDF writes the whole document; an image format writes the current page at the resolution of the bitmap inside it, so a 300 DPI scan exports at 300 DPI.",
+        "New: Save open images as one PDF — Save As now offers PDF for ordinary images too. With several images open, each one becomes a page of the document, in the order they sit in the page strip.",
         "Fixed: annotated PDFs lost their table of contents when saved. A change in macOS 27 was behind it, so released versions were affected too; contents entries now survive.",
         "Fixed: the Templates menu named a template even when no background was applied. It now reads None, and choosing None removes the background and watermark while keeping padding and corners.",
         "Fixed: text ran out the side of a bubble while editing if you had set its width by hand. The editor now wraps exactly as the finished bubble does.",

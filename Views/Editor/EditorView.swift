@@ -4900,17 +4900,28 @@ struct EditorView: View {
             default:             sourceType = .jpeg
             }
             // Offer every supported raster format via an accessory popup,
-            // defaulting to the source image's format (first entry).
+            // defaulting to the source image's format (first entry). PDF goes
+            // last: it's the odd one out — the only format here that writes
+            // every open image rather than the one being edited.
             var formats = Self.rasterSaveFormats()
             if let idx = formats.firstIndex(where: { $0.type == sourceType }) {
                 formats.insert(formats.remove(at: idx), at: 0)
             }
+            formats.append(.init(label: "PDF", type: .pdf, ext: "pdf"))
 
             let baseName = imageURL.deletingPathExtension().lastPathComponent
             panel.nameFieldStringValue = baseName
             panel.allowedContentTypes = [formats[0].type]
 
-            let picker = SaveFormatPicker(formats: formats, panel: panel)
+            // With one image open every format writes the same single picture,
+            // so the caption would only state the obvious.
+            let imageCount = sessions.count
+            let picker = SaveFormatPicker(formats: formats, panel: panel) { format in
+                guard imageCount > 1 else { return nil }
+                return format.type == .pdf
+                    ? String(localized: "All images, one per page")
+                    : String(localized: "Current image only")
+            }
             panel.accessoryView = picker.makeAccessoryView()
             formatPicker = picker
         }
@@ -4943,6 +4954,15 @@ struct EditorView: View {
                 // every other page.
                 requestReviewIfEligible()
                 return
+            } else if savingAsPDF {
+                // A window of images saved as one document: every open image
+                // becomes a page, in strip order.
+                saveActiveSessionState()
+                try PDFExportService.exportImagesAsPDF(
+                    sessions: sessions,
+                    backingScale: displayBackingScale,
+                    to: url
+                )
             } else {
                 try exportAndSave(to: url)
             }
