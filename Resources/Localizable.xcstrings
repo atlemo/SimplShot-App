@@ -1228,6 +1228,74 @@
         }
       }
     },
+    "All images, one per page" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Bilder, eines pro Seite"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toutes les images, une par page"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての画像を1ページに1枚ずつ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все изображения, по одному на страницу"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有图像，每页一张"
+          }
+        }
+      }
+    },
+    "All pages" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Seiten"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toutes les pages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてのページ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все страницы"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有页面"
+          }
+        }
+      }
+    },
     "All unsaved annotations and adjustments will be lost." : {
       "localizations" : {
         "de" : {
@@ -1258,6 +1326,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "所有未保存的标注和调整都将丢失。"
+          }
+        }
+      }
+    },
+    "Amber" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bernstein"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ambre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アンバー"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Янтарный"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "琥珀色"
           }
         }
       }
@@ -2123,6 +2225,7 @@
       }
     },
     "Blue" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2152,6 +2255,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "蓝色"
+          }
+        }
+      }
+    },
+    "Blush" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zartrosa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rosé pâle"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラッシュ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пудровый"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "腮红粉"
           }
         }
       }
@@ -3381,6 +3518,40 @@
         }
       }
     },
+    "Cobalt" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kobalt"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cobalt"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コバルト"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кобальтовый"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "钴蓝"
+          }
+        }
+      }
+    },
     "Collapse section" : {
       "localizations" : {
         "de" : {
@@ -3891,6 +4062,40 @@
         }
       }
     },
+    "Cream" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creme"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crème"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリーム"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кремовый"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "奶油色"
+          }
+        }
+      }
+    },
     "Create Gradient" : {
       "localizations" : {
         "de" : {
@@ -4062,6 +4267,40 @@
         }
       }
     },
+    "Current image only" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur aktuelles Bild"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image actuelle uniquement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の画像のみ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только текущее изображение"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅当前图像"
+          }
+        }
+      }
+    },
     "Curved" : {
       "localizations" : {
         "de" : {
@@ -4228,6 +4467,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自定图像"
+          }
+        }
+      }
+    },
+    "Cyan" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cyan"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cyan"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シアン"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Голубой"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "青色"
           }
         }
       }
@@ -6419,6 +6692,74 @@
         }
       }
     },
+    "Fixed: annotated PDFs lost their table of contents when saved. A change in macOS 27 was behind it, so released versions were affected too; contents entries now survive." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behoben: Kommentierte PDFs verloren beim Sichern ihr Inhaltsverzeichnis. Ursache war eine Änderung in macOS 27, sie betraf also auch bereits veröffentlichte Versionen; die Inhaltsverzeichnis-Einträge bleiben jetzt erhalten."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigé : les PDF annotés perdaient leur table des matières à l’enregistrement. Un changement dans macOS 27 en était la cause, ce qui touchait aussi des versions déjà publiées ; les entrées de table des matières sont désormais conservées."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正：注釈を加えたPDFを保存すると目次が失われていました。原因はmacOS 27側の変更で、公開済みのバージョンにも影響していました。目次は保持されるようになりました。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправлено: при сохранении PDF с пометками терялось оглавление. Причиной было изменение в macOS 27, так что это затрагивало и уже вышедшие версии; теперь оглавление сохраняется."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复：带标注的 PDF 在保存时会丢失目录。起因是 macOS 27 的一项变更，已发布的版本也受影响；现在目录条目会保留。"
+          }
+        }
+      }
+    },
+    "Fixed: pixelated areas flickered while dragging the Padding slider, and could keep showing the previous background after a change." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behoben: Verpixelte Bereiche flackerten beim Ziehen des Reglers „Innenabstand“ und zeigten nach einem Wechsel des Hintergrunds mitunter noch den vorherigen an."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigé : les zones pixellisées scintillaient pendant le glissement du curseur « Marge » et pouvaient continuer d’afficher l’arrière-plan précédent après un changement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正：「余白」スライダーのドラッグ中にモザイク部分がちらつき、背景を変えたあとも前の背景が残って見えることがありました。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправлено: пикселизованные области мерцали при перетаскивании ползунка «Отступы» и могли показывать прежний фон после его замены."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复：拖动“边距”滑块时像素化区域会闪烁，更换背景后还可能继续显示之前的背景。"
+          }
+        }
+      }
+    },
     "Fixed: text ran out the side of a bubble while editing if you had set its width by hand. The editor now wraps exactly as the finished bubble does." : {
       "localizations" : {
         "de" : {
@@ -6449,6 +6790,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修复：编辑曾手动设定过宽度的气泡时，文字会从侧边溢出。编辑器现在与完成后的气泡采用完全相同的换行方式。"
+          }
+        }
+      }
+    },
+    "Fixed: the Noise slider in Edit mode washed pictures out instead of graining them. Grain is now blended in properly, leaving tones and colours alone and falling strongest through the midtones." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behoben: Der Regler „Rauschen“ im Bearbeiten-Modus wusch das Bild aus, statt es zu körnen. Die Körnung wird jetzt richtig eingerechnet: Tonwerte und Farben bleiben, wie sie waren, und die Struktur liegt am stärksten in den Mitteltönen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigé : le curseur Bruit du mode Édition délavait l’image au lieu de la grainer. Le grain est désormais fondu correctement : vos tons et vos couleurs restent intacts, et la texture se concentre dans les tons moyens."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正：編集モードの「ノイズ」スライダーが、粒状感を加えるのではなく画像を白っぽく褪せさせていました。ノイズが正しく合成されるようになり、明暗と色はそのままに、中間調をいちばん強く粒立たせます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправлено: ползунок «Шум» в режиме редактирования обесцвечивал снимок, вместо того чтобы добавлять зерно. Теперь зерно смешивается правильно: тона и цвета остаются прежними, а текстура сильнее всего в средних тонах."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复：编辑模式中的“噪点”滑块并不会增加颗粒，而是把画面冲淡。现在噪点会正确融入画面：明暗和色彩保持原样，颗粒在中间调最为明显。"
           }
         }
       }
@@ -7099,7 +7474,42 @@
         }
       }
     },
+    "Graphite" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Graphit"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Graphite"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グラファイト"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Графитовый"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "石墨灰"
+          }
+        }
+      }
+    },
     "Gray" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7134,6 +7544,7 @@
       }
     },
     "Green" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7238,6 +7649,40 @@
         }
       }
     },
+    "Highlight" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markieren"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Surligner"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ハイライト"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выделение"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高亮"
+          }
+        }
+      }
+    },
     "Highlights" : {
       "localizations" : {
         "de" : {
@@ -7336,6 +7781,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密码错误"
+          }
+        }
+      }
+    },
+    "Iris" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iris"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iris"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アイリス"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ирис"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鸢尾紫"
+          }
+        }
+      }
+    },
+    "Jade" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jade"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jade"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ジェイド"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нефритовый"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "玉绿"
           }
         }
       }
@@ -7884,6 +8397,40 @@
         }
       }
     },
+    "Magenta" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magenta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magenta"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マゼンタ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пурпурный"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "洋红"
+          }
+        }
+      }
+    },
     "Make SimplShot Default ❤️" : {
       "localizations" : {
         "de" : {
@@ -8220,6 +8767,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "缺失"
+          }
+        }
+      }
+    },
+    "Mist" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nebel"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brume"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ミスト"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Туманный"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雾灰"
           }
         }
       }
@@ -8633,6 +9214,40 @@
         }
       }
     },
+    "New: Grain for your gradients — a Noise slider in the gradient editor lays a fine film grain over the whole gradient, which also smooths the faint banding wide gradients can show." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Körnung für deine Verläufe — ein Regler „Rauschen“ im Verlaufseditor legt eine feine Filmkörnung über den ganzen Verlauf und glättet nebenbei die zarten Streifen, die breite Verläufe zeigen können."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : du grain pour vos dégradés — un curseur Bruit dans l’éditeur de dégradé dépose un grain fin sur tout le dégradé et gomme au passage les légères bandes que peuvent laisser apparaître les dégradés larges."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：グラデーションにノイズ — グラデーションエディタの「ノイズ」スライダーが、グラデーション全体に細かなフィルムグレインをのせます。広いグラデーションに出がちな薄いバンディングもあわせてなめらかになります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: зерно для градиентов — ползунок «Шум» в редакторе градиентов накладывает мелкое плёночное зерно на весь градиент и заодно сглаживает едва заметные полосы, которые бывают видны на широких градиентах."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：为渐变添加噪点 — 渐变编辑器中的“噪点”滑块可在整个渐变上覆盖一层细腻的胶片颗粒，同时抹平大面积渐变容易出现的轻微色带。"
+          }
+        }
+      }
+    },
     "New: Hide the menu bar icon — Settings › General can take SimplShot's icon out of your menu bar, leaving your keyboard shortcuts to do the work. The app keeps running: open it from Spotlight and the menu appears for as long as you need it, then hides itself again. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the idea." : {
       "localizations" : {
         "de" : {
@@ -8697,6 +9312,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新功能：整理 PDF 页面 — 页面栏现在可以添加、删除和重新排序页面。将 PDF 或图像拖到页面栏，即可在放下的位置插入其页面；点击缩略图上的 × 删除页面；拖动缩略图调整顺序。所有页面更改都可以用 ⌘Z 撤销，在你保存之前文件不会被修改。"
+          }
+        }
+      }
+    },
+    "New: Save a PDF page as an image — Save As now offers PNG, JPEG, HEIC and the rest alongside PDF. PDF writes the whole document; an image format writes the current page at the resolution of the bitmap inside it, so a 300 DPI scan exports at 300 DPI." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Eine PDF-Seite als Bild sichern — „Sichern unter“ bietet jetzt PNG, JPEG, HEIC und die übrigen Formate neben PDF an. PDF schreibt das ganze Dokument; ein Bildformat schreibt die aktuelle Seite in der Auflösung der darin eingebetteten Bitmap, ein 300-dpi-Scan also mit 300 dpi."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : enregistrer une page de PDF comme image — « Enregistrer sous » propose désormais PNG, JPEG, HEIC et les autres formats à côté de PDF. PDF écrit le document entier ; un format d’image écrit la page en cours à la résolution du bitmap qu’elle contient, un scan à 300 ppp est donc exporté à 300 ppp."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：PDFのページを画像として保存 — 「別名で保存」で、PDFに加えてPNG・JPEG・HEICなどを選べるようになりました。PDFなら文書全体、画像形式なら編集中のページが、埋め込まれたビットマップの解像度で書き出されます。300 dpiのスキャンは300 dpiのままです。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: сохранение страницы PDF как изображения — в «Сохранить как» теперь есть PNG, JPEG, HEIC и остальные форматы наряду с PDF. PDF запишет весь документ, графический формат — текущую страницу в разрешении встроенного в неё растра, так что скан 300 dpi сохранится в 300 dpi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：将 PDF 页面存为图片 — “存储为”现在除 PDF 外还提供 PNG、JPEG、HEIC 等格式。选择 PDF 会写入整个文稿，选择图片格式则按页面中嵌入位图的分辨率写入当前页，因此 300 DPI 的扫描件会以 300 DPI 导出。"
+          }
+        }
+      }
+    },
+    "New: Save open images as one PDF — pick PDF in Save As and every open image becomes a page." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Offene Bilder als ein PDF sichern — wählen Sie unter „Sichern unter“ PDF, und jedes geöffnete Bild wird zu einer Seite."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : enregistrer les images ouvertes en un seul PDF — choisissez PDF dans « Enregistrer sous » et chaque image ouverte devient une page."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：開いている画像をまとめて 1 つの PDF に — 「別名で保存」で PDF を選ぶと、開いている画像がそれぞれ 1 ページになります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: сохранение открытых изображений в один PDF — выберите PDF в «Сохранить как», и каждое открытое изображение станет страницей."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：将打开的图像存为一个 PDF — 在“存储为”中选择 PDF，每张打开的图像都会成为一页。"
           }
         }
       }
@@ -9347,6 +10030,40 @@
         }
       }
     },
+    "Ochre" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocker"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オーカー"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Охра"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "赭色"
+          }
+        }
+      }
+    },
     "OCR capture failed: %@" : {
       "localizations" : {
         "de" : {
@@ -9824,6 +10541,7 @@
       }
     },
     "Orange" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9955,6 +10673,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第 %@ 页"
+          }
+        }
+      }
+    },
+    "Page %lld of %lld" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seite %1$lld von %2$lld"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page %1$lld sur %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$lldページ中 %1$lldページ目"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Страница %1$lld из %2$lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %1$lld 页，共 %2$lld 页"
           }
         }
       }
@@ -10163,7 +10915,42 @@
         }
       }
     },
+    "Petal" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blütenrosa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pétale"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ペタル"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лепестковый"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "花瓣粉"
+          }
+        }
+      }
+    },
     "Pink" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -10504,6 +11291,7 @@
       }
     },
     "Purple" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -10810,6 +11598,7 @@
       }
     },
     "Red" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -11486,6 +12275,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "右"
+          }
+        }
+      }
+    },
+    "Rose" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rosé"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rose"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローズ"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Розовый"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "玫瑰色"
           }
         }
       }
@@ -12987,6 +13810,40 @@
         }
       }
     },
+    "Show Capture History" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aufnahmeverlauf anzeigen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher l’historique des captures"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャプチャ履歴を表示"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать историю снимков"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示截图历史"
+          }
+        }
+      }
+    },
     "Show in Finder" : {
       "localizations" : {
         "de" : {
@@ -13017,6 +13874,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在访达中显示"
+          }
+        }
+      }
+    },
+    "Silver" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Silber"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Argent"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シルバー"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Серебристый"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "银色"
           }
         }
       }
@@ -14182,6 +15073,40 @@
         }
       }
     },
+    "Teal" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Petrol"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sarcelle"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ティール"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бирюзовый"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "青绿"
+          }
+        }
+      }
+    },
     "Temperature" : {
       "localizations" : {
         "de" : {
@@ -14998,6 +15923,40 @@
         }
       }
     },
+    "Vermilion" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zinnober"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vermillon"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バーミリオン"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Киноварь"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "朱红"
+          }
+        }
+      }
+    },
     "Version %@" : {
       "localizations" : {
         "de" : {
@@ -15512,6 +16471,7 @@
       }
     },
     "Yellow" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -15711,380 +16671,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "缩放以适合"
-          }
-        }
-      }
-    },
-    "All pages" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Alle Seiten"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Toutes les pages"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "すべてのページ"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Все страницы"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所有页面"
-          }
-        }
-      }
-    },
-    "Page %lld of %lld" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seite %1$lld von %2$lld"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Page %1$lld sur %2$lld"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%2$lldページ中 %1$lldページ目"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Страница %1$lld из %2$lld"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "第 %1$lld 页，共 %2$lld 页"
-          }
-        }
-      }
-    },
-    "New: Save a PDF page as an image — Save As now offers PNG, JPEG, HEIC and the rest alongside PDF. PDF writes the whole document; an image format writes the current page at the resolution of the bitmap inside it, so a 300 DPI scan exports at 300 DPI." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neu: Eine PDF-Seite als Bild sichern — „Sichern unter“ bietet jetzt PNG, JPEG, HEIC und die übrigen Formate neben PDF an. PDF schreibt das ganze Dokument; ein Bildformat schreibt die aktuelle Seite in der Auflösung der darin eingebetteten Bitmap, ein 300-dpi-Scan also mit 300 dpi."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau : enregistrer une page de PDF comme image — « Enregistrer sous » propose désormais PNG, JPEG, HEIC et les autres formats à côté de PDF. PDF écrit le document entier ; un format d’image écrit la page en cours à la résolution du bitmap qu’elle contient, un scan à 300 ppp est donc exporté à 300 ppp."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新機能：PDFのページを画像として保存 — 「別名で保存」で、PDFに加えてPNG・JPEG・HEICなどを選べるようになりました。PDFなら文書全体、画像形式なら編集中のページが、埋め込まれたビットマップの解像度で書き出されます。300 dpiのスキャンは300 dpiのままです。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новое: сохранение страницы PDF как изображения — в «Сохранить как» теперь есть PNG, JPEG, HEIC и остальные форматы наряду с PDF. PDF запишет весь документ, графический формат — текущую страницу в разрешении встроенного в неё растра, так что скан 300 dpi сохранится в 300 dpi."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增：将 PDF 页面存为图片 — “存储为”现在除 PDF 外还提供 PNG、JPEG、HEIC 等格式。选择 PDF 会写入整个文稿，选择图片格式则按页面中嵌入位图的分辨率写入当前页，因此 300 DPI 的扫描件会以 300 DPI 导出。"
-          }
-        }
-      }
-    },
-    "Fixed: annotated PDFs lost their table of contents when saved. A change in macOS 27 was behind it, so released versions were affected too; contents entries now survive." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Behoben: Kommentierte PDFs verloren beim Sichern ihr Inhaltsverzeichnis. Ursache war eine Änderung in macOS 27, sie betraf also auch bereits veröffentlichte Versionen; die Inhaltsverzeichnis-Einträge bleiben jetzt erhalten."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Corrigé : les PDF annotés perdaient leur table des matières à l’enregistrement. Un changement dans macOS 27 en était la cause, ce qui touchait aussi des versions déjà publiées ; les entrées de table des matières sont désormais conservées."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修正：注釈を加えたPDFを保存すると目次が失われていました。原因はmacOS 27側の変更で、公開済みのバージョンにも影響していました。目次は保持されるようになりました。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Исправлено: при сохранении PDF с пометками терялось оглавление. Причиной было изменение в macOS 27, так что это затрагивало и уже вышедшие версии; теперь оглавление сохраняется."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修复：带标注的 PDF 在保存时会丢失目录。起因是 macOS 27 的一项变更，已发布的版本也受影响；现在目录条目会保留。"
-          }
-        }
-      }
-    },
-    "Show Capture History" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aufnahmeverlauf anzeigen"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Afficher l’historique des captures"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "キャプチャ履歴を表示"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Показать историю снимков"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示截图历史"
-          }
-        }
-      }
-    },
-    "New: Grain for your gradients — a Noise slider in the gradient editor lays a fine film grain over the whole gradient, which also smooths the faint banding wide gradients can show." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neu: Körnung für deine Verläufe — ein Regler „Rauschen“ im Verlaufseditor legt eine feine Filmkörnung über den ganzen Verlauf und glättet nebenbei die zarten Streifen, die breite Verläufe zeigen können."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau : du grain pour vos dégradés — un curseur Bruit dans l’éditeur de dégradé dépose un grain fin sur tout le dégradé et gomme au passage les légères bandes que peuvent laisser apparaître les dégradés larges."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新機能：グラデーションにノイズ — グラデーションエディタの「ノイズ」スライダーが、グラデーション全体に細かなフィルムグレインをのせます。広いグラデーションに出がちな薄いバンディングもあわせてなめらかになります。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новое: зерно для градиентов — ползунок «Шум» в редакторе градиентов накладывает мелкое плёночное зерно на весь градиент и заодно сглаживает едва заметные полосы, которые бывают видны на широких градиентах."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增：为渐变添加噪点 — 渐变编辑器中的“噪点”滑块可在整个渐变上覆盖一层细腻的胶片颗粒，同时抹平大面积渐变容易出现的轻微色带。"
-          }
-        }
-      }
-    },
-    "Fixed: the Noise slider in Edit mode washed pictures out instead of graining them. Grain is now blended in properly, leaving tones and colours alone and falling strongest through the midtones." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Behoben: Der Regler „Rauschen“ im Bearbeiten-Modus wusch das Bild aus, statt es zu körnen. Die Körnung wird jetzt richtig eingerechnet: Tonwerte und Farben bleiben, wie sie waren, und die Struktur liegt am stärksten in den Mitteltönen."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Corrigé : le curseur Bruit du mode Édition délavait l’image au lieu de la grainer. Le grain est désormais fondu correctement : vos tons et vos couleurs restent intacts, et la texture se concentre dans les tons moyens."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修正：編集モードの「ノイズ」スライダーが、粒状感を加えるのではなく画像を白っぽく褪せさせていました。ノイズが正しく合成されるようになり、明暗と色はそのままに、中間調をいちばん強く粒立たせます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Исправлено: ползунок «Шум» в режиме редактирования обесцвечивал снимок, вместо того чтобы добавлять зерно. Теперь зерно смешивается правильно: тона и цвета остаются прежними, а текстура сильнее всего в средних тонах."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修复：编辑模式中的“噪点”滑块并不会增加颗粒，而是把画面冲淡。现在噪点会正确融入画面：明暗和色彩保持原样，颗粒在中间调最为明显。"
-          }
-        }
-      }
-    },
-    "All images, one per page" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Alle Bilder, eines pro Seite"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Toutes les images, une par page"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "すべての画像を1ページに1枚ずつ"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Все изображения, по одному на страницу"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所有图像，每页一张"
-          }
-        }
-      }
-    },
-    "Current image only" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nur aktuelles Bild"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Image actuelle uniquement"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現在の画像のみ"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Только текущее изображение"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "仅当前图像"
-          }
-        }
-      }
-    },
-    "New: Save open images as one PDF — pick PDF in Save As and every open image becomes a page." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neu: Offene Bilder als ein PDF sichern — wählen Sie unter „Sichern unter“ PDF, und jedes geöffnete Bild wird zu einer Seite."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau : enregistrer les images ouvertes en un seul PDF — choisissez PDF dans « Enregistrer sous » et chaque image ouverte devient une page."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新機能：開いている画像をまとめて 1 つの PDF に — 「別名で保存」で PDF を選ぶと、開いている画像がそれぞれ 1 ページになります。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новое: сохранение открытых изображений в один PDF — выберите PDF в «Сохранить как», и каждое открытое изображение станет страницей."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增：将打开的图像存为一个 PDF — 在“存储为”中选择 PDF，每张打开的图像都会成为一页。"
-          }
-        }
-      }
-    },
-    "Fixed: pixelated areas flickered while dragging the Padding slider, and could keep showing the previous background after a change." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Behoben: Verpixelte Bereiche flackerten beim Ziehen des Reglers „Innenabstand“ und zeigten nach einem Wechsel des Hintergrunds mitunter noch den vorherigen an."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Corrigé : les zones pixellisées scintillaient pendant le glissement du curseur « Marge » et pouvaient continuer d’afficher l’arrière-plan précédent après un changement."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修正：「余白」スライダーのドラッグ中にモザイク部分がちらつき、背景を変えたあとも前の背景が残って見えることがありました。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Исправлено: пикселизованные области мерцали при перетаскивании ползунка «Отступы» и могли показывать прежний фон после его замены."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修复：拖动“边距”滑块时像素化区域会闪烁，更换背景后还可能继续显示之前的背景。"
           }
         }
       }

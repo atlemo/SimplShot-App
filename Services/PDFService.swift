@@ -17,6 +17,88 @@ extension PDFPage {
             : CGSize(width: box.height, height: box.width)
     }
 
+    /// Transform mapping this page's user space into a **y-up** content space
+    /// of `size` — exactly the placement `page.draw(with: .mediaBox, to:)`
+    /// produces in a context scaled from the page's point size to `size`.
+    ///
+    /// It bakes in a non-zero media-box origin and the page's `/Rotate`, which
+    /// a plain fit scale ignores. Anything positioned against rendered glyphs —
+    /// the live view's selection/search highlights, a mouse point resolved back
+    /// to page space, a text highlight's bands — has to go through this, or it
+    /// lands off the text on exactly the pages that carry either.
+    func contentTransform(for size: CGSize) -> CGAffineTransform {
+        let pointSize = rotatedMediaBoxSize
+        guard size.width > 0, size.height > 0,
+              pointSize.width > 0, pointSize.height > 0 else { return .identity }
+        let scale = CGAffineTransform(scaleX: size.width / pointSize.width,
+                                      y: size.height / pointSize.height)
+        guard let cgPage = pageRef else { return scale }
+        // `getDrawingTransform` CLAMPS scale at 1.0 for a rect larger than the
+        // page (it centres the page instead of scaling up), so asking it for the
+        // target rect directly leaves everything at 1× — correct only at 100%
+        // zoom. Ask it only for the scale-1 normalisation, where it is exact,
+        // and apply our own scale on top.
+        let normalize = cgPage.getDrawingTransform(.mediaBox,
+                                                   rect: CGRect(origin: .zero, size: pointSize),
+                                                   rotate: 0,
+                                                   preserveAspectRatio: false)
+        return normalize.concatenating(scale)
+    }
+
+    /// Transform mapping this page's user space into **image-pixel space** —
+    /// `size` units with a top-left origin, the space annotations are stored in.
+    /// `contentTransform` plus the y-flip.
+    func imagePixelTransform(for size: CGSize) -> CGAffineTransform {
+        contentTransform(for: size)
+            .concatenating(CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: size.height))
+    }
+
+    /// The text bands a drag from `start` to `end` covers, in image-pixel space.
+    ///
+    /// Resolves the drag against the page's text layer, so the bands snap to the
+    /// lines of text the user swept over rather than to the raw drag rectangle.
+    /// Returns nil when the drag covers no text — a scanned page with no text
+    /// layer, or a sweep across a figure or a margin — and the caller falls back
+    /// to a plain marker band.
+    ///
+    /// ⚠️ `PDFPage.selection(from:to:)` snaps to the NEAREST text rather than
+    /// returning nil when the drag misses: measured on a 400×300 page whose only
+    /// text sits near the top, a drag along the bottom margin still came back
+    /// with "Highli". Taking that at face value put ink on a line the user never
+    /// swept, several inches from the cursor. So the resolved lines have to be
+    /// checked against where the drag actually happened: unless at least one
+    /// band overlaps the swept rectangle, this is not a text highlight.
+    ///
+    /// The test is "at least one", not "keep the ones that overlap" — a sweep
+    /// down a narrow column of a paragraph legitimately selects whole lines, and
+    /// a short last line can fall entirely outside the drag's x range. Dropping
+    /// it would leave a hole in the middle of a multi-line highlight.
+    func textHighlightBands(from start: CGPoint, to end: CGPoint,
+                            imagePixelSize: CGSize) -> [CGRect]? {
+        let toImage = imagePixelTransform(for: imagePixelSize)
+        guard toImage.a * toImage.d - toImage.b * toImage.c != 0 else { return nil }
+        let toPage = toImage.inverted()
+
+        let selection = selection(from: start.applying(toPage), to: end.applying(toPage))
+        guard let selection, selection.string?.isEmpty == false else { return nil }
+
+        let pageRect = bounds(for: .mediaBox)
+        let bands = selection.selectionsByLine().compactMap { line -> CGRect? in
+            let r = line.bounds(for: self).intersection(pageRect)
+            guard !r.isNull, r.width > 0, r.height > 0 else { return nil }
+            return r.applying(toImage)
+        }
+        // Inset outward: a swipe along a line of text is the ordinary highlight
+        // gesture and has zero height, and `CGRect.intersects` is false for an
+        // empty rect — so the literal swept rect would reject every flat drag
+        // and send the most common gesture down the marker fallback.
+        let swept = CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
+                           width: abs(end.x - start.x), height: abs(end.y - start.y))
+            .insetBy(dx: -1, dy: -1)
+        guard bands.contains(where: { $0.intersects(swept) }) else { return nil }
+        return bands
+    }
+
     /// Pixel dimensions of the largest bitmap image embedded directly in the
     /// page's `/XObject` resources, or nil for a pure-vector page.
     ///

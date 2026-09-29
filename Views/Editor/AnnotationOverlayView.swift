@@ -317,6 +317,24 @@ struct AnnotationOverlayView: View {
             }
             .position(x: rect.midX, y: rect.midY)
 
+        case .highlight:
+            // The ink itself is painted by `HighlightInkLayer`, which sits on
+            // the image layer so it can be MULTIPLIED into the page. Only the
+            // selection chrome belongs here — one outline per band, because a
+            // highlight over several text lines does not fill its own bounding
+            // box and a single box around it would claim area it hasn't inked.
+            if isSelected {
+                ForEach(Array(annotation.highlightRects.enumerated()), id: \.offset) { _, band in
+                    let r = CGRect(x: band.minX * scale, y: band.minY * scale,
+                                   width: band.width * scale, height: band.height * scale)
+                    RoundedRectangle(cornerRadius: HighlightGeometry.cornerRadius(for: r),
+                                     style: .continuous)
+                        .stroke(Color.accentColor, lineWidth: 1.5)
+                        .frame(width: r.width, height: r.height)
+                        .position(x: r.midX, y: r.midY)
+                }
+            }
+
         case .select, .textSelect, .crop:
             EmptyView()
         }
@@ -359,7 +377,9 @@ struct AnnotationOverlayView: View {
             HandleDot(center: CGPoint(x: cx - bubbleW / 2, y: cy))
             HandleDot(center: CGPoint(x: cx + bubbleW / 2, y: cy))
 
-        case .freeDraw, .numberedStep:
+        case .freeDraw, .numberedStep, .highlight:
+            // Highlight bands are snapped to text lines; a corner resize would
+            // pull them off the words they mark. Move or delete instead.
             EmptyView()
 
         case .select, .textSelect, .crop:
@@ -816,6 +836,88 @@ private struct PixelatePreviewView: View {
     ) -> CGImage? {
         let rect = PixelateMosaic.sampledRect(pixelRect, in: source)
         return PixelateMosaic.downsample(source, rect: rect, blockScale: pixelationScale)
+    }
+}
+
+// MARK: - Highlighter Ink
+
+/// Every highlight's ink in ONE layer, so the whole set can be blended into the
+/// page with a single blend applied by the canvas.
+///
+/// Multiply is what makes this read as a marker: black text stays black
+/// (0 × anything = 0) and the white paper takes the ink colour. Compositing the
+/// same colour over the page instead lightens every glyph it covers toward the
+/// ink, which is the washed-out look source-over gives a highlighter.
+///
+/// A **dark** ink cannot work that way — leaving black text black under a dark
+/// band means black on dark blue. Those bands instead invert what is under
+/// them, `1 − (1 − C)·S`, which needs two blends: this layer draws the ink
+/// pass, and `HighlightKnockoutLayer` draws the inverting pass on top of it.
+/// The export does the identical pair in `AnnotationRenderer.drawHighlights`.
+///
+/// A `Canvas` rather than stacked shape views: a page-wide highlight can be
+/// dozens of bands, and they are plain filled rects with no per-band state.
+struct HighlightInkLayer: View, Equatable {
+    let highlights: [Annotation]
+    /// View points per image pixel.
+    let scale: CGFloat
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.scale == rhs.scale && lhs.highlights == rhs.highlights
+    }
+
+    var body: some View {
+        Canvas(opaque: false) { context, _ in
+            for annotation in highlights {
+                // A knock-out band multiplies by the ink's COMPLEMENT; the
+                // second layer inverts that back onto the ink colour.
+                let color = annotation.highlightKnocksOutText
+                    ? HighlightGeometry.complement(annotation.highlightColor)
+                    : annotation.highlightColor
+                for band in annotation.highlightRects {
+                    // Positions and dimensions both scale by `scale` here: a
+                    // band is image *geometry*, not a style dimension, so it
+                    // does not take the DPI multiplier that stroke widths do.
+                    context.fill(
+                        HighlightInkLayer.path(band, scale: scale),
+                        with: .color(color)
+                    )
+                }
+            }
+        }
+    }
+
+    static func path(_ band: CGRect, scale: CGFloat) -> Path {
+        let rect = CGRect(x: band.minX * scale, y: band.minY * scale,
+                          width: band.width * scale, height: band.height * scale)
+        return Path(roundedRect: rect,
+                    cornerRadius: HighlightGeometry.cornerRadius(for: rect),
+                    style: .continuous)
+    }
+}
+
+/// The second half of a dark highlight: white filled with `.difference`, which
+/// inverts the multiplied result underneath — turning the page back into the
+/// ink colour and the black text into white.
+///
+/// Only dark bands are drawn here, and the canvas omits the layer entirely when
+/// there are none, so an ordinary yellow marker still costs exactly one blend.
+struct HighlightKnockoutLayer: View, Equatable {
+    let highlights: [Annotation]
+    let scale: CGFloat
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.scale == rhs.scale && lhs.highlights == rhs.highlights
+    }
+
+    var body: some View {
+        Canvas(opaque: false) { context, _ in
+            for annotation in highlights where annotation.highlightKnocksOutText {
+                for band in annotation.highlightRects {
+                    context.fill(HighlightInkLayer.path(band, scale: scale), with: .color(.white))
+                }
+            }
+        }
     }
 }
 

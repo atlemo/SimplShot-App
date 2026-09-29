@@ -120,6 +120,15 @@ struct EditorCanvasView: View {
     @State private var isShiftKeyDown: Bool = false
     @State private var flagsMonitor: Any?
 
+    /// Text recognized in the current canvas, so the highlight tool can snap to
+    /// words on a screenshot the way it snaps to a PDF's own text layer.
+    /// Recomputed whenever the canvas image changes — see `refreshTextLayer`.
+    @State private var textLayer: RecognizedTextLayer?
+    /// Which canvas `textLayer` was recognized from. A re-compose (padding,
+    /// background, adjustments) produces a new image and shifts annotations
+    /// with it, so boxes from the previous one are wrong, not merely stale.
+    @State private var textLayerKey: TextLayerKey?
+
     /// The emoji cursor for the sticker tool, or nil when it shouldn't show.
     /// Cached rather than rebuilt per body pass so the cursor keeps a stable
     /// object identity — `StickerCursorOverlay` re-applies only on a real change.
@@ -127,6 +136,101 @@ struct EditorCanvasView: View {
     /// What `stickerCursor` was built from, so an unchanged emoji + size is a
     /// no-op instead of a fresh `NSCursor` every layout pass.
     @State private var stickerCursorKey: String?
+
+    /// Every highlight to paint in the blended ink layer: the committed ones
+    /// (minus any being dragged, which the live proxy redraws), the drag proxy
+    /// itself, and the band under construction. Highlights are the one
+    /// annotation drawn outside `AnnotationOverlayView` — see the ink overlay.
+    private var highlightInk: [Annotation] {
+        var list = annotations.filter { $0.tool == .highlight && $0.id != draggingAnnotationID }
+        if let dragging = draggingAnnotation, dragging.tool == .highlight { list.append(dragging) }
+        if let pending = pendingAnnotation, pending.tool == .highlight { list.append(pending) }
+        return list
+    }
+
+    /// Identity of the canvas a recognized text layer belongs to.
+    struct TextLayerKey: Equatable, Hashable {
+        let image: ObjectIdentifier
+        let width: CGFloat
+        let height: CGFloat
+    }
+
+    /// True while the highlight tool is the one that would use a text layer.
+    /// Recognition is driven by the tool being armed rather than by the image
+    /// loading: OCR on every image a user merely opens is work almost none of
+    /// them asked for, and arming the tool happens far enough before the drag
+    /// (the pointer still has to travel to the text) that the layer is ready.
+    private var wantsTextLayer: Bool {
+        currentTool == .highlight && editorMode == .annotate && !isCropping
+    }
+
+    private var textLayerTaskKey: TextLayerKey? {
+        guard wantsTextLayer else { return nil }
+        return TextLayerKey(image: ObjectIdentifier(image),
+                            width: imagePixelSize.width, height: imagePixelSize.height)
+    }
+
+    /// Recognizes the current canvas, unless a PDF page already carries real
+    /// text — a born-digital page's own layer is exact, and OCR of its raster
+    /// could only be worse. A **scanned** page has no text layer at all, so it
+    /// takes this path like any screenshot.
+    private func refreshTextLayer() async {
+        guard let key = textLayerTaskKey else { return }
+        if let page = pdfPageSource?.page, page.string?.isEmpty == false { return }
+        guard textLayerKey != key else { return }
+
+        // A padding or adjustment drag commits a new canvas many times a
+        // second. `.task(id:)` cancels the superseded pass, and this settling
+        // delay keeps a burst of them from starting Vision at all.
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        guard !Task.isCancelled else { return }
+
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+        let recognized = await TextLayerRecognizer.recognize(cgImage, imagePixelSize: imagePixelSize)
+        guard !Task.isCancelled, textLayerTaskKey == key else { return }
+        textLayer = recognized
+        textLayerKey = key
+    }
+
+    /// The text layer for the canvas as it is right now, or nil if what we have
+    /// was recognized from a different one.
+    private var currentTextLayer: RecognizedTextLayer? {
+        guard let textLayer, textLayerKey == textLayerTaskKey else { return nil }
+        return textLayer
+    }
+
+    /// The bands a highlight drag covers, in image-pixel space. Three tiers,
+    /// most authoritative first:
+    ///
+    /// 1. the PDF page's own text layer — exact glyph positions;
+    /// 2. text recognized from the canvas — a screenshot, or a scanned page;
+    /// 3. a plain marker band, so a sweep over a figure or a blank area still
+    ///    inks where the user swept.
+    private func highlightBands(from start: CGPoint, to end: CGPoint) -> [CGRect] {
+        if let page = pdfPageSource?.page,
+           let bands = page.textHighlightBands(from: start, to: end,
+                                               imagePixelSize: imagePixelSize) {
+            return bands
+        }
+        if let bands = currentTextLayer?.bands(from: start, to: end) {
+            return bands
+        }
+        return [HighlightGeometry.markerBand(from: start, to: end,
+                                            dpiScaleFactor: dpiScaleFactor)]
+    }
+
+    /// Re-resolves a highlight's bands for the current drag extent. The drag
+    /// anchor comes from the gesture (`value.startLocation`), not from the
+    /// annotation: `startPoint` holds the BOUNDS of the snapped bands, which
+    /// jumps to the start of a text line and is not where the drag began.
+    private func updateHighlight(_ annotation: inout Annotation,
+                                 from start: CGPoint, to end: CGPoint) {
+        let bands = highlightBands(from: start, to: end)
+        let bounds = HighlightGeometry.bounds(of: bands)
+        annotation.points = HighlightGeometry.points(from: bands)
+        annotation.startPoint = CGPoint(x: bounds.minX, y: bounds.minY)
+        annotation.endPoint = CGPoint(x: bounds.maxX, y: bounds.maxY)
+    }
 
     private var canvasWidth: CGFloat { imagePixelSize.width * scale }
     private var canvasHeight: CGFloat { imagePixelSize.height * scale }
@@ -199,6 +303,35 @@ struct EditorCanvasView: View {
                 }
             }
             .shadow(color: .black.opacity(0.5 * shadowIntensity), radius: 60 * shadowIntensity, x: 0, y: 28 * shadowIntensity)
+            // Highlighter ink, blended into the page with MULTIPLY so the text
+            // under it stays black instead of being tinted toward the ink colour
+            // — source-over lightens every glyph it covers (the same reason film
+            // grain is an overlay blend rather than a composite).
+            //
+            // It must be an overlay on the image layer, not a case in the
+            // annotation ZStack below: that stack is `.clipped()`, which puts it
+            // in its own compositing group, where a blend mode has nothing but
+            // transparency to blend against and silently does nothing.
+            .overlay(
+                HighlightInkLayer(highlights: highlightInk, scale: scale)
+                    .frame(width: canvasWidth, height: canvasHeight)
+                    .blendMode(.multiply)
+                    .allowsHitTesting(false)
+            )
+            // Second pass for dark inks only — inverts what the pass above
+            // produced, so their text comes out white instead of staying black.
+            // Omitted entirely when no highlight is dark, keeping the ordinary
+            // marker at one blend.
+            .overlay(
+                Group {
+                    if highlightInk.contains(where: { $0.highlightKnocksOutText }) {
+                        HighlightKnockoutLayer(highlights: highlightInk, scale: scale)
+                            .frame(width: canvasWidth, height: canvasHeight)
+                            .blendMode(.difference)
+                    }
+                }
+                .allowsHitTesting(false)
+            )
             .overlay(
                 Group {
                     if showBorderOutline {
@@ -239,6 +372,7 @@ struct EditorCanvasView: View {
                 stickerCursor = nil
                 stickerCursorKey = nil
             }
+            .task(id: textLayerTaskKey) { await refreshTextLayer() }
             .onAppear { refreshStickerCursor() }
             .onChange(of: currentTool) { _, _ in refreshStickerCursor() }
             .onChange(of: currentStickerEmoji) { _, _ in refreshStickerCursor() }
@@ -490,6 +624,13 @@ struct EditorCanvasView: View {
                                 points: [startInImage, currentInImage],
                                 style: currentStyle
                             )
+                        } else if currentTool == .highlight {
+                            var band = Annotation(tool: .highlight,
+                                                  startPoint: startInImage,
+                                                  endPoint: currentInImage,
+                                                  style: currentStyle)
+                            updateHighlight(&band, from: startInImage, to: currentInImage)
+                            pendingAnnotation = band
                         } else {
                             pendingAnnotation = Annotation(
                                 tool: currentTool,
@@ -513,7 +654,12 @@ struct EditorCanvasView: View {
                     applyDragDelta(currentInImage)
                 } else if pendingAnnotation != nil {
                     let tool = pendingAnnotation?.tool
-                    if tool == .freeDraw {
+                    if tool == .highlight {
+                        if var band = pendingAnnotation {
+                            updateHighlight(&band, from: startInImage, to: currentInImage)
+                            pendingAnnotation = band
+                        }
+                    } else if tool == .freeDraw {
                         if let last = pendingAnnotation?.points.last {
                             // Reduce jitter by only storing points that moved enough.
                             if dist(last, currentInImage) >= 2.0 {
@@ -632,7 +778,7 @@ struct EditorCanvasView: View {
                                      y: ann.startPoint.y + dy)
             ann.endPoint   = CGPoint(x: ann.endPoint.x + dx,
                                      y: ann.endPoint.y + dy)
-            if !ann.points.isEmpty {   // freeDraw stroke / angle vertex
+            if !ann.points.isEmpty {   // freeDraw stroke / angle vertex / highlight bands
                 ann.points = ann.points.map {
                     CGPoint(x: $0.x + dx, y: $0.y + dy)
                 }
@@ -658,7 +804,7 @@ struct EditorCanvasView: View {
                 ann.startPoint.y += snapDy
                 ann.endPoint.x += snapDx
                 ann.endPoint.y += snapDy
-                if !ann.points.isEmpty {   // freeDraw stroke / angle vertex
+                if !ann.points.isEmpty {   // freeDraw stroke / angle vertex / highlight bands
                     ann.points = ann.points.map {
                         CGPoint(x: $0.x + snapDx, y: $0.y + snapDy)
                     }
@@ -1083,6 +1229,14 @@ struct EditorCanvasView: View {
                     return annotation.id
                 }
 
+            case .highlight:
+                // Each band separately, not their union: a highlight spanning
+                // several text lines leaves the margins and any short last line
+                // uncovered, and those gaps belong to whatever is underneath.
+                if annotation.highlightRects.contains(where: { $0.contains(point) }) {
+                    return annotation.id
+                }
+
             case .text:
                 let fs = annotation.style.fontSize
 
@@ -1466,25 +1620,13 @@ final class _PDFPageNSView: NSView {
     /// (`scaleBy(sx, sy)` + `page.draw`) produces. It bakes in the page's
     /// `/Rotate` and a non-zero media-box origin, so highlights and the
     /// mouse→page-space mapping track the rendered glyphs at any zoom.
+    ///
+    /// `PDFPage.contentTransform(for:)` is the one implementation — the
+    /// highlight tool maps text bands into image-pixel space through the same
+    /// helper, so the selection drawn here and the ink that gets exported
+    /// cannot disagree about where a line of text sits.
     private func pageDrawingTransform() -> CGAffineTransform {
-        guard bounds.width > 0, bounds.height > 0,
-              pdfPointSize.width > 0, pdfPointSize.height > 0 else { return .identity }
-        // The zoom scale: page point size → the (possibly enlarged) view bounds.
-        // Identical to the `sx`/`sy` the render path applies in `draw`.
-        let scale = CGAffineTransform(scaleX: bounds.width / pdfPointSize.width,
-                                      y: bounds.height / pdfPointSize.height)
-        guard let cgPage = page?.pageRef else { return scale }
-        // `getDrawingTransform` captures the media-box origin and /Rotate, but it
-        // CLAMPS scale at 1.0 for a rect larger than the page (it centres the page
-        // instead of scaling up). Calling it with `rect: bounds` therefore left
-        // highlights/hit-testing at 1× — correct only at 100% zoom, off above it.
-        // So ask it only for the scale-1 normalisation (rect == the page's own
-        // point size, where it's exact) and apply our own zoom `scale` on top.
-        let normalize = cgPage.getDrawingTransform(.mediaBox,
-                                                   rect: CGRect(origin: .zero, size: pdfPointSize),
-                                                   rotate: 0,
-                                                   preserveAspectRatio: false)
-        return normalize.concatenating(scale)
+        page?.contentTransform(for: bounds.size) ?? .identity
     }
 
     // MARK: - Text Selection

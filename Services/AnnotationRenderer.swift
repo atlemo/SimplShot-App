@@ -101,7 +101,11 @@ class AnnotationRenderer {
         context.translateBy(x: 0, y: CGFloat(height))
         context.scaleBy(x: 1, y: -1)
 
-        // 3. Spotlight dim first (pixelate was already drawn before the flip,
+        // 3. Highlighter ink, under everything else and multiplied into the
+        //    page — see `drawHighlights`.
+        drawHighlights(annotations, in: context)
+
+        // 3b. Spotlight dim (pixelate was already drawn before the flip,
         //    so it appears as image content being dimmed).
         let spotlightAnnotations = annotations.filter { $0.tool == .spotlight }
         if !spotlightAnnotations.isEmpty {
@@ -211,6 +215,8 @@ class AnnotationRenderer {
         context.scaleBy(x: 1, y: -1)
         // Map pixel-space coordinates into point-space output.
         context.scaleBy(x: 1.0 / backingScale, y: 1.0 / backingScale)
+
+        drawHighlights(annotations, in: context)
 
         let spotlightAnnotations = annotations.filter { $0.tool == .spotlight }
         if !spotlightAnnotations.isEmpty {
@@ -376,10 +382,64 @@ class AnnotationRenderer {
             drawNumberedStep(annotation.stepNumber, at: annotation.startPoint, style: annotation.style, in: context)
         case .sticker:
             drawSticker(annotation.text, in: annotation.boundingRect, in: context)
+        case .highlight:
+            break // Drawn in its own multiplied pass (see drawHighlights)
         case .select, .textSelect, .crop, .pixelate:
             break // Not drawn here (.pixelate is handled before the coordinate flip)
         }
 
+        context.restoreGState()
+    }
+
+    /// Highlighter ink for every `.highlight`, in one pass beneath the other
+    /// annotations and blended with **multiply**.
+    ///
+    /// Multiply is the whole point of the tool: black text stays black
+    /// (0 × anything = 0) while the paper takes the ink colour. Compositing the
+    /// same colour over the page lightens every glyph it covers toward the ink —
+    /// the washed-out look source-over gives a highlighter, and the same
+    /// mistake film grain made before it became an overlay blend.
+    ///
+    /// `HighlightInkLayer` paints the identical rects and radii in the live
+    /// preview, at `× scale` instead of image space; the radius is a fixed
+    /// fraction of a band's height, which is linear in scale, so the two agree
+    /// at any zoom. Bands are image geometry and take no `styleScale`.
+    ///
+    /// The context is expected to be in flipped (top-left origin) image-pixel
+    /// space, like the rest of the annotation drawing.
+    private func drawHighlights(_ annotations: [Annotation], in context: CGContext) {
+        let highlights = annotations.filter { $0.tool == .highlight }
+        guard !highlights.isEmpty else { return }
+
+        context.saveGState()
+        for annotation in highlights {
+            let bands = annotation.highlightRects
+            guard !bands.isEmpty else { continue }
+
+            func fill(_ color: CGColor, blend: CGBlendMode) {
+                context.setBlendMode(blend)
+                context.setFillColor(color)
+                for band in bands {
+                    let radius = HighlightGeometry.cornerRadius(for: band)
+                    context.addPath(CGPath(roundedRect: band,
+                                           cornerWidth: radius, cornerHeight: radius,
+                                           transform: nil))
+                    context.fillPath()
+                }
+            }
+
+            if annotation.highlightKnocksOutText {
+                // result = 1 − (1 − C)·S, in two standard blends: multiply the
+                // page by the ink's complement, then invert what that produced.
+                // White paper lands back on C (the band still shows the picked
+                // colour) and black text lands on white.
+                fill(NSColor(HighlightGeometry.complement(annotation.highlightColor)).cgColor,
+                     blend: .multiply)
+                fill(CGColor.white, blend: .difference)
+            } else {
+                fill(annotation.cgHighlightColor, blend: .multiply)
+            }
+        }
         context.restoreGState()
     }
 

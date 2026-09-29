@@ -752,7 +752,9 @@ struct EditorView: View {
         let hasEdits = anySessionHasEdits
         if isPDFDone { return String(localized: "Done") }
         if isMulti { return hasEdits ? String(localized: "Save All") : String(localized: "Done") }
-        return hasEdits ? String(localized: "Save & Copy") : String(localized: "Copy")
+        // A pending crop is committed by this button (see `commitPendingCrop`),
+        // which makes it a save — say so before the click, not after.
+        return hasEdits || isCropping ? String(localized: "Save & Copy") : String(localized: "Copy")
     }
 
     private var saveActionHelp: String {
@@ -2030,6 +2032,16 @@ struct EditorView: View {
     }
 
     // MARK: - Crop
+
+    /// Commits an in-progress crop before anything reads the display image for
+    /// export. Mid-crop the display isn't cropped yet — and with a wallpaper it
+    /// is expanded to the full screenshot — so exporting it wrote the uncropped
+    /// image. `applyCrop` already falls back to `cancelCrop` for an unchanged
+    /// selection.
+    private func commitPendingCrop() {
+        guard isCropping else { return }
+        applyCrop()
+    }
 
     private func applyCrop() {
         flushPendingDisplayRender()
@@ -4661,6 +4673,7 @@ struct EditorView: View {
 
     /// Copies the current image to the clipboard without dismissing the editor.
     private func copyToClipboardSilent() {
+        commitPendingCrop()
         flushPendingDisplayRender()
         let renderer = AnnotationRenderer()
         renderer.styleScale = dpiScaleFactor
@@ -4735,6 +4748,7 @@ struct EditorView: View {
     }
 
     private func saveOverwrite() {
+        commitPendingCrop()
         do {
             flushPendingDisplayRender()
             saveActiveSessionState()
@@ -4845,6 +4859,7 @@ struct EditorView: View {
     }
 
     private func saveAs() {
+        commitPendingCrop()
         flushPendingDisplayRender()
 
         let panel = NSSavePanel()
@@ -5056,6 +5071,7 @@ struct EditorView: View {
     // MARK: - Print
 
     private func printImage() {
+        commitPendingCrop()
         flushPendingDisplayRender()
         saveActiveSessionState()
 

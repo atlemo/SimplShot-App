@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreText
+import Vision
 
 // MARK: - Tool Types
 
@@ -8,6 +9,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     case textSelect
     case arrow
     case freeDraw
+    case highlight
     case measurement
     case angle
     case rectangle
@@ -30,6 +32,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .textSelect:   return String(localized: "Select Text")
         case .arrow:        return String(localized: "Arrow")
         case .freeDraw:     return String(localized: "Free Drawing")
+        case .highlight:    return String(localized: "Highlight")
         case .measurement:  return String(localized: "Measurement")
         case .angle:        return String(localized: "Angle")
         case .rectangle:    return String(localized: "Rectangle")
@@ -52,6 +55,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .textSelect:   return "character.cursor.ibeam"
         case .arrow:        return "arrow.up.right"
         case .freeDraw:     return "pencil.and.scribble"
+        case .highlight:    return "highlighter"
         case .measurement:  return "ruler"
         case .angle:        return "angle"
         case .rectangle:    return "rectangle"
@@ -716,16 +720,7 @@ struct AnnotationStyle: Equatable {
     /// Whether the stroke color is perceptually light (luminance > 0.4).
     /// Used to decide whether to place dark or light text on top.
     var isLight: Bool {
-        guard let ns = NSColor(strokeColor).usingColorSpace(.deviceRGB) else { return false }
-        // sRGB relative luminance (WCAG formula)
-        func linearize(_ c: CGFloat) -> CGFloat {
-            c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
-        }
-        let r = linearize(ns.redComponent)
-        let g = linearize(ns.greenComponent)
-        let b = linearize(ns.blueComponent)
-        let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-        return luminance > 0.4
+        (strokeColor.relativeLuminance ?? 0) > 0.4
     }
 
     /// Foreground color for text labels placed on top of the stroke color.
@@ -745,6 +740,374 @@ struct AnnotationStyle: Equatable {
 
     var cgTextBubbleBackground: CGColor {
         NSColor(textBubbleBackground).cgColor
+    }
+}
+
+extension Color {
+    /// The colour's linear-light sRGB components, resolved in a **fixed light
+    /// appearance**.
+    ///
+    /// ⚠️ System colours are dynamic: `NSColor(Color.blue)` resolves to
+    /// (0, 0.478, 1) in Aqua and (0.039, 0.518, 1) in Dark Aqua, and
+    /// `usingColorSpace` picks whichever appearance happens to be current.
+    /// Measured, that moved blue's legibility luminance from 0.190 to 0.218 —
+    /// across the highlighter's knock-out threshold — so the same saved
+    /// annotation would have flipped its text in one appearance and not the
+    /// other. Pinning the evaluation makes the decision a property of the
+    /// colour alone.
+    private var linearComponents: (r: CGFloat, g: CGFloat, b: CGFloat)? {
+        var resolved: NSColor?
+        let appearance = NSAppearance(named: .aqua) ?? NSAppearance.currentDrawing()
+        appearance.performAsCurrentDrawingAppearance {
+            resolved = NSColor(self).usingColorSpace(.deviceRGB)
+        }
+        guard let resolved else { return nil }
+        func linearize(_ c: CGFloat) -> CGFloat {
+            c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
+        return (linearize(resolved.redComponent),
+                linearize(resolved.greenComponent),
+                linearize(resolved.blueComponent))
+    }
+
+    /// WCAG relative luminance, 0 (black) to 1 (white), or nil if the colour
+    /// has no RGB representation.
+    var relativeLuminance: CGFloat? {
+        guard let c = linearComponents else { return nil }
+        return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+    }
+
+    /// Luminance with the **blue term dropped** and the remaining weights
+    /// renormalised — how much of the colour the eye can actually resolve an
+    /// edge against.
+    ///
+    /// WCAG luminance cannot tell red from blue: measured, `.red` is 0.244 and
+    /// `.blue` is 0.248, yet black text is comfortable on red and poor on blue.
+    /// The reason is physiological — S-cones contribute essentially nothing to
+    /// the luminance channel or to spatial acuity, and the eye cannot focus
+    /// short wavelengths well, so a saturated blue or violet gives far less
+    /// edge signal than its luminance implies. Dropping the blue term
+    /// exaggerates that real effect enough to separate the two: red 0.260,
+    /// blue 0.190, purple 0.160.
+    ///
+    /// This is an approximation chosen to match what the colours look like, not
+    /// a published model — which is why the numbers above are recorded here.
+    var legibilityLuminance: CGFloat? {
+        guard let c = linearComponents else { return nil }
+        return (0.2126 * c.r + 0.7152 * c.g) / (0.2126 + 0.7152)
+    }
+}
+
+// MARK: - Highlight Geometry
+
+/// The one place a `.highlight` annotation's bands are converted between the
+/// flat point list it stores and the rects everything draws and hit-tests.
+///
+/// Bands live in `Annotation.points` as **corner pairs** — `[b0.topLeft,
+/// b0.bottomRight, b1.topLeft, b1.bottomRight, …]` — rather than in a rect
+/// array of their own. `points` is already remapped by every whole-image
+/// transform in `EditorView` (padding shift, crop remap, resize, rotate,
+/// straighten, flip, nudge) and by the canvas body drag, so a multi-line
+/// highlight follows the image with **no new code at any of those sites** —
+/// the same reason the angle tool keeps its vertex in `points[0]`.
+///
+/// Pairs are normalised on the way out, so a transform that swaps which corner
+/// is which (a quarter turn, a mirror) still describes the same band.
+enum HighlightGeometry {
+    /// Rounding of a band's ends, as a fraction of its height. Small enough to
+    /// read as a marker stroke rather than a pill.
+    static let cornerFraction: CGFloat = 0.12
+
+    /// `Color.legibilityLuminance` at or below which a band **knocks the text
+    /// out white** instead of multiplying into it.
+    ///
+    /// Multiply leaves black text black (0 × anything = 0), which is exactly
+    /// right under a yellow marker and unreadable under a dark or saturated
+    /// one — black on blue, purple or navy.
+    ///
+    /// The threshold is measured, not derived, and the values it separates are
+    /// worth keeping because the obvious alternatives all get one of them
+    /// wrong (light-appearance `legibilityLuminance`):
+    ///
+    ///     yellow 0.695   orange 0.434   green 0.448   rose 0.291
+    ///     red    0.260   mid-blue 0.231  olive 0.214  ← keep black text
+    ///     ───────────────────────────── 0.21 ─────────────────────────────
+    ///     magenta 0.194  blue 0.190     purple 0.160  teal 0.147
+    ///     iris   0.136   brown 0.105    cobalt 0.081  black 0  ← flip white
+    ///
+    /// It sits between **blue (0.190) and red (0.260)** on purpose: those two
+    /// are indistinguishable by WCAG luminance (0.248 vs 0.244) but read very
+    /// differently with black text on them. `isLight`'s 0.4 would flip red,
+    /// where black scores 5.88:1 against white's 3.57:1 — strictly worse.
+    static let knockOutLuminance: CGFloat = 0.21
+
+    /// Whether a band of this colour inverts the content under it rather than
+    /// multiplying into it.
+    static func knocksOutText(_ color: Color) -> Bool {
+        (color.legibilityLuminance ?? 1) <= knockOutLuminance
+    }
+
+    /// The ink's per-channel complement, `1 − C`.
+    ///
+    /// The knock-out is `result = 1 − (1 − C)·S`: multiply the page by this
+    /// complement, then invert the result. Where the page is white (S = 1) it
+    /// lands back exactly on `C`, so the band still shows the colour the user
+    /// picked; where the page is black (S = 0) it lands on white, which is the
+    /// text being flipped.
+    static func complement(_ color: Color) -> Color {
+        guard let ns = NSColor(color).usingColorSpace(.deviceRGB) else { return .black }
+        return Color(red: 1 - ns.redComponent,
+                     green: 1 - ns.greenComponent,
+                     blue: 1 - ns.blueComponent)
+    }
+
+    /// The marker's colour before the user picks one — yellow, the colour a
+    /// highlighter is. Deliberately the same `Color.yellow` the sidebar's
+    /// preset row offers, so an unset highlight shows that swatch as the
+    /// current selection instead of leaving the picker looking empty.
+    static let defaultColor: Color = .yellow
+
+    /// Ink corner radius for one band. Shared by the preview and the export so
+    /// the two round identically.
+    static func cornerRadius(for rect: CGRect) -> CGFloat {
+        max(0, min(rect.height * cornerFraction, rect.width / 2))
+    }
+
+    /// Thickness of a free-drawn marker band, in image pixels at 1× DPI, when
+    /// the drag is flatter than this.
+    ///
+    /// The natural marker gesture is a horizontal swipe along a line, which has
+    /// **no height of its own** — taken literally it inks a zero-height band,
+    /// i.e. nothing at all. So a flat drag gets a nib's worth of thickness
+    /// centred on it, and a drag the user deliberately gave some height keeps
+    /// exactly the rectangle they drew.
+    static let nibHeight: CGFloat = 18
+
+    /// The band a free-drawn marker drag covers: the drag rectangle, thickened
+    /// about its own centre line when it is flatter than the nib. Used when
+    /// there is no text under the drag — a screenshot, a scanned page, a figure.
+    static func markerBand(from start: CGPoint, to end: CGPoint,
+                           dpiScaleFactor: CGFloat) -> CGRect {
+        let rect = CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
+                          width: abs(end.x - start.x), height: abs(end.y - start.y))
+        let minimum = nibHeight * max(dpiScaleFactor, 1)
+        guard rect.height < minimum else { return rect }
+        return CGRect(x: rect.minX, y: rect.midY - minimum / 2,
+                      width: rect.width, height: minimum)
+    }
+
+    static func rects(from points: [CGPoint]) -> [CGRect] {
+        guard points.count >= 2 else { return [] }
+        var result: [CGRect] = []
+        result.reserveCapacity(points.count / 2)
+        for i in stride(from: 0, to: points.count - 1, by: 2) {
+            let a = points[i], b = points[i + 1]
+            let rect = CGRect(x: min(a.x, b.x), y: min(a.y, b.y),
+                              width: abs(b.x - a.x), height: abs(b.y - a.y))
+            // Sub-pixel slivers come from empty selection lines; they would
+            // paint as invisible hairlines but still count as hit targets.
+            if rect.width > 0.5 && rect.height > 0.5 { result.append(rect) }
+        }
+        return result
+    }
+
+    static func points(from rects: [CGRect]) -> [CGPoint] {
+        rects.flatMap {
+            [CGPoint(x: $0.minX, y: $0.minY), CGPoint(x: $0.maxX, y: $0.maxY)]
+        }
+    }
+
+    static func bounds(of rects: [CGRect]) -> CGRect {
+        guard let first = rects.first else { return .zero }
+        return rects.dropFirst().reduce(first) { $0.union($1) }
+    }
+}
+
+// MARK: - Recognized Text Layer (OCR)
+
+/// The text found in a raster image, in that image's pixel space — what lets
+/// the highlight tool snap to words on a screenshot, where there is no text
+/// layer to ask.
+///
+/// It is the raster counterpart of `PDFPage.textHighlightBands`, and resolves a
+/// drag with the same semantics: the swept lines, trimmed to the sweep on the
+/// first and last, whole lines in between.
+struct RecognizedTextLayer: Equatable {
+    struct Line: Equatable {
+        /// The band to ink — the recognized box, padded (see `linePadding`).
+        let rect: CGRect
+        /// Word boxes left to right, sharing the line's padded vertical extent.
+        /// A sweep that touches any part of a word takes the whole word, which
+        /// is what makes the highlight land on words rather than mid-glyph.
+        let words: [CGRect]
+    }
+
+    let lines: [Line]
+    /// The image-pixel size these rects are expressed in. A canvas re-compose
+    /// changes that size, and the layer is stale the moment it does.
+    let imagePixelSize: CGSize
+
+    static let empty = RecognizedTextLayer(lines: [], imagePixelSize: .zero)
+    var isEmpty: Bool { lines.isEmpty }
+
+    /// Vision reports the box of the **ink**, not of the line: it stops at the
+    /// glyph tops and bottoms, so a band drawn straight from it looks cramped
+    /// and changes height from line to line depending on whether that line
+    /// happens to contain an ascender or a descender. Measured against the
+    /// rendered pixels, Vision's box for 40pt text was 36px tall where the line
+    /// box is ~47px, so each side gains this fraction of the box height to
+    /// approximate the line box a PDF hands over directly.
+    static let linePadding: CGFloat = 0.14
+
+    /// The bands a drag from `start` to `end` covers, or nil when it covers no
+    /// text — the caller then falls back to a plain marker band.
+    ///
+    /// Same shape as the PDF path, including the rule that the resolved text
+    /// has to be under the sweep. The sweep is inset outward first because a
+    /// swipe along a line has zero height and `CGRect.intersects` is false for
+    /// an empty rect.
+    func bands(from start: CGPoint, to end: CGPoint) -> [CGRect]? {
+        guard !lines.isEmpty else { return nil }
+        let swept = CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
+                           width: abs(end.x - start.x), height: abs(end.y - start.y))
+            .insetBy(dx: -1, dy: -1)
+
+        let covered = lines.filter { $0.rect.intersects(swept) }
+            .sorted { $0.rect.minY < $1.rect.minY }
+        guard !covered.isEmpty else { return nil }
+
+        // Reading order runs from whichever end of the sweep is higher, so
+        // dragging upward selects the same text as dragging downward.
+        let upper = start.y <= end.y ? start : end
+        let lower = start.y <= end.y ? end : start
+
+        var bands: [CGRect] = []
+        for (index, line) in covered.enumerated() {
+            let low: CGFloat
+            let high: CGFloat
+            if covered.count == 1 {
+                low = min(start.x, end.x)
+                high = max(start.x, end.x)
+            } else if index == 0 {
+                low = upper.x
+                high = .greatestFiniteMagnitude
+            } else if index == covered.count - 1 {
+                low = -.greatestFiniteMagnitude
+                high = lower.x
+            } else {
+                low = -.greatestFiniteMagnitude
+                high = .greatestFiniteMagnitude
+            }
+
+            let touched = line.words.filter { $0.maxX > low && $0.minX < high }
+            if !touched.isEmpty {
+                bands.append(HighlightGeometry.bounds(of: touched))
+            } else if line.words.isEmpty {
+                // No word boxes (Vision gave a line but no candidate): clip the
+                // line itself rather than dropping it.
+                let clipped = line.rect.intersection(
+                    CGRect(x: low == -.greatestFiniteMagnitude ? line.rect.minX : low,
+                           y: line.rect.minY,
+                           width: high == .greatestFiniteMagnitude
+                               ? line.rect.maxX - min(low, line.rect.minX)
+                               : max(0, high - low),
+                           height: line.rect.height))
+                if !clipped.isNull, clipped.width > 0.5 { bands.append(clipped) }
+            }
+        }
+        return bands.isEmpty ? nil : bands
+    }
+}
+
+/// Runs Vision over an image and turns the result into a `RecognizedTextLayer`.
+enum TextLayerRecognizer {
+
+    /// ⚠️ **`.fast`, deliberately — `.accurate` silently finds NOTHING on a
+    /// large screenshot.** Measured across sizes with the same 13pt-equivalent
+    /// text: at 1440×900 both levels read every line, at 2560×1440 `.accurate`
+    /// returned **zero** observations while `.fast` returned 63, and at
+    /// 5120×2880 — an ordinary 2× capture of a 27" display — `.accurate` was
+    /// empty again. `minimumTextHeight` makes no difference; the driver is how
+    /// small the text is relative to the whole image, and `.fast` tolerates far
+    /// more of it. `.fast` is also 2–3× quicker and its boxes are *tighter* to
+    /// the rendered ink (within 1–2px, versus 2–5px for `.accurate`).
+    ///
+    /// Only the geometry is used, never the transcription, so language
+    /// correction is off — it costs time and can only move the boxes.
+    /// (The menu's Capture Text action still uses `.accurate`: it needs the
+    /// words, and it is handed a region the user just drew, not a whole screen.)
+    static func recognize(_ image: CGImage, imagePixelSize: CGSize) async -> RecognizedTextLayer {
+        guard imagePixelSize.width > 0, imagePixelSize.height > 0 else { return .empty }
+
+        let observations: [VNRecognizedTextObservation] = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let request = VNRecognizeTextRequest()
+                request.recognitionLevel = .fast
+                request.usesLanguageCorrection = false
+                do {
+                    try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+                    continuation.resume(returning: request.results ?? [])
+                } catch {
+                    continuation.resume(returning: [])
+                }
+            }
+        }
+        if Task.isCancelled { return .empty }
+
+        let lines = observations.compactMap { observation -> RecognizedTextLayer.Line? in
+            let box = Self.rect(observation.boundingBox, in: imagePixelSize)
+            guard box.width > 0.5, box.height > 0.5 else { return nil }
+            let padding = box.height * RecognizedTextLayer.linePadding
+            let band = box.insetBy(dx: 0, dy: -padding)
+
+            var words: [CGRect] = []
+            if let candidate = observation.topCandidates(1).first {
+                for range in Self.wordRanges(in: candidate.string) {
+                    guard let observed = try? candidate.boundingBox(for: range) else { continue }
+                    let word = Self.rect(observed.boundingBox, in: imagePixelSize)
+                    guard word.width > 0.5 else { continue }
+                    // Words share the line's vertical extent: a word with no
+                    // ascender or descender has a shorter box of its own, and
+                    // a highlight made of those reads as a ragged staircase.
+                    words.append(CGRect(x: word.minX, y: band.minY,
+                                        width: word.width, height: band.height))
+                }
+            }
+            return RecognizedTextLayer.Line(rect: band, words: words.sorted { $0.minX < $1.minX })
+        }
+        return RecognizedTextLayer(lines: lines, imagePixelSize: imagePixelSize)
+    }
+
+    /// Vision reports normalized, bottom-left-origin boxes; annotations live in
+    /// image pixels with a top-left origin.
+    ///
+    /// Mapping straight into `imagePixelSize` rather than into the CGImage's own
+    /// dimensions is deliberate: the canvas only has an `NSImage`, and
+    /// `cgImage(forProposedRect:)` can hand back a differently scaled bitmap.
+    /// Normalized boxes make that impossible to get wrong.
+    private static func rect(_ normalized: CGRect, in size: CGSize) -> CGRect {
+        CGRect(x: normalized.minX * size.width,
+               y: (1 - normalized.maxY) * size.height,
+               width: normalized.width * size.width,
+               height: normalized.height * size.height)
+    }
+
+    private static func wordRanges(in string: String) -> [Range<String.Index>] {
+        var ranges: [Range<String.Index>] = []
+        var index = string.startIndex
+        while index < string.endIndex {
+            guard !string[index].isWhitespace else {
+                index = string.index(after: index)
+                continue
+            }
+            var end = index
+            while end < string.endIndex, !string[end].isWhitespace {
+                end = string.index(after: end)
+            }
+            ranges.append(index..<end)
+            index = end
+        }
+        return ranges
     }
 }
 
@@ -825,6 +1188,46 @@ struct Annotation: Identifiable, Equatable {
                                 y: (startPoint.y + endPoint.y) / 2)
     }
 
+    /// Ink colour of a `.highlight`.
+    ///
+    /// The marker is a **fill**, so it reads `style.fillColor` rather than
+    /// `strokeColor` — which also keeps it out of the stroke tools' way: one
+    /// `currentStyle` is shared by every tool and is replaced wholesale when an
+    /// annotation is selected, so a highlighter sharing `strokeColor` would
+    /// recolour the arrow tool every time the user picked a marker colour, and
+    /// vice versa. Two fields, no contention.
+    ///
+    /// A nil fill means "no fill" for the shape tools, but a highlight with no
+    /// fill is nothing at all — so here it resolves to the default marker
+    /// colour instead of drawing an invisible band.
+    var highlightColor: Color {
+        style.fillColor ?? HighlightGeometry.defaultColor
+    }
+
+    var cgHighlightColor: CGColor {
+        NSColor(highlightColor).cgColor
+    }
+
+    /// True when this highlight is dark enough that it inverts the content
+    /// under it, flipping black text to white (see `HighlightGeometry`).
+    var highlightKnocksOutText: Bool {
+        HighlightGeometry.knocksOutText(highlightColor)
+    }
+
+    /// The bands of a `.highlight`, in image-pixel space. One band per text
+    /// line on a PDF page; a single band for a free-drawn marker stroke.
+    /// Stored as corner PAIRS in `points` (see HighlightGeometry) so every
+    /// whole-image point transform maps them for free, exactly like the angle
+    /// tool's vertex. Falls back to the start/end rect if `points` is empty.
+    var highlightRects: [CGRect] {
+        let rects = HighlightGeometry.rects(from: points)
+        return rects.isEmpty ? [CGRect(x: min(startPoint.x, endPoint.x),
+                                       y: min(startPoint.y, endPoint.y),
+                                       width: abs(endPoint.x - startPoint.x),
+                                       height: abs(endPoint.y - startPoint.y))]
+                             : rects
+    }
+
     /// Stable seed for the sketch arrow's grit, folded from the UUID bytes
     /// (NOT hashValue, which is randomized per process). Same arrow → same
     /// hand-drawn texture, every frame and in every export.
@@ -843,7 +1246,7 @@ struct Annotation: Identifiable, Equatable {
                           width: max(xs.max()! - xs.min()!, 1),
                           height: max(ys.max()! - ys.min()!, 1))
         }
-        if tool == .freeDraw, !points.isEmpty {
+        if tool == .freeDraw || tool == .highlight, !points.isEmpty {
             let xs = points.map(\.x)
             let ys = points.map(\.y)
             if let minX = xs.min(), let maxX = xs.max(),

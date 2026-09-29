@@ -164,9 +164,12 @@ struct EditorSidebarView: View {
     // vector page view and the PDF export both draw the full page, so a crop would
     // distort the on-screen page and be silently dropped from the saved PDF.
     private var drawingTools: [AnnotationTool] {
+        // Highlight sits directly after .select so that on a PDF — where
+        // .textSelect is spliced in between — it lands right after Select Text,
+        // next to the other tool that works off the page's text layer.
         let base: [AnnotationTool] = [
-            .select, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep, .sticker,
-            .measurement, .angle, .pixelate, .spotlight, .crop
+            .select, .highlight, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep,
+            .sticker, .measurement, .angle, .pixelate, .spotlight, .crop
         ]
         guard !hasTemplate else { return base }
         // PDF sessions: pixelate/crop don't apply (vector export draws the full
@@ -176,8 +179,14 @@ struct EditorSidebarView: View {
     }
 
     private let stylingTools: [AnnotationTool] = [
-        .arrow, .freeDraw, .measurement, .angle, .rectangle, .circle, .triangle, .star, .line, .text, .numberedStep
+        .arrow, .freeDraw, .highlight, .measurement, .angle, .rectangle, .circle, .triangle,
+        .star, .line, .text, .numberedStep
     ]
+
+    /// Tools with no size to pick. A highlight band is sized by the text it
+    /// snaps to (or by the drag), so a stroke-width control would be a knob
+    /// that changes nothing.
+    private let sizelessTools: [AnnotationTool] = [.highlight]
 
     private var showStyleControls: Bool {
         if stylingTools.contains(currentTool) { return true }
@@ -187,12 +196,42 @@ struct EditorSidebarView: View {
         return false
     }
 
-    private var showFillColorControl: Bool {
-        if currentTool.isShapeTool { return true }
+    /// The tool the style row is editing: the selected annotation's, or the one
+    /// armed in the palette.
+    private var activeStyleTool: AnnotationTool {
         if let id = selectedAnnotationID,
-           let ann = annotations.first(where: { $0.id == id }),
-           ann.tool.isShapeTool { return true }
-        return false
+           let ann = annotations.first(where: { $0.id == id }) {
+            return ann.tool
+        }
+        return currentTool
+    }
+
+    private var showSizeControl: Bool {
+        !sizelessTools.contains(activeStyleTool)
+    }
+
+    /// The highlighter's ink is a fill and it has no outline, so it shows the
+    /// fill picker alone — an outline swatch would be a control over something
+    /// the tool never draws.
+    private var showStrokeColorControl: Bool {
+        activeStyleTool != .highlight
+    }
+
+    /// Tools whose fill is the thing they draw, so "No Fill" is not an option
+    /// and an unset fill shows the default colour rather than an empty swatch.
+    private var fillIsRequired: Bool {
+        activeStyleTool == .highlight
+    }
+
+    /// What the fill swatch should show: the picked colour, or the marker
+    /// default for a tool that cannot be unfilled.
+    private var effectiveFillColor: Color? {
+        currentStyle.fillColor ?? (fillIsRequired ? HighlightGeometry.defaultColor : nil)
+    }
+
+    private var showFillColorControl: Bool {
+        let tool = activeStyleTool
+        return tool.isShapeTool || tool == .highlight
     }
 
     private var usesFontSizeContext: Bool {
@@ -428,8 +467,12 @@ struct EditorSidebarView: View {
                         if showFillColorControl {
                             fillColorButton
                         }
-                        colorButton
-                        sizePicker
+                        if showStrokeColorControl {
+                            colorButton
+                        }
+                        if showSizeControl {
+                            sizePicker
+                        }
                         Spacer()
                     }
                 }
@@ -1057,7 +1100,7 @@ struct EditorSidebarView: View {
         Button { fillColorPopoverVisible.toggle() } label: {
             HStack(spacing: 4) {
                 ZStack {
-                    if let fill = currentStyle.fillColor {
+                    if let fill = effectiveFillColor {
                         Circle()
                             .fill(fill)
                             .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
@@ -1092,40 +1135,44 @@ struct EditorSidebarView: View {
                 Text("Fill")
                     .font(.system(size: 12, weight: .medium))
                 HStack(spacing: 6) {
-                    // No-fill option
-                    Button {
-                        currentStyle.fillColor = nil
-                        applyStyleToSelection()
-                        fillColorPopoverVisible = false
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(Color.primary.opacity(0.06))
-                                .overlay(Circle().stroke(
-                                    currentStyle.fillColor == nil ? Color.accentColor : Color.primary.opacity(0.2),
-                                    lineWidth: currentStyle.fillColor == nil ? 2 : 0.5
-                                ))
-                            Path { path in
-                                let s: CGFloat = 20
-                                let inset = s * 0.22
-                                path.move(to: CGPoint(x: inset, y: s - inset))
-                                path.addLine(to: CGPoint(x: s - inset, y: inset))
+                    // No-fill option — omitted for a tool whose fill IS the
+                    // mark it makes (see `fillIsRequired`); clearing it there
+                    // would just make the annotation invisible.
+                    if !fillIsRequired {
+                        Button {
+                            currentStyle.fillColor = nil
+                            applyStyleToSelection()
+                            fillColorPopoverVisible = false
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.primary.opacity(0.06))
+                                    .overlay(Circle().stroke(
+                                        currentStyle.fillColor == nil ? Color.accentColor : Color.primary.opacity(0.2),
+                                        lineWidth: currentStyle.fillColor == nil ? 2 : 0.5
+                                    ))
+                                Path { path in
+                                    let s: CGFloat = 20
+                                    let inset = s * 0.22
+                                    path.move(to: CGPoint(x: inset, y: s - inset))
+                                    path.addLine(to: CGPoint(x: s - inset, y: inset))
+                                }
+                                .stroke(
+                                    currentStyle.fillColor == nil ? Color.accentColor : Color.red,
+                                    lineWidth: 1.5
+                                )
+                                .clipShape(Circle())
                             }
-                            .stroke(
-                                currentStyle.fillColor == nil ? Color.accentColor : Color.red,
-                                lineWidth: 1.5
-                            )
-                            .clipShape(Circle())
+                            .frame(width: 20, height: 20)
+                            .contentShape(Circle())
                         }
-                        .frame(width: 20, height: 20)
-                        .contentShape(Circle())
+                        .buttonStyle(.plain)
+                        .help("No Fill")
+                        Rectangle()
+                            .fill(Color.primary.opacity(0.15))
+                            .frame(width: 1, height: 20)
+                            .padding(.horizontal, 2)
                     }
-                    .buttonStyle(.plain)
-                    .help("No Fill")
-                    Rectangle()
-                        .fill(Color.primary.opacity(0.15))
-                        .frame(width: 1, height: 20)
-                        .padding(.horizontal, 2)
                     ForEach(presetColors, id: \.self) { color in
                         Button {
                             currentStyle.fillColor = color
@@ -1136,8 +1183,8 @@ struct EditorSidebarView: View {
                                 .fill(color)
                                 .overlay(
                                     Circle().stroke(
-                                        currentStyle.fillColor == color ? Color.accentColor : Color.primary.opacity(0.15),
-                                        lineWidth: currentStyle.fillColor == color ? 2 : 0.5
+                                        effectiveFillColor == color ? Color.accentColor : Color.primary.opacity(0.15),
+                                        lineWidth: effectiveFillColor == color ? 2 : 0.5
                                     )
                                 )
                                 .frame(width: 20, height: 20)
