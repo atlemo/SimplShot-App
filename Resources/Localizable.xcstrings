@@ -1194,40 +1194,6 @@
         }
       }
     },
-    "Alignment now keeps padding even — aligning to an edge puts the screenshot flush against it while the other sides keep their exact padding, instead of doubling the gap on the opposite side." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Ausrichtung hält den Abstand jetzt gleichmäßig — bei Ausrichtung an einer Kante liegt das Bildschirmfoto bündig an, während die übrigen Seiten ihren exakten Abstand behalten, statt die Lücke auf der Gegenseite zu verdoppeln."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L'alignement conserve désormais des marges régulières — aligner sur un bord place la capture au ras de celui-ci tandis que les autres côtés gardent leur marge exacte, au lieu de doubler l'espace du côté opposé."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "整列時の余白が均等になりました — 端に整列するとスクリーンショットはその端にぴったり付き、他の辺は正確な余白を保ちます。反対側の余白が倍になることはもうありません。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Выравнивание теперь сохраняет равные отступы — при выравнивании по краю снимок прижимается к нему вплотную, а остальные стороны сохраняют точный отступ вместо удвоенного зазора с противоположной стороны."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "对齐现在保持四周边距均匀 — 对齐到某一边时截图会紧贴该边，其余各边保持精确的边距，不再在对侧留下双倍空隙。"
-          }
-        }
-      }
-    },
     "All images, one per page" : {
       "localizations" : {
         "de" : {
@@ -9078,40 +9044,6 @@
         }
       }
     },
-    "New: Capture History — open it from the menu bar to see your last 10 captures and edited files as a film strip. Hover a thumbnail and click Restore to reopen an image with every annotation still editable." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neu: Aufnahmeverlauf — öffne ihn über die Menüleiste, um deine letzten 10 Aufnahmen und bearbeiteten Dateien als Filmstreifen zu sehen. Fahre über ein Vorschaubild und klicke auf „Wiederherstellen“, um ein Bild mit allen weiterhin bearbeitbaren Anmerkungen erneut zu öffnen."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau : Historique des captures — ouvrez-le depuis la barre des menus pour voir vos 10 dernières captures et fichiers modifiés sous forme de pellicule. Survolez une vignette et cliquez sur « Restaurer » pour rouvrir une image avec toutes ses annotations encore modifiables."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新機能: キャプチャ履歴 — メニューバーから開くと、最近の10件のキャプチャや編集ファイルがフィルムストリップで表示されます。サムネイルにカーソルを合わせて「復元」をクリックすると、注釈をすべて編集可能なままで画像を開き直せます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новое: История снимков — откройте её из строки меню, чтобы увидеть последние 10 снимков и отредактированных файлов в виде киноплёнки. Наведите курсор на миниатюру и нажмите «Восстановить», чтобы снова открыть изображение со всеми аннотациями, доступными для редактирования."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新功能：截图历史 — 从菜单栏打开，即可以胶片条形式查看最近 10 张截图和编辑过的文件。将鼠标悬停在缩略图上并点击“恢复”，即可重新打开图片，所有标注仍可编辑。"
-          }
-        }
-      }
-    },
     "New: Drag pages between windows — drag a thumbnail out of one editor window and drop it into another to copy the page, or hold ⌥ while dropping to move it instead." : {
       "localizations" : {
         "de" : {
@@ -11048,40 +10980,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "像素化"
-          }
-        }
-      }
-    },
-    "Pixelation now exports exactly as previewed — saved and copied images use the same soft mosaic blocks you see in the editor." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Verpixelung wird jetzt exakt wie in der Vorschau exportiert — gespeicherte und kopierte Bilder verwenden dieselben weichen Mosaikblöcke wie im Editor."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La pixellisation est maintenant exportée exactement comme dans l'aperçu — les images enregistrées et copiées utilisent la même mosaïque douce que celle affichée dans l'éditeur."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ピクセレートの書き出しがプレビューと完全に一致するようになりました — 保存やコピーした画像も、エディタで見えるのと同じ柔らかなモザイクになります。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Пикселизация теперь экспортируется точно как в предпросмотре — сохранённые и скопированные изображения используют ту же мягкую мозаику, что и в редакторе."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "像素化导出效果现在与预览完全一致 — 保存和复制的图片使用与编辑器中所见相同的柔和马赛克。"
           }
         }
       }
@@ -14222,40 +14120,6 @@
         }
       }
     },
-    "SimplShot uses much less memory — closed editing sessions are kept compressed in the background, so the app stays fast even after a long day of captures." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SimplShot braucht deutlich weniger Speicher — geschlossene Bearbeitungssitzungen werden komprimiert vorgehalten, damit die App auch nach einem langen Tag voller Aufnahmen schnell bleibt."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SimplShot consomme beaucoup moins de mémoire — les sessions d'édition fermées sont conservées compressées, pour que l'app reste rapide même après une longue journée de captures."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SimplShotのメモリ使用量が大幅に減りました — 閉じた編集セッションは圧縮して保持されるため、一日中キャプチャしてもアプリは快適なままです。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SimplShot использует значительно меньше памяти — закрытые сеансы редактирования хранятся в сжатом виде, поэтому приложение остаётся быстрым даже после долгого дня со снимками."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SimplShot 的内存占用大幅降低 — 已关闭的编辑会话以压缩形式保存，即使截图一整天，应用也依然流畅。"
-          }
-        }
-      }
-    },
     "Single Page View" : {
       "localizations" : {
         "de" : {
@@ -16671,6 +16535,108 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "缩放以适合"
+          }
+        }
+      }
+    },
+    "Fixed: copying or saving with the crop tool still open ignored the crop. Save & Copy, Save, Save As and Print now apply it first, and the button reads Save & Copy while you crop. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the report." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behoben: Wer bei geöffnetem Werkzeug „Zuschneiden“ kopierte oder sicherte, bekam das Bild ohne Zuschnitt. „Sichern und kopieren“, „Sichern“, „Sichern unter“ und „Drucken“ wenden ihn jetzt zuerst an, und während des Zuschneidens heißt die Taste „Sichern und kopieren“. Danke an Matt Ormianek (@MattOrmianek auf GitHub) für den Hinweis."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigé : copier ou enregistrer avec l’outil Rogner encore ouvert ignorait le rognage. Enregistrer et copier, Enregistrer, Enregistrer sous et Imprimer l’appliquent désormais d’abord, et le bouton affiche Enregistrer et copier pendant le rognage. Merci à Matt Ormianek (@MattOrmianek sur GitHub) pour le signalement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正：トリミングツールを開いたままコピーや保存をすると、トリミングが反映されませんでした。「保存してコピー」「保存」「別名で保存」「プリント」は先にトリミングを適用するようになり、トリミング中はボタンが「保存してコピー」と表示されます。報告してくださった Matt Ormianek さん（GitHub：@MattOrmianek）に感謝します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправлено: если копировать или сохранять, не закрыв инструмент «Кадрировать», кадрирование не применялось. «Сохранить и скопировать», «Сохранить», «Сохранить как» и «Напечатать» теперь сначала применяют его, а во время кадрирования кнопка называется «Сохранить и скопировать». Спасибо Мэтту Ормианеку (@MattOrmianek на GitHub) за сообщение."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复：在裁剪工具仍打开时拷贝或存储，裁剪不会生效。“存储并拷贝”“存储”“存储为”和“打印”现在会先应用裁剪，裁剪期间按钮也会显示为“存储并拷贝”。感谢 Matt Ormianek（GitHub：@MattOrmianek）的反馈。"
+          }
+        }
+      }
+    },
+    "New: Highlight — sweep the tool across text to mark it like a real highlighter pen. It snaps to whole words and lines on PDFs and screenshots alike, the text underneath stays crisp, and darker colours turn the text white so it stays readable." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Markieren – fahre mit dem Werkzeug über Text, um ihn wie mit einem echten Textmarker hervorzuheben. Es rastet in PDFs wie in Bildschirmfotos an ganzen Wörtern und Zeilen ein, der Text darunter bleibt scharf, und bei dunkleren Farben wird der Text weiß, damit er lesbar bleibt."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : Surligner — balayez un texte avec cet outil pour le marquer comme avec un vrai surligneur. Il s’aligne sur des mots et des lignes entiers, dans les PDF comme dans les captures d’écran, le texte en dessous reste net, et les couleurs sombres passent le texte en blanc pour qu’il reste lisible."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：ハイライト — テキストをなぞると本物の蛍光ペンのようにマークできます。PDF でもスクリーンショットでも単語や行単位でぴったり合わせ、下の文字はくっきりしたまま。濃い色では文字が白くなるので読みやすさも保たれます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: инструмент «Выделение» — проведите по тексту, чтобы выделить его, как настоящим маркером. И в PDF, и на снимках экрана выделение прилипает к целым словам и строкам, текст под ним остаётся чётким, а на тёмных цветах текст становится белым, чтобы его было легко читать."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新功能：高亮 — 划过文字即可像真正的荧光笔一样标记。无论是 PDF 还是截图，它都会对齐到完整的单词和行，下方文字保持清晰；颜色较深时文字会变成白色，保证易于阅读。"
+          }
+        }
+      }
+    },
+    "Solid Colors has a new palette of 18 shades, arranged in ramps from dark to light. Templates that used a retired colour switch to the closest new one." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Einfarbig“ hat eine neue Palette mit 18 Tönen, von dunkel nach hell geordnet. Vorlagen mit einer entfallenen Farbe wechseln zur ähnlichsten neuen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les couleurs unies ont une nouvelle palette de 18 teintes, rangées du foncé au clair. Les modèles qui utilisaient une couleur retirée passent à la nouvelle la plus proche."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "単色に 18 色の新しいパレットが登場し、暗い色から明るい色へ並びました。廃止された色を使っていたテンプレートは、最も近い新しい色に切り替わります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В разделе «Сплошные цвета» новая палитра из 18 оттенков, выстроенных от тёмных к светлым. Шаблоны с удалённым цветом переходят на ближайший новый."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "纯色背景换上了 18 种颜色的新调色板，按从深到浅排列。使用了已停用颜色的模板会自动换成最接近的新颜色。"
           }
         }
       }

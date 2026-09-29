@@ -18,6 +18,11 @@ struct WhatsNewEntry {
 let maxWhatsNewEntries = 4
 
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.7.8", items: [
+        "Fixed: copying or saving with the crop tool still open ignored the crop. Save & Copy, Save, Save As and Print now apply it first, and the button reads Save & Copy while you crop. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the report.",
+        "New: Highlight — sweep the tool across text to mark it like a real highlighter pen. It snaps to whole words and lines on PDFs and screenshots alike, the text underneath stays crisp, and darker colours turn the text white so it stays readable.",
+        "Solid Colors has a new palette of 18 shades, arranged in ramps from dark to light. Templates that used a retired colour switch to the closest new one.",
+    ]),
     WhatsNewEntry(version: "1.7.7", items: [
         "New: Build your own gradients — the + in the Gradients list now opens a gradient editor instead of a file picker. Pick linear or radial, set the angle, and add as many colour stops as you like; your gradients then sit alongside the built-in ones.",
         "New: Grain for your gradients — a Noise slider in the gradient editor lays a fine film grain over the whole gradient, which also smooths the faint banding wide gradients can show.",
@@ -42,12 +47,6 @@ let whatsNewEntries: [WhatsNewEntry] = [
     WhatsNewEntry(version: "1.7.5", items: [
         "Cropping now takes over the whole sidebar — Straighten, Flip, Rotate and every aspect ratio sit in one panel instead of behind a pop-up menu, in both Annotate and Edit mode. A locked ratio survives flipping and rotating too, so your selection keeps its shape.",
         "New: Flip — mirror a screenshot left to right or top to bottom from the crop panel. Like rotating and straightening, it is non-destructive: annotations stay glued to the image, and you can flip back at any time.",
-    ]),
-    WhatsNewEntry(version: "1.7.4", items: [
-        "New: Capture History — open it from the menu bar to see your last 10 captures and edited files as a film strip. Hover a thumbnail and click Restore to reopen an image with every annotation still editable.",
-        "Alignment now keeps padding even — aligning to an edge puts the screenshot flush against it while the other sides keep their exact padding, instead of doubling the gap on the opposite side.",
-        "Pixelation now exports exactly as previewed — saved and copied images use the same soft mosaic blocks you see in the editor.",
-        "SimplShot uses much less memory — closed editing sessions are kept compressed in the background, so the app stays fast even after a long day of captures.",
     ]),
 ]
 
