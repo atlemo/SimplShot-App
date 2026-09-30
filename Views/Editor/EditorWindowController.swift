@@ -955,7 +955,6 @@ private struct CaptureHistoryThumbView: View {
                 .lineLimit(1)
                 .frame(width: 120)
         }
-        .onHover { isHovering = $0 }
         .help(entry.fileURL.lastPathComponent)
         .onAppear {
             CaptureHistoryService.shared.loadThumbnail(for: entry.id) { image in
@@ -970,6 +969,10 @@ private struct CaptureHistoryThumbView: View {
                 Image(nsImage: thumbnail)
                     .resizable()
                     .scaledToFill()
+                    // scaledToFill overflows the frame for wide captures, and
+                    // clipShape only clips drawing — not hit testing. The
+                    // overflow would catch hovers meant for the neighbours.
+                    .allowsHitTesting(false)
             } else {
                 Rectangle()
                     .fill(.quaternary)
@@ -980,6 +983,8 @@ private struct CaptureHistoryThumbView: View {
         }
         .frame(width: 120, height: 84)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onHover { isHovering = $0 }
         .overlay {
             if isHovering {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
