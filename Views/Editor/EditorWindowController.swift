@@ -984,7 +984,6 @@ private struct CaptureHistoryThumbView: View {
         .frame(width: 120, height: 84)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .onHover { isHovering = $0 }
         .overlay {
             if isHovering {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -999,6 +998,12 @@ private struct CaptureHistoryThumbView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(.separator.opacity(0.6), lineWidth: 1)
+                .allowsHitTesting(false)
         )
+        // After the overlays, so the Restore button is inside the hover region.
+        // Attached underneath them, the button that appears on hover took the
+        // pointer away from the view being tracked: hover ended, the button
+        // went, hover resumed, the button came back — a flicker loop.
+        .onHover { isHovering = $0 }
     }
 }
