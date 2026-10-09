@@ -624,8 +624,10 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 
     @objc func captureTextOCRAction() {
         menu.cancelTracking()
+        // Load the recognition model while the user is still drawing the selection.
+        OCRService.prewarm()
 
-        Task(priority: .medium) {
+        Task(priority: .userInitiated) {
             try? await Task.sleep(for: .milliseconds(200))
 
             let captureURL = FileManager.default.temporaryDirectory
@@ -1114,23 +1116,40 @@ class MenuBuilder: NSObject, NSMenuDelegate {
 import Vision
 
 private struct OCRService {
-    static func recognizeText(in image: CGImage) async throws -> String {
-        try await withCheckedThrowingContinuation { cont in
-            let request = VNRecognizeTextRequest { request, error in
-                if let error { cont.resume(throwing: error); return }
-                let text = (request.results as? [VNRecognizedTextObservation] ?? [])
-                    .compactMap { $0.topCandidates(1).first?.string }
-                    .joined(separator: "\n")
-                cont.resume(returning: text)
-            }
+    /// Vision's first request in a process loads (and, after an OS update,
+    /// compiles) the recognition model — measured at 27s once and ~0.2s
+    /// afterwards, versus ~0.1s warm. Running a throwaway request at launch
+    /// moves that cost off the user's first capture.
+    static func prewarm() {
+        DispatchQueue.global(qos: .utility).async {
+            let side = 64
+            guard let ctx = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+                  let image = ctx.makeImage() else { return }
+            let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
+            try? VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+        }
+    }
 
-            let handler = VNImageRequestHandler(cgImage: image, options: [:])
-            do {
-                try handler.perform([request])
-            } catch {
-                cont.resume(throwing: error)
+    static func recognizeText(in image: CGImage) async throws -> String {
+        // `perform` is synchronous; keep it off the cooperative pool so it can
+        // neither stall other async work nor be scheduled at a low QoS.
+        try await withCheckedThrowingContinuation { cont in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let request = VNRecognizeTextRequest()
+                request.recognitionLevel = .accurate
+                request.usesLanguageCorrection = true
+                do {
+                    try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+                    let text = (request.results ?? [])
+                        .compactMap { $0.topCandidates(1).first?.string }
+                        .joined(separator: "\n")
+                    cont.resume(returning: text)
+                } catch {
+                    cont.resume(throwing: error)
+                }
             }
         }
     }
