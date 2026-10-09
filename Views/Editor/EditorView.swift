@@ -3205,7 +3205,10 @@ struct EditorView: View {
     /// the two views stay in sync either way.
     private func toggleContinuousScroll() {
         if pdfContinuousScroll {
-            if let target = sessions.first(where: { $0.pdfPageSource?.pageIndex == continuousVisiblePage }) {
+            let gid = activeSession?.pdfGroupID
+            if let target = sessions.first(where: {
+                $0.pdfGroupID == gid && $0.pdfPageSource?.pageIndex == continuousVisiblePage
+            }) {
                 switchToSession(target.id)
             }
         } else {
@@ -3217,13 +3220,30 @@ struct EditorView: View {
     /// Thumbnail / strip selection. In continuous mode every page is already on
     /// screen, so switching the single-page session would be invisible — instead
     /// scroll the stacked view to the chosen page. Otherwise switch sessions.
+    ///
+    /// ⚠️ The continuous reader only shows the ACTIVE document, so scrolling is
+    /// right only when the target page belongs to that same document. A window
+    /// can hold several page groups (a PDF dropped onto a window of images, or
+    /// two PDFs) and the strip steps across all of them: a page of another
+    /// group has to be switched to, then scrolled to — scrolling to its page
+    /// index in the current document left the arrow keys stuck at the end of
+    /// the first PDF.
     private func selectPageSession(_ id: UUID) {
-        if isContinuousPDF,
-           let idx = sessions.first(where: { $0.id == id })?.pdfPageSource?.pageIndex {
+        guard let target = sessions.first(where: { $0.id == id }) else { return }
+        let idx = target.pdfPageSource?.pageIndex
+        if isContinuousPDF, let idx,
+           target.pdfGroupID == activeSession?.pdfGroupID {
             continuousScrollTarget = idx
             return
         }
         switchToSession(id)
+        // Landing in another document's continuous reader: its scroll position
+        // and visible page are the previous document's, so point both at the
+        // page we arrived on (after the reader has swapped documents).
+        if let idx, isContinuousPDF {
+            continuousVisiblePage = idx
+            DispatchQueue.main.async { continuousScrollTarget = idx }
+        }
     }
 
     /// Which thumbnail the strip highlights: in continuous mode it follows the
@@ -3231,7 +3251,12 @@ struct EditorView: View {
     /// otherwise the active single-page session.
     private var thumbnailActiveID: UUID? {
         if isContinuousPDF {
-            return sessions.first(where: { $0.pdfPageSource?.pageIndex == continuousVisiblePage })?.id
+            // Scoped to the active document: other page groups in the window
+            // have a page at the same index too.
+            let gid = activeSession?.pdfGroupID
+            return sessions.first(where: {
+                $0.pdfGroupID == gid && $0.pdfPageSource?.pageIndex == continuousVisiblePage
+            })?.id
         }
         return activeSessionID
     }
