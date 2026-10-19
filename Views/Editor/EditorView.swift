@@ -368,6 +368,11 @@ struct EditorView: View {
     @State private var activeThumbnailToken = 0
     @State private var keyMonitor: Any?
     @State private var magnifyMonitor: Any?
+    @State private var scrollZoomMonitor: Any?
+    /// Extra margin around the canvas that keeps a pinch-zoom anchor reachable
+    /// (see `ZoomAnchorGeometry.AxisInset`). Reset by any non-anchored zoom.
+    @State private var zoomInsetX = ZoomAnchorGeometry.AxisInset()
+    @State private var zoomInsetY = ZoomAnchorGeometry.AxisInset()
     @State private var middleMouseMonitor: Any?
     @State private var flagsMonitor: Any?
     @State private var showingCopyCursor: Bool = false
@@ -703,6 +708,18 @@ struct EditorView: View {
                   let scrollView = nsScrollView else { return }
             finishZoomAnchorCorrection(scrollView: scrollView, origin: origin)
         }
+        .onChange(of: zoomLevel) { _, newValue in
+            // Anything but an anchored pinch/scroll step (zoom buttons, Fit,
+            // Actual Size) puts the page back where it normally sits.
+            if abs(newValue - magnifyState.expectedZoom) > 1e-9 {
+                zoomInsetX = ZoomAnchorGeometry.AxisInset()
+                zoomInsetY = ZoomAnchorGeometry.AxisInset()
+            }
+        }
+        .onChange(of: imagePixelSize) { _, _ in
+            zoomInsetX = ZoomAnchorGeometry.AxisInset()
+            zoomInsetY = ZoomAnchorGeometry.AxisInset()
+        }
         .alert("Delete Screenshot?", isPresented: $showTrashAlert) {
             Button("Delete", role: .destructive) {
                 trashScreenshot()
@@ -959,6 +976,9 @@ struct EditorView: View {
                                 scrollTarget: $continuousScrollTarget,
                                 visiblePage: $continuousVisiblePage,
                                 zoom: zoomLevel,
+                                onScrollView: { nsScrollView = $0 },
+                                insetX: zoomInsetX,
+                                insetTop: zoomInsetY.lead,
                                 highlights: { searchHighlights(on: $0) },
                                 activeHighlight: { activeSearchHighlight(on: $0) },
                                 onOpenURL: openPDFLinkURL,
@@ -1000,7 +1020,11 @@ struct EditorView: View {
                                     onCropAdjustBegan: { isAdjustingCrop = true },
                                     onCropAdjustEnded: { isAdjustingCrop = false }
                                 )
-                                .padding(20)
+                                .padding(ZoomAnchorGeometry.canvasPadding)
+                                .padding(.leading, zoomInsetX.lead)
+                                .padding(.trailing, zoomInsetX.trail)
+                                .padding(.top, zoomInsetY.lead)
+                                .padding(.bottom, zoomInsetY.trail)
                                 // Centre the page in the viewport when it is
                                 // smaller than the visible area. A ScrollView
                                 // does NOT do this on its own here — it pins the
@@ -2866,6 +2890,24 @@ struct EditorView: View {
             return event
         }
 
+        // ⌘/⌃ + scroll wheel (or two-finger scroll) zooms about the cursor,
+        // through the same anchored step as a trackpad pinch.
+        guard scrollZoomMonitor == nil else { return }
+        scrollZoomMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            guard !event.modifierFlags.intersection([.command, .control]).isEmpty,
+                  let win = hostingWindow, event.window === win,
+                  let scrollView = canvasScrollView(at: event.locationInWindow),
+                  scrollView.bounds.contains(scrollView.convert(event.locationInWindow, from: nil))
+            else { return event }
+            let dy = event.scrollingDeltaY
+            guard dy != 0 else { return nil }
+            // A wheel notch reports ~1 unit; a trackpad reports many small ones.
+            let perUnit: CGFloat = event.hasPreciseScrollingDeltas ? 0.01 : 0.08
+            applyZoomInput(locationInWindow: event.locationInWindow,
+                           magnification: min(max(dy * perUnit, -0.5), 0.5))
+            return nil
+        }
+
         guard middleMouseMonitor == nil else { return }
         middleMouseMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.otherMouseDown, .otherMouseDragged, .otherMouseUp]
@@ -2922,8 +2964,49 @@ struct EditorView: View {
     }
 
     private func handleMagnifyEvent(_ event: NSEvent) {
-        magnifyState.lastLocationInWindow = event.locationInWindow
-        magnifyState.pendingMagnification *= (1 + event.magnification)
+        // Anchor on where the pointer is right now rather than the event's own
+        // location, which for a gesture event is not guaranteed to track it.
+        let pointer = hostingWindow?.mouseLocationOutsideOfEventStream ?? event.locationInWindow
+        applyZoomInput(locationInWindow: pointer, magnification: event.magnification)
+    }
+
+    /// The canvas' scroll view, found by hit-testing under the cursor instead of
+    /// trusting `nsScrollView` alone: that one is captured once when the canvas
+    /// appears, can be nil or belong to a view SwiftUI has since rebuilt, and
+    /// either way the zoom then silently loses its anchor and grows the page
+    /// from its top-left corner. Falls back to the captured one, and re-captures
+    /// whatever the hit test finds so the frame-change observer follows it.
+    private func canvasScrollView(at locationInWindow: NSPoint) -> NSScrollView? {
+        if let content = hostingWindow?.contentView,
+           let frameView = content.superview {
+            var view = content.hitTest(frameView.convert(locationInWindow, from: nil))
+            while let v = view {
+                // Only a scroll view that is most of the window wide is the
+                // canvas — the page strip is one too, and pinching over it
+                // must not re-anchor against it.
+                if let scrollView = v as? NSScrollView,
+                   scrollView.frame.width > content.bounds.width * 0.4 {
+                    if nsScrollView !== scrollView { nsScrollView = scrollView }
+                    return scrollView
+                }
+                view = v.superview
+            }
+        }
+        guard let scrollView = nsScrollView, scrollView.window === hostingWindow else { return nil }
+        return scrollView
+    }
+
+    private func applyZoomInput(locationInWindow: NSPoint, magnification: CGFloat) {
+        magnifyState.lastLocationInWindow = locationInWindow
+        magnifyState.pendingMagnification *= (1 + magnification)
+        // Watchdog: a step waits for the canvas resize to land, and while it
+        // waits no further zoom is applied. If that signal never comes the
+        // gesture would be dead until relaunch, so abandon a step that has
+        // been pending far longer than any layout takes.
+        if magnifyState.pendingScrollOrigin != nil,
+           Date().timeIntervalSince(magnifyState.stepStarted) > 0.4 {
+            magnifyState.pendingScrollOrigin = nil
+        }
         // One zoom step at a time: while a re-layout + anchor correction is in
         // flight, further pinch ticks accumulate into pendingMagnification and
         // are applied as the next step once the canvas resize lands. This keeps
@@ -2946,16 +3029,19 @@ struct EditorView: View {
         guard factor != 1.0 else { return }
 
         let oldScale = effectiveScale
+        let oldZoom = zoomLevel
         let newZoom = min(max(zoomLevel * factor, minZoomLevel), maxZoomLevel)
         guard newZoom != zoomLevel else { return }
 
-        guard let scrollView = nsScrollView, oldScale > 0 else {
+        // The continuous PDF stack has its own scale model (zoom is relative
+        // to fit-to-width), so it doesn't depend on fitScale.
+        let continuous = isContinuousPDF
+        guard let scrollView = canvasScrollView(at: magnifyState.lastLocationInWindow),
+              continuous || oldScale > 0 else {
             zoomLevel = newZoom
             syncZoomToPDFGroup()
             return
         }
-
-        let scaleFactor = (fitScale * newZoom) / oldScale
 
         // Keep the content point under the cursor pinned across the zoom step.
         // The document view is FLIPPED (top-left origin, y-down), so do all the
@@ -2965,34 +3051,88 @@ struct EditorView: View {
         // `documentVisibleRect` is already in that same space. The previous
         // version combined a y-up cursor offset with a y-down scroll origin,
         // inverting the vertical anchor so content drifted out of view on pinch.
+        //
+        // The placement itself is `ZoomAnchorGeometry`: the content is NOT a
+        // plain scale about the document origin (padding, centring, page
+        // spacing), so the cursor is resolved to a fraction of the canvas /
+        // page and re-placed in the new layout.
         let windowPoint = magnifyState.lastLocationInWindow
         let visibleRect = scrollView.documentVisibleRect
         var newOrigin = visibleRect.origin
+        var newInsets: (ZoomAnchorGeometry.AxisInset, ZoomAnchorGeometry.AxisInset)?
 
         if let docView = scrollView.documentView {
             // Content point currently under the cursor (current scale).
             let cursorInDoc = docView.convert(windowPoint, from: nil)
-            // Cursor's pixel offset from the visible top-left — a screen-stable
-            // quantity that must remain the same after the content scales about
-            // the document origin.
-            let offsetX = cursorInDoc.x - visibleRect.origin.x
-            let offsetY = cursorInDoc.y - visibleRect.origin.y
-            newOrigin = NSPoint(
-                x: cursorInDoc.x * scaleFactor - offsetX,
-                y: cursorInDoc.y * scaleFactor - offsetY
-            )
+            // Cursor's offset from the visible top-left — a screen-stable
+            // quantity that must remain the same after the zoom.
+            let offset = CGPoint(x: cursorInDoc.x - visibleRect.origin.x,
+                                 y: cursorInDoc.y - visibleRect.origin.y)
+            if continuous, let doc = pdfDocument {
+                // Sideways: every page is the same width and centred, so it is
+                // the single-canvas problem with no padding. Vertically the
+                // stack is top-aligned; zooming out can need a NEGATIVE origin
+                // (the stack shrinks above the cursor), which a top inset gives.
+                let pageX = ZoomAnchorGeometry.canvasAxisPlacement(
+                    cursor: cursorInDoc.x, cursorOffset: offset.x,
+                    viewport: visibleRect.width,
+                    oldCanvas: ZoomAnchorGeometry.continuousPageWidth(viewportWidth: visibleRect.width, zoom: oldZoom),
+                    oldInset: zoomInsetX,
+                    newCanvas: ZoomAnchorGeometry.continuousPageWidth(viewportWidth: visibleRect.width, zoom: newZoom),
+                    padding: 0)
+                let origin = ZoomAnchorGeometry.continuousOrigin(
+                    cursor: CGPoint(x: cursorInDoc.x, y: cursorInDoc.y - zoomInsetY.lead),
+                    cursorOffset: offset,
+                    viewportWidth: visibleRect.width,
+                    pageCount: doc.pageCount,
+                    aspect: { i in
+                        guard let size = doc.page(at: i)?.rotatedMediaBoxSize,
+                              size.height > 0 else { return 0.75 }
+                        return size.width / size.height
+                    },
+                    oldZoom: oldZoom, newZoom: newZoom)
+                let topInset = max(0, -origin.y)
+                newOrigin = NSPoint(x: pageX.origin, y: max(0, origin.y))
+                newInsets = (pageX.inset, ZoomAnchorGeometry.AxisInset(lead: topInset, trail: 0))
+            } else {
+                let newScale = fitScale * newZoom
+                let px = ZoomAnchorGeometry.canvasAxisPlacement(
+                    cursor: cursorInDoc.x, cursorOffset: offset.x,
+                    viewport: visibleRect.width,
+                    oldCanvas: imagePixelSize.width * oldScale, oldInset: zoomInsetX,
+                    newCanvas: imagePixelSize.width * newScale)
+                let py = ZoomAnchorGeometry.canvasAxisPlacement(
+                    cursor: cursorInDoc.y, cursorOffset: offset.y,
+                    viewport: visibleRect.height,
+                    oldCanvas: imagePixelSize.height * oldScale, oldInset: zoomInsetY,
+                    newCanvas: imagePixelSize.height * newScale)
+                newOrigin = NSPoint(x: px.origin, y: py.origin)
+                newInsets = (px.inset, py.inset)
+            }
         }
-
+        if !newOrigin.x.isFinite || !newOrigin.y.isFinite { newOrigin = visibleRect.origin }
+        magnifyState.step += 1
+        magnifyState.stepStarted = Date()
         magnifyState.pendingScrollOrigin = newOrigin
+        magnifyState.expectedZoom = newZoom
+        zoomInsetX = newInsets?.0 ?? ZoomAnchorGeometry.AxisInset()
+        zoomInsetY = newInsets?.1 ?? ZoomAnchorGeometry.AxisInset()
         zoomLevel = newZoom
         syncZoomToPDFGroup()
 
         // Fallback: a microscopic zoom step can round to an identical canvas
-        // frame, in which case frameDidChange never fires. Apply on the next
-        // runloop turn rather than leaving the gesture stuck waiting for a
-        // resize that won't come. No-op when the observer already ran.
-        DispatchQueue.main.async {
-            guard magnifyState.pendingScrollOrigin == newOrigin else { return }
+        // frame, in which case frameDidChange never fires, so don't leave the
+        // gesture waiting for a resize that won't come. This must NOT fire on
+        // the next runloop turn: SwiftUI hasn't re-laid the canvas out by then,
+        // and the clamp in `finishZoomAnchorCorrection` would pin the origin to
+        // the OLD (smaller) document — the content then lands off screen, worst
+        // on large zoom steps. No-op when the observer already ran.
+        let step = magnifyState.step
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            // Token only — comparing the origin itself would never match if it
+            // held a NaN, leaving the step pending forever.
+            guard magnifyState.step == step,
+                  magnifyState.pendingScrollOrigin != nil else { return }
             finishZoomAnchorCorrection(scrollView: scrollView, origin: newOrigin)
         }
     }
@@ -3001,8 +3141,31 @@ struct EditorView: View {
     /// any pinch movement that accumulated while the resize was in flight.
     private func finishZoomAnchorCorrection(scrollView: NSScrollView, origin: NSPoint) {
         magnifyState.pendingScrollOrigin = nil
-        scrollView.contentView.scroll(to: origin)
-        scrollView.reflectScrolledClipView(scrollView.contentView)
+        let step = magnifyState.step
+        func place() {
+            // Clamp to the resized document: an anchor near an edge can ask for
+            // an origin past it (or negative), which would show empty space.
+            var clamped = origin
+            if let doc = scrollView.documentView {
+                let visible = scrollView.documentVisibleRect.size
+                clamped.x = min(max(clamped.x, 0), max(0, doc.frame.width - visible.width))
+                clamped.y = min(max(clamped.y, 0), max(0, doc.frame.height - visible.height))
+            }
+            scrollView.contentView.scroll(to: clamped)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+        place()
+        // Settle pass: the first frame change can be an intermediate size, and
+        // the continuous stack keeps adjusting as rows are realised. Re-place
+        // the same (deterministic) origin unless a newer zoom step has begun.
+        for delay in [0.0, 0.08] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard magnifyState.step == step,
+                      magnifyState.pendingScrollOrigin == nil,
+                      magnifyState.pendingMagnification == 1.0 else { return }
+                place()
+            }
+        }
         if magnifyState.pendingMagnification != 1.0 {
             applyPendingMagnification()
         }
@@ -3016,6 +3179,10 @@ struct EditorView: View {
         if let monitor = magnifyMonitor {
             NSEvent.removeMonitor(monitor)
             magnifyMonitor = nil
+        }
+        if let monitor = scrollZoomMonitor {
+            NSEvent.removeMonitor(monitor)
+            scrollZoomMonitor = nil
         }
         if let monitor = middleMouseMonitor {
             NSEvent.removeMonitor(monitor)
@@ -4149,6 +4316,8 @@ struct EditorView: View {
         preCropScreenshotCropRect = session.preCropScreenshotCropRect
         preCropSnapshot = session.preCropSnapshot
         zoomLevel = session.zoomLevel
+        zoomInsetX = ZoomAnchorGeometry.AxisInset()
+        zoomInsetY = ZoomAnchorGeometry.AxisInset()
         fitScale = session.fitScale
         selectedWallpaper = session.selectedWallpaper
         editorAspectRatioID = session.editorAspectRatioID
@@ -5437,7 +5606,149 @@ private class MultiPagePrintView: NSView {
 private final class MagnifyGestureState {
     var pendingMagnification: CGFloat = 1.0
     var pendingScrollOrigin: NSPoint?
+    /// Bumped per zoom step so delayed fallbacks/settle passes can tell they're stale.
+    var step = 0
+    /// The zoom level the last anchored step set; a different value arriving
+    /// means the zoom changed some other way (buttons, Fit) and insets reset.
+    var expectedZoom: CGFloat = -1
+    /// When the in-flight step began; a step that outlives `staleAfter` is abandoned.
+    var stepStarted = Date.distantPast
     var lastLocationInWindow: NSPoint = .zero
+}
+
+/// Pure geometry for keeping the content point under the cursor fixed across a
+/// zoom step. Both layouts are *not* a plain scale about the document origin,
+/// which is what a naive `cursor * factor - offset` assumes:
+///
+/// - the single-page canvas has constant 20pt padding and is **centred** in a
+///   document that is at least viewport-sized, so while the page is smaller
+///   than the window its position in the document shifts with every step;
+/// - the continuous PDF stack has constant top padding and inter-page spacing
+///   (summed over every page above the cursor) and centres pages horizontally.
+///
+/// Each function therefore resolves the cursor to a position *within the
+/// content* (a fraction of the canvas, or of a page) and re-places that
+/// fraction in the new layout. Mirrors `EditorView`'s canvas padding and
+/// `ContinuousPDFView`'s metrics — keep them in step.
+enum ZoomAnchorGeometry {
+    /// Canvas padding applied around `EditorCanvasView` in the editor.
+    static let canvasPadding: CGFloat = 20
+    static let continuousVerticalPadding: CGFloat = 16
+    static let continuousPageSpacing: CGFloat = 14
+    static let continuousHorizontalMargin: CGFloat = 32
+    static let continuousMinPageWidth: CGFloat = 50
+
+    /// Extra space added on one axis around the padded canvas so a zoom anchor
+    /// stays reachable. A canvas smaller than the viewport is centred in a
+    /// document that cannot scroll, so keeping a point near its edge under the
+    /// cursor would need a NEGATIVE scroll origin; without this the origin
+    /// clamps to 0 and the point drifts away from the cursor — off screen after
+    /// a deep zoom. `lead`/`trail` are applied as padding before the centring
+    /// frame, so they shift or extend the document instead.
+    struct AxisInset: Equatable {
+        var lead: CGFloat = 0
+        var trail: CGFloat = 0
+    }
+
+    /// Where the canvas' leading edge sits in the document, and the document's
+    /// length, for a canvas of `canvas` points with `inset` around its padding.
+    static func axisLayout(viewport: CGFloat, canvas: CGFloat, inset: AxisInset,
+                           padding: CGFloat = canvasPadding) -> (start: CGFloat, document: CGFloat) {
+        let content = canvas + 2 * padding + inset.lead + inset.trail
+        return ((max(viewport, content) - content) / 2 + inset.lead + padding,
+                max(viewport, content))
+    }
+
+    /// Scroll origin AND inset along one axis that keep `cursor` (document
+    /// space, in the old layout) under the same screen position at the new
+    /// canvas size. The cursor is resolved to a fraction of the canvas, so the
+    /// padding and centring don't skew it.
+    static func canvasAxisPlacement(
+        cursor: CGFloat, cursorOffset: CGFloat, viewport: CGFloat,
+        oldCanvas: CGFloat, oldInset: AxisInset, newCanvas: CGFloat,
+        padding: CGFloat = canvasPadding
+    ) -> (origin: CGFloat, inset: AxisInset) {
+        guard oldCanvas > 0 else { return (cursor - cursorOffset, AxisInset()) }
+        let oldStart = axisLayout(viewport: viewport, canvas: oldCanvas, inset: oldInset, padding: padding).start
+        // A cursor far out in the empty margin would otherwise demand a
+        // blank gutter as wide as the distance to the page; bound it.
+        let fraction = min(max((cursor - oldStart) / oldCanvas, -0.25), 1.25)
+        // Where the canvas' leading edge must sit on SCREEN to keep the anchor.
+        let wanted = cursorOffset - fraction * newCanvas
+
+        let natural = axisLayout(viewport: viewport, canvas: newCanvas, inset: AxisInset(), padding: padding)
+        let maxNatural = max(0, natural.document - viewport)
+        let origin = natural.start - wanted
+        if origin >= 0 && origin <= maxNatural { return (origin, AxisInset()) }
+
+        let content = newCanvas + 2 * padding
+        if origin < 0 {
+            // Page has to sit further toward the leading edge's far side than
+            // centring allows: push it with leading space.
+            var lead = -2 * origin
+            if content + lead > viewport { lead = wanted - padding }
+            return (0, AxisInset(lead: max(0, lead), trail: 0))
+        }
+        if maxNatural == 0 {
+            if wanted >= padding {
+                return (0, AxisInset(lead: 0, trail: 2 * origin))
+            }
+            let scroll = padding - wanted
+            return (scroll, AxisInset(lead: 0, trail: max(0, scroll + viewport - content)))
+        }
+        return (origin, AxisInset(lead: 0, trail: max(0, origin + viewport - content)))
+    }
+
+    /// Width of every page in the continuous stack — `ContinuousPDFView`'s own
+    /// formula, zoom being relative to fit-to-width.
+    static func continuousPageWidth(viewportWidth: CGFloat, zoom: CGFloat) -> CGFloat {
+        max(max(viewportWidth - continuousHorizontalMargin, continuousMinPageWidth) * zoom,
+            continuousMinPageWidth)
+    }
+
+    /// Scroll origin for the continuous PDF stack. `aspect(i)` is page `i`'s
+    /// width/height; zoom is relative to fit-to-width, like `ContinuousPDFView`.
+    static func continuousOrigin(
+        cursor: CGPoint, cursorOffset: CGPoint, viewportWidth: CGFloat,
+        pageCount: Int, aspect: (Int) -> CGFloat,
+        oldZoom: CGFloat, newZoom: CGFloat
+    ) -> CGPoint {
+        guard pageCount > 0, oldZoom > 0 else {
+            return CGPoint(x: cursor.x - cursorOffset.x, y: cursor.y - cursorOffset.y)
+        }
+        func pageWidth(_ zoom: CGFloat) -> CGFloat {
+            continuousPageWidth(viewportWidth: viewportWidth, zoom: zoom)
+        }
+        func pageHeight(_ i: Int, width: CGFloat) -> CGFloat {
+            let a = aspect(i)
+            return a > 0 ? width / a : width
+        }
+        func left(_ width: CGFloat) -> CGFloat { (max(viewportWidth, width) - width) / 2 }
+
+        let oldW = pageWidth(oldZoom), newW = pageWidth(newZoom)
+
+        // Walk down to the page the cursor is over (or the nearest one: above
+        // the first page / below the last extrapolates linearly).
+        var oldTop = continuousVerticalPadding
+        var newTop = continuousVerticalPadding
+        var index = 0
+        while index < pageCount - 1 {
+            let oldH = pageHeight(index, width: oldW)
+            if cursor.y < oldTop + oldH + continuousPageSpacing / 2 { break }
+            oldTop += oldH + continuousPageSpacing
+            newTop += pageHeight(index, width: newW) + continuousPageSpacing
+            index += 1
+        }
+
+        let oldH = pageHeight(index, width: oldW)
+        let newH = pageHeight(index, width: newW)
+        let fx = (cursor.x - left(oldW)) / oldW
+        let fy = oldH > 0 ? (cursor.y - oldTop) / oldH : 0
+        return CGPoint(
+            x: left(newW) + fx * newW - cursorOffset.x,
+            y: newTop + fy * newH - cursorOffset.y
+        )
+    }
 }
 
 /// Coordinates the asynchronous display-render pipeline. Generations implement
@@ -5502,30 +5813,47 @@ private final class DisplayRenderCoordinator {
 /// (e.g. NSEvent local monitors) can scope its handling to this window.
 private struct WindowAccessor: NSViewRepresentable {
     let callback: (NSWindow?) -> Void
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async { [weak view] in
-            callback(view?.window)
+
+    /// Reports the window the moment the view is attached to one. The old
+    /// single `DispatchQueue.main.async` lookup raced the attachment: when it
+    /// ran first it delivered nil, `hostingWindow` stayed nil for the life of
+    /// the editor, and every local event monitor — pinch zoom included — saw
+    /// `event.window === nil` and ignored its events.
+    private final class Probe: NSView {
+        var onWindow: ((NSWindow) -> Void)?
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window { onWindow?(window) }
         }
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = Probe()
+        view.onWindow = { callback($0) }
         return view
     }
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-private struct ScrollViewAccessor: NSViewRepresentable {
+struct ScrollViewAccessor: NSViewRepresentable {
     let callback: (NSScrollView?) -> Void
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
-        DispatchQueue.main.async { [weak view] in
-            var current: NSView? = view
-            while let v = current {
-                if let scrollView = v as? NSScrollView {
-                    callback(scrollView)
-                    return
+        // The view is not yet attached to its scroll view on the first main-queue
+        // turn (measured: no window, a two-view superview chain), so a single
+        // lookup reported nil and left the editor with no scroll view to anchor
+        // zoom against. Retry until it is found.
+        for delay in [0.0, 0.05, 0.2, 0.6] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak view] in
+                var current: NSView? = view
+                while let v = current {
+                    if let scrollView = v as? NSScrollView {
+                        callback(scrollView)
+                        return
+                    }
+                    current = v.superview
                 }
-                current = v.superview
             }
-            callback(nil)
         }
         return view
     }

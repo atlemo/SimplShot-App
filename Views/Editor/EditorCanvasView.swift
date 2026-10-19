@@ -2176,6 +2176,13 @@ struct ContinuousPDFView: View {
     /// enlarges pages (enabling horizontal scroll), <1 shrinks them. Driven by
     /// the editor's zoom controls.
     var zoom: CGFloat = 1
+    /// Hands the enclosing `NSScrollView` to the editor so zoom can re-anchor
+    /// the viewport on the cursor (see `ZoomAnchorGeometry`).
+    var onScrollView: ((NSScrollView?) -> Void)? = nil
+    /// Extra space that keeps a zoom anchor reachable (see `ZoomAnchorGeometry`):
+    /// sideways around the centred pages, and above the first page.
+    var insetX = ZoomAnchorGeometry.AxisInset()
+    var insetTop: CGFloat = 0
     var highlights: (PDFPage) -> [PDFSelection] = { _ in [] }
     var activeHighlight: (PDFPage) -> PDFSelection? = { _ in nil }
     var onOpenURL: ((URL) -> Void)? = nil
@@ -2184,18 +2191,22 @@ struct ContinuousPDFView: View {
     var body: some View {
         GeometryReader { geo in
             // Fit-to-width baseline (zoom == 1), then scaled by the zoom factor.
-            let fitWidth = max(geo.size.width - 32, 50)
-            let pageWidth = max(fitWidth * zoom, 50)
+            let fitWidth = max(geo.size.width - ZoomAnchorGeometry.continuousHorizontalMargin,
+                               ZoomAnchorGeometry.continuousMinPageWidth)
+            let pageWidth = max(fitWidth * zoom, ZoomAnchorGeometry.continuousMinPageWidth)
             ScrollViewReader { proxy in
                 // Both axes: vertical to scroll the page stack, horizontal so a
                 // page wider than the viewport (zoom > fit) can be panned.
                 ScrollView([.vertical, .horizontal]) {
-                    LazyVStack(spacing: 14) {
+                    LazyVStack(spacing: ZoomAnchorGeometry.continuousPageSpacing) {
                         ForEach(0..<document.pageCount, id: \.self) { i in
                             pageRow(i, width: pageWidth).id(i)
                         }
                     }
-                    .padding(.vertical, 16)
+                    .padding(.vertical, ZoomAnchorGeometry.continuousVerticalPadding)
+                    .padding(.leading, insetX.lead)
+                    .padding(.trailing, insetX.trail)
+                    .padding(.top, insetTop)
                     // Fill at least the viewport and pin to the top: pages stay
                     // horizontally centred, but when the stack is shorter than the
                     // viewport (e.g. a short PDF zoomed out) the slack falls below
@@ -2203,6 +2214,7 @@ struct ContinuousPDFView: View {
                     // content is larger, its intrinsic size drives scrolling on
                     // both axes.
                     .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .top)
+                    .background(ScrollViewAccessor { onScrollView?($0) })
                 }
                 .coordinateSpace(name: "continuousPDF")
                 .onPreferenceChange(ContinuousPageMidKey.self) { mids in
