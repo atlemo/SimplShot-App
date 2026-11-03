@@ -16640,6 +16640,40 @@
           }
         }
       }
+    },
+    "A shortcut needs ⌘, ⌥ or ⌃ — for example ⌃⌥S. A plain key, or ⇧ with a key, can't be recorded." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Kurzbefehl braucht ⌘, ⌥ oder ⌃ – zum Beispiel ⌃⌥S. Eine einzelne Taste oder ⇧ mit einer Taste lässt sich nicht aufnehmen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un raccourci doit comporter ⌘, ⌥ ou ⌃ – par exemple ⌃⌥S. Une touche seule, ou ⇧ avec une touche, ne peut pas être enregistrée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカットには ⌘、⌥、⌃ のいずれかが必要です（例：⌃⌥S）。修飾キーなしのキーや、⇧ とキーだけの組み合わせは登録できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В сочетании должна быть клавиша ⌘, ⌥ или ⌃ — например, ⌃⌥S. Одиночную клавишу или ⇧ с клавишей записать нельзя."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷键必须包含 ⌘、⌥ 或 ⌃，例如 ⌃⌥S。单独的按键，或仅 ⇧ 加按键，无法录制。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

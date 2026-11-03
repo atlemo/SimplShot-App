@@ -25,6 +25,12 @@ struct ShortcutsSettingsView: View {
                     Divider().padding(.leading, 16)
                     shortcutRow("Open Screenshots Folder", shortcut: .openScreenshotsFolder)
                 }
+
+                // The recorder silently beeps for a bare key or ⇧ plus a key, which
+                // reads as "special characters don't work" (issue #9).
+                Text("A shortcut needs ⌘, ⌥ or ⌃ — for example ⌃⌥S. A plain key, or ⇧ with a key, can't be recorded.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             // Editor-only shortcuts: these are matched by the editor window's own
