@@ -494,7 +494,7 @@ struct EditorCanvasView: View {
                 .padding(.vertical, scaledFontSize * 0.25)
                 .background(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(ann.style.textHasBackground ? ann.style.textBubbleBackground : Color.clear)
+                        .fill(ann.style.textHasBackground ? ann.style.textPill : Color.clear)
                 )
                 .overlay(
                     // Same selected look as the committed pill (AnnotationOverlayView).
@@ -507,7 +507,7 @@ struct EditorCanvasView: View {
                 .padding(borderWidth)
                 .overlay(
                     RoundedRectangle(cornerRadius: cornerRadius + borderWidth, style: .continuous)
-                        .stroke(ann.style.textHasBackground ? ann.style.textBubbleBackground : Color.clear,
+                        .stroke(ann.style.textHasBackground ? ann.style.textPill : Color.clear,
                                 lineWidth: borderWidth)
                 )
                 .position(x: pos.x, y: pos.y)

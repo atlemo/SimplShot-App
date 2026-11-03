@@ -231,7 +231,7 @@ struct EditorSidebarView: View {
 
     private var showFillColorControl: Bool {
         let tool = activeStyleTool
-        return tool.isShapeTool || tool == .highlight
+        return tool.isShapeTool || tool == .highlight || tool == .text
     }
 
     private var usesFontSizeContext: Bool {
@@ -1267,27 +1267,8 @@ struct EditorSidebarView: View {
                     .frame(width: 36, alignment: .trailing)
             }
             .padding(.vertical, 2)
-
-            // Text only — numbered steps are always a filled badge.
-            if activeStyleTool == .text {
-                Divider()
-                Toggle("Background", isOn: textBackgroundBinding)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .font(.system(size: 12))
-            }
         }
         .padding(12)
-    }
-
-    private var textBackgroundBinding: Binding<Bool> {
-        Binding(
-            get: { currentStyle.textHasBackground },
-            set: { newValue in
-                currentStyle.textHasBackground = newValue
-                applyStyleToSelection()
-            }
-        )
     }
 
     // MARK: - Arrow Style Popover

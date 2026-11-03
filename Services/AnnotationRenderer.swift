@@ -941,8 +941,8 @@ class AnnotationRenderer {
         // System font, matching the live overlay/editor (AnnotationOverlayView,
         // GrowingTextField) so the exported bubble wraps and sizes identically.
         let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
-        let bgColor = style.cgTextBubbleBackground
-        // Ink is contrast-on-pill, or the stroke colour itself with no pill.
+        let bgColor = style.cgTextPill
+        // Ink is the stroke colour; the pill, when there is one, is the fill colour.
         let fgColor = style.cgTextInk
         let drawsPill = style.textHasBackground
 

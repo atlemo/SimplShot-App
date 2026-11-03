@@ -222,7 +222,7 @@ struct AnnotationOverlayView: View {
             .padding(.vertical, scaledFontSize * 0.25)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(hasBackground ? annotation.style.textBubbleBackground : Color.clear)
+                    .fill(hasBackground ? annotation.style.textPill : Color.clear)
             )
             .overlay(
                 // Pill: white ring. No pill: a dashed accent outline, so a
@@ -235,7 +235,7 @@ struct AnnotationOverlayView: View {
             .padding(isSelected ? borderWidth : 0)
             .overlay(
                 RoundedRectangle(cornerRadius: isSelected ? cornerRadius + borderWidth : cornerRadius, style: .continuous)
-                    .stroke(isSelected && hasBackground ? annotation.style.textBubbleBackground : Color.clear,
+                    .stroke(isSelected && hasBackground ? annotation.style.textPill : Color.clear,
                             lineWidth: borderWidth)
             )
             .fixedSize(horizontal: !hasFixedWidth, vertical: false)
