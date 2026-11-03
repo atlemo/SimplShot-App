@@ -375,7 +375,7 @@ class AnnotationRenderer {
         case .star:
             drawStar(annotation.boundingRect, fillColor: annotation.style.cgFillColor, color: color, in: context)
         case .text:
-            drawText(annotation.text, at: annotation.startPoint, style: annotation.style, textWidth: annotation.textWidth, drawingHeight: drawingHeight, in: context)
+            drawText(annotation.text, at: annotation.startPoint, style: annotation.style, textWidth: annotation.textWidth, rotation: annotation.rotation, drawingHeight: drawingHeight, in: context)
         case .spotlight:
             break
         case .numberedStep:
@@ -917,8 +917,21 @@ class AnnotationRenderer {
         context.restoreGState()
     }
 
-    private func drawText(_ text: String, at point: CGPoint, style: AnnotationStyle, textWidth: CGFloat?, drawingHeight: CGFloat, in context: CGContext) {
+    private func drawText(_ text: String, at point: CGPoint, style: AnnotationStyle, textWidth: CGFloat?, rotation: CGFloat = 0, drawingHeight: CGFloat, in context: CGContext) {
         guard !text.isEmpty else { return }
+
+        // Turn the whole bubble about its centre. The drawing space is y-down
+        // (flipped), where CG's rotation matrix is the same clockwise-positive one
+        // as `TextBubbleGeometry.rotate` and SwiftUI's `rotationEffect`. The
+        // CTFrame un-flip below composes with this exactly (it reflects, and the
+        // rect it is given was reflected once already), so nothing in it changes.
+        context.saveGState()
+        defer { context.restoreGState() }
+        if rotation != 0 {
+            context.translateBy(x: point.x, y: point.y)
+            context.rotate(by: rotation)
+            context.translateBy(x: -point.x, y: -point.y)
+        }
 
         // Text bubbles are NOT scaled by styleScale: their box geometry and the
         // interactive resize handles live in stored image-pixel space, so the

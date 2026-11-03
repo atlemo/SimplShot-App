@@ -14,6 +14,7 @@ enum DragMode: Equatable {
     case textLeftEdge              // resize text bubble from the left
     case textRightEdge             // resize text bubble from the right
     case textCorner(rightSide: Bool, bottomSide: Bool)  // scale text (font + width) about the opposite corner
+    case textRotate                // turn a text bubble about its centre
 }
 
 /// The handle tap radius in image-pixel units used for hit testing.
@@ -600,6 +601,7 @@ struct EditorCanvasView: View {
                                     style: duplicate.style,
                                     text: duplicate.text,
                                     textWidth: duplicate.textWidth,
+                                    rotation: duplicate.rotation,
                                     stepNumber: duplicate.stepNumber
                                 )
                                 onCommit()
@@ -767,6 +769,13 @@ struct EditorCanvasView: View {
     /// Snap threshold in image-pixel units.
     private var snapThreshold: CGFloat { 6.0 / scale }
 
+    /// A pointer delta (image space) re-expressed in a text bubble's own frame,
+    /// so dragging a side or corner handle of a rotated bubble moves along ITS
+    /// width and height rather than the screen's.
+    private func localTextDelta(_ dx: CGFloat, _ dy: CGFloat, _ ann: Annotation) -> CGPoint {
+        TextBubbleGeometry.rotate(CGPoint(x: dx, y: dy), by: -ann.rotation)
+    }
+
     /// Apply the current drag delta to the local drag proxy (avoids mutating the binding).
     private func applyDragDelta(_ currentInImage: CGPoint) {
         guard var ann = dragStartAnnotation else { return }
@@ -904,7 +913,7 @@ struct EditorCanvasView: View {
         case .textLeftEdge:
             let currentWidth = textBubbleWidth(for: ann)
             let minWidth = ann.style.fontSize * 2
-            let newWidth = max(minWidth, currentWidth - dx * 2)
+            let newWidth = max(minWidth, currentWidth - localTextDelta(dx, dy, ann).x * 2)
             ann.textWidth = newWidth
             snapH = false
             snapV = false
@@ -912,7 +921,7 @@ struct EditorCanvasView: View {
         case .textRightEdge:
             let currentWidth = textBubbleWidth(for: ann)
             let minWidth = ann.style.fontSize * 2
-            let newWidth = max(minWidth, currentWidth + dx * 2)
+            let newWidth = max(minWidth, currentWidth + localTextDelta(dx, dy, ann).x * 2)
             ann.textWidth = newWidth
             snapH = false
             snapV = false
@@ -922,15 +931,23 @@ struct EditorCanvasView: View {
             // about the OPPOSITE corner, which stays put. The scale factor is the
             // drag's projection onto the corner's diagonal, so it is
             // proportional whichever way the pointer wanders.
+            //
+            // Worked in the bubble's own frame (x along its width, y along its
+            // height): the pointer delta is turned back by the bubble's rotation,
+            // and the re-hung centre is turned forward again.
             let sx: CGFloat = rightSide ? 1 : -1
             let sy: CGFloat = bottomSide ? 1 : -1
             let w0 = textBubbleWidth(for: ann)
             let h0 = TextBubbleGeometry.imageHeight(for: ann, scale: scale)
             let c0 = ann.startPoint
-            let anchor = CGPoint(x: c0.x - sx * w0 / 2, y: c0.y - sy * h0 / 2)
+            let rot = ann.rotation
+            let local = localTextDelta(dx, dy, ann)
+            let anchorOffset = TextBubbleGeometry.rotate(CGPoint(x: -sx * w0 / 2, y: -sy * h0 / 2), by: rot)
+            let anchor = CGPoint(x: c0.x + anchorOffset.x, y: c0.y + anchorOffset.y)
             let diagonal = CGVector(dx: sx * w0, dy: sy * h0)
-            let pointer = CGPoint(x: c0.x + sx * w0 / 2 + dx, y: c0.y + sy * h0 / 2 + dy)
-            let k0 = ((pointer.x - anchor.x) * diagonal.dx + (pointer.y - anchor.y) * diagonal.dy)
+            // Pointer relative to the anchor, in the bubble's frame.
+            let rel = CGPoint(x: sx * w0 + local.x, y: sy * h0 + local.y)
+            let k0 = (rel.x * diagonal.dx + rel.y * diagonal.dy)
                 / (diagonal.dx * diagonal.dx + diagonal.dy * diagonal.dy)
             let f0 = ann.style.fontSize
             let f1 = min(max(f0 * k0, Self.textScaleFontRange.lowerBound),
@@ -942,8 +959,20 @@ struct EditorCanvasView: View {
             // what keeps the anchored corner from creeping.
             let w1 = textBubbleWidth(for: ann)
             let h1 = TextBubbleGeometry.imageHeight(for: ann, scale: scale)
-            ann.startPoint = CGPoint(x: anchor.x + sx * w1 / 2, y: anchor.y + sy * h1 / 2)
+            let centreOffset = TextBubbleGeometry.rotate(CGPoint(x: sx * w1 / 2, y: sy * h1 / 2), by: rot)
+            ann.startPoint = CGPoint(x: anchor.x + centreOffset.x, y: anchor.y + centreOffset.y)
             ann.endPoint = ann.startPoint
+            snapH = false
+            snapV = false
+
+        case .textRotate:
+            // The handle follows the pointer: the bubble turns until its "up"
+            // points at it. Shift snaps to 15° steps.
+            var angle = TextBubbleGeometry.rotation(center: ann.startPoint, pointer: currentInImage)
+            if isShiftDown {
+                angle = TextBubbleGeometry.snapped(angle, to: .pi / 12)
+            }
+            ann.rotation = angle
             snapH = false
             snapV = false
         }
@@ -1209,20 +1238,27 @@ struct EditorCanvasView: View {
             return nil
 
         case .text:
+            // Un-rotate the pointer about the centre and test in the bubble's own
+            // frame — the same frame the handles are drawn in.
+            let center = annotation.startPoint
+            let p = TextBubbleGeometry.rotate(point, by: -annotation.rotation, about: center)
             let bubbleWidth = textBubbleWidth(for: annotation)
             let halfW = bubbleWidth / 2
-            let cx = annotation.startPoint.x
-            let cy = annotation.startPoint.y
-            let handleY = cy
-            let leftHandle  = CGPoint(x: cx - halfW, y: handleY)
-            let rightHandle = CGPoint(x: cx + halfW, y: handleY)
-            if dist(point, leftHandle)  < r { return .textLeftEdge }
-            if dist(point, rightHandle) < r { return .textRightEdge }
+            let cx = center.x
+            let cy = center.y
             let halfH = TextBubbleGeometry.imageHeight(for: annotation, scale: scale) / 2
+            // The rotation handle floats a fixed number of VIEW points above the
+            // top edge, so its gap in image pixels shrinks as the zoom grows.
+            let gap = TextBubbleGeometry.rotationHandleGap / scale
+            if dist(p, CGPoint(x: cx, y: cy - halfH - gap)) < r { return .textRotate }
+            let leftHandle  = CGPoint(x: cx - halfW, y: cy)
+            let rightHandle = CGPoint(x: cx + halfW, y: cy)
+            if dist(p, leftHandle)  < r { return .textLeftEdge }
+            if dist(p, rightHandle) < r { return .textRightEdge }
             for (right, bottom) in [(false, false), (true, false), (false, true), (true, true)] {
                 let corner = CGPoint(x: cx + (right ? halfW : -halfW),
                                      y: cy + (bottom ? halfH : -halfH))
-                if dist(point, corner) < r { return .textCorner(rightSide: right, bottomSide: bottom) }
+                if dist(p, corner) < r { return .textCorner(rightSide: right, bottomSide: bottom) }
             }
             return nil
 
@@ -1305,7 +1341,11 @@ struct EditorCanvasView: View {
                     width: bubbleW,
                     height: estHeight
                 )
-                if textRect.contains(point) {
+                // Test in the bubble's own frame so a rotated bubble is hit where
+                // it is drawn, not where its unrotated box would be.
+                let local = TextBubbleGeometry.rotate(point, by: -annotation.rotation,
+                                                      about: annotation.startPoint)
+                if textRect.contains(local) {
                     return annotation.id
                 }
 

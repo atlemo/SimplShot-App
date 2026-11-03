@@ -648,6 +648,49 @@ enum TextBubbleGeometry {
         guard scale > 0 else { return annotation.style.fontSize * 1.7 }
         return displayHeight(for: annotation, scale: scale) / scale
     }
+
+    // MARK: Rotation
+    //
+    // `Annotation.rotation` turns the bubble about its centre (`startPoint`),
+    // clockwise on screen. Everything below is the one place that convention is
+    // spelled out: SwiftUI's `rotationEffect(+)` and this matrix (y-down) agree,
+    // and the renderer, working in the same flipped space, applies the same
+    // angle with the same sign.
+
+    /// `v` turned `angle` radians clockwise (y-down) about the origin.
+    static func rotate(_ v: CGPoint, by angle: CGFloat) -> CGPoint {
+        let c = cos(angle), s = sin(angle)
+        return CGPoint(x: v.x * c - v.y * s, y: v.x * s + v.y * c)
+    }
+
+    /// `p` turned `angle` radians clockwise about `center`.
+    static func rotate(_ p: CGPoint, by angle: CGFloat, about center: CGPoint) -> CGPoint {
+        let r = rotate(CGPoint(x: p.x - center.x, y: p.y - center.y), by: angle)
+        return CGPoint(x: center.x + r.x, y: center.y + r.y)
+    }
+
+    /// How far above the top edge the rotation handle floats, in **view
+    /// points** — constant on screen whatever the zoom, like the other handles.
+    static let rotationHandleGap: CGFloat = 22
+
+    /// Where the rotation handle sits, given the bubble's centre, its height and
+    /// rotation — all in one space (`gap` is in that space too).
+    static func rotationHandle(center: CGPoint, height: CGFloat, gap: CGFloat,
+                               rotation: CGFloat) -> CGPoint {
+        let up = CGPoint(x: center.x, y: center.y - height / 2 - gap)
+        return rotate(up, by: rotation, about: center)
+    }
+
+    /// The rotation that points the handle (straight up when unrotated) at
+    /// `pointer`. Inverse of `rotationHandle`.
+    static func rotation(center: CGPoint, pointer: CGPoint) -> CGFloat {
+        atan2(pointer.x - center.x, -(pointer.y - center.y))
+    }
+
+    /// `angle` rounded to the nearest `step` (radians).
+    static func snapped(_ angle: CGFloat, to step: CGFloat) -> CGFloat {
+        (angle / step).rounded() * step
+    }
 }
 
 // MARK: - Sticker (Emoji) Geometry
@@ -1180,6 +1223,11 @@ struct Annotation: Identifiable, Equatable {
     /// annotation, so a width living in the style was silently discarded by the
     /// next colour/font tweak and leaked into freshly placed bubbles.
     var textWidth: CGFloat?
+    /// Clockwise turn of a `.text` bubble about its centre, in radians. Like
+    /// `textWidth`, per-annotation geometry rather than style. Whole-image
+    /// transforms that turn or mirror the picture (90° rotate, straighten, flip)
+    /// adjust it; crop, padding and resize leave it alone.
+    var rotation: CGFloat = 0
     var stepNumber: Int        // only meaningful for .numberedStep tool
 
     init(
@@ -1192,6 +1240,7 @@ struct Annotation: Identifiable, Equatable {
         style: AnnotationStyle = AnnotationStyle(),
         text: String = "",
         textWidth: CGFloat? = nil,
+        rotation: CGFloat = 0,
         stepNumber: Int = 0
     ) {
         self.id = id
@@ -1203,6 +1252,7 @@ struct Annotation: Identifiable, Equatable {
         self.style = style
         self.text = text
         self.textWidth = textWidth
+        self.rotation = rotation
         self.stepNumber = stepNumber
     }
 

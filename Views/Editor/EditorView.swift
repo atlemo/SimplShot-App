@@ -2249,6 +2249,9 @@ struct EditorView: View {
             a.startPoint = remap(ann.startPoint)
             a.endPoint = remap(ann.endPoint)
             if !ann.points.isEmpty { a.points = ann.points.map(remap) }
+            // A text bubble turns with the picture (dial is clockwise on screen,
+            // like Annotation.rotation).
+            if ann.tool == .text { a.rotation = ann.rotation + CGFloat(dial * .pi / 180) }
             return a
         }
         selectedAnnotationID = nil
@@ -3684,6 +3687,8 @@ struct EditorView: View {
             if !ann.points.isEmpty {
                 a.points = ann.points.map(remap)
             }
+            // d is clockwise quarter-turns on screen, like Annotation.rotation.
+            if ann.tool == .text { a.rotation = ann.rotation + CGFloat(d) * .pi / 2 }
             return a
         }
 
@@ -3802,6 +3807,7 @@ struct EditorView: View {
                 if !ann.points.isEmpty {
                     a.points = ann.points.map { Self.rotatePoint90($0, steps: d, in: oldSize) }
                 }
+                if ann.tool == .text { a.rotation = ann.rotation + CGFloat(d) * .pi / 2 }
                 return a
             }
         }
@@ -3947,6 +3953,9 @@ struct EditorView: View {
             if let c = ann.curvature {
                 a.curvature = CGVector(dx: c.dx, dy: -c.dy)
             }
+            // A mirrored picture mirrors a bubble's tilt — but not its text, which
+            // stays readable, so only the angle changes sign.
+            if ann.tool == .text { a.rotation = -ann.rotation }
             return a
         }
         // The pending selection mirrors too — but only after the re-render, since

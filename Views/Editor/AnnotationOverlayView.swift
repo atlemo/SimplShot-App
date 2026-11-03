@@ -239,6 +239,8 @@ struct AnnotationOverlayView: View {
                             lineWidth: borderWidth)
             )
             .fixedSize(horizontal: !hasFixedWidth, vertical: false)
+            // About the view's own centre, i.e. the bubble's — before `position`.
+            .rotationEffect(.radians(annotation.rotation))
             .position(x: start.x, y: start.y)
 
         case .pixelate:
@@ -378,16 +380,30 @@ struct AnnotationOverlayView: View {
             // Same source as the hit test and the resize drag
             // (EditorCanvasView.textBubbleWidth) — see TextBubbleGeometry.
             let bubbleW = TextBubbleGeometry.displayWidth(for: annotation, scale: scale)
-            let cx = annotation.startPoint.x * scale
-            let cy = annotation.startPoint.y * scale
+            let c = CGPoint(x: annotation.startPoint.x * scale, y: annotation.startPoint.y * scale)
             let bubbleH = TextBubbleGeometry.displayHeight(for: annotation, scale: scale)
+            // Handles live on the bubble's own (rotated) frame.
+            let handle: (CGFloat, CGFloat) -> CGPoint = { dx, dy in
+                TextBubbleGeometry.rotate(CGPoint(x: c.x + dx, y: c.y + dy),
+                                          by: annotation.rotation, about: c)
+            }
+            let grip = TextBubbleGeometry.rotationHandle(
+                center: c, height: bubbleH, gap: TextBubbleGeometry.rotationHandleGap,
+                rotation: annotation.rotation)
+            // Stem from the top edge to the rotation handle.
+            Path { p in
+                p.move(to: handle(0, -bubbleH / 2))
+                p.addLine(to: grip)
+            }
+            .stroke(Color.accentColor, lineWidth: 1)
+            CurveHandleDot(center: grip)
             // Mid-sides change the wrap width; corners scale the text itself.
-            HandleDot(center: CGPoint(x: cx - bubbleW / 2, y: cy))
-            HandleDot(center: CGPoint(x: cx + bubbleW / 2, y: cy))
-            HandleDot(center: CGPoint(x: cx - bubbleW / 2, y: cy - bubbleH / 2))
-            HandleDot(center: CGPoint(x: cx + bubbleW / 2, y: cy - bubbleH / 2))
-            HandleDot(center: CGPoint(x: cx - bubbleW / 2, y: cy + bubbleH / 2))
-            HandleDot(center: CGPoint(x: cx + bubbleW / 2, y: cy + bubbleH / 2))
+            HandleDot(center: handle(-bubbleW / 2, 0))
+            HandleDot(center: handle(bubbleW / 2, 0))
+            HandleDot(center: handle(-bubbleW / 2, -bubbleH / 2))
+            HandleDot(center: handle(bubbleW / 2, -bubbleH / 2))
+            HandleDot(center: handle(-bubbleW / 2, bubbleH / 2))
+            HandleDot(center: handle(bubbleW / 2, bubbleH / 2))
 
         case .freeDraw, .numberedStep, .highlight:
             // Highlight bands are snapped to text lines; a corner resize would
