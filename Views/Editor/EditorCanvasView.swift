@@ -480,7 +480,12 @@ struct EditorCanvasView: View {
                     fontSize: scaledFontSize,
                     textColor: NSColor(ann.style.textBubbleForeground),
                     contentWidth: contentW,
-                    wraps: fixedInnerW != nil
+                    wraps: fixedInnerW != nil,
+                    onFinish: {
+                        // Same end state as clicking away (see `handleTap`).
+                        commitTextEdit()
+                        currentTool = .select
+                    }
                 )
                 .frame(width: contentW, height: contentH)
                 .padding(.horizontal, hPad)
@@ -1989,11 +1994,17 @@ private struct GrowingTextField: NSViewRepresentable {
     /// True when the bubble has a fixed width: text must wrap into
     /// `contentWidth` instead of running outside the pill.
     let wraps: Bool
+    /// Esc or ⌘⏎: the user is done typing. The parent commits the text.
+    var onFinish: () -> Void = {}
 
     func makeNSView(context: Context) -> NSTextView {
-        let tv = NSTextView()
+        let tv = FocusingTextView()
         tv.delegate = context.coordinator
         tv.textColor = textColor
+        // The caret defaults to the system text colour, which is invisible on a
+        // light bubble in dark mode (white on yellow). The text colour is
+        // already chosen to contrast with the bubble.
+        tv.insertionPointColor = textColor
         tv.backgroundColor = .clear
         tv.drawsBackground = false
         tv.isRichText = false
@@ -2011,15 +2022,12 @@ private struct GrowingTextField: NSViewRepresentable {
         tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
                             height: CGFloat.greatestFiniteMagnitude)
         applyLayout(to: tv, restyleExistingText: true)
-
-        // Grab focus as soon as the view is inserted into the window.
-        DispatchQueue.main.async {
-            tv.window?.makeFirstResponder(tv)
-        }
+        // Focus is taken by `FocusingTextView` once it is actually in a window.
         return tv
     }
 
     func updateNSView(_ tv: NSTextView, context: Context) {
+        context.coordinator.parent = self
         var replacedString = false
         if tv.string != text {
             tv.string = text
@@ -2027,6 +2035,7 @@ private struct GrowingTextField: NSViewRepresentable {
         }
         applyLayout(to: tv, restyleExistingText: replacedString)
         tv.textColor = textColor
+        tv.insertionPointColor = textColor
     }
 
     private func applyLayout(to tv: NSTextView, restyleExistingText: Bool) {
@@ -2076,6 +2085,52 @@ private struct GrowingTextField: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
             parent.text = tv.string
+        }
+
+        func textView(_ textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+            // Esc finishes editing and keeps the text. ⌘⏎ does the same; a plain
+            // Return still inserts a line break.
+            if selector == #selector(NSResponder.cancelOperation(_:)) {
+                parent.onFinish()
+                return true
+            }
+            if selector == #selector(NSResponder.insertNewline(_:)),
+               NSApp.currentEvent?.modifierFlags.contains(.command) == true {
+                parent.onFinish()
+                return true
+            }
+            return false
+        }
+    }
+}
+
+/// The inline text editor's `NSTextView`. It takes keyboard focus itself the
+/// moment it is in a window, instead of the one-shot `DispatchQueue.main.async`
+/// the representable used to fire from `makeNSView`: that ran before SwiftUI had
+/// attached the view whenever the attach slipped a turn, `tv.window` was nil,
+/// and the pill sat in edit mode with no caret and no way to type — every canvas
+/// gesture is ignored while editing, so the user had to click repeatedly.
+private final class FocusingTextView: NSTextView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard window != nil else { return }
+        takeFocus(retries: 4)
+    }
+
+    /// Other views (the sidebar, a SwiftUI focus pass triggered by placing the
+    /// bubble) can claim first responder in the same turn, so check again
+    /// shortly after instead of trusting a single attempt.
+    private func takeFocus(retries: Int) {
+        guard let window else { return }
+        if window.firstResponder !== self {
+            window.makeFirstResponder(self)
+        }
+        guard retries > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self, self.window != nil else { return }
+            if self.window?.firstResponder !== self {
+                self.takeFocus(retries: retries - 1)
+            }
         }
     }
 }
