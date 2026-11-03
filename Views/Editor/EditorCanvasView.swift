@@ -13,6 +13,7 @@ enum DragMode: Equatable {
     case corner(minXFixed: Bool, minYFixed: Bool)  // resize rectangle via one corner
     case textLeftEdge              // resize text bubble from the left
     case textRightEdge             // resize text bubble from the right
+    case textCorner(rightSide: Bool, bottomSide: Bool)  // scale text (font + width) about the opposite corner
 }
 
 /// The handle tap radius in image-pixel units used for hit testing.
@@ -915,6 +916,36 @@ struct EditorCanvasView: View {
             ann.textWidth = newWidth
             snapH = false
             snapV = false
+
+        case .textCorner(let rightSide, let bottomSide):
+            // Scale the whole bubble (font size and, if set, its wrap width)
+            // about the OPPOSITE corner, which stays put. The scale factor is the
+            // drag's projection onto the corner's diagonal, so it is
+            // proportional whichever way the pointer wanders.
+            let sx: CGFloat = rightSide ? 1 : -1
+            let sy: CGFloat = bottomSide ? 1 : -1
+            let w0 = textBubbleWidth(for: ann)
+            let h0 = TextBubbleGeometry.imageHeight(for: ann, scale: scale)
+            let c0 = ann.startPoint
+            let anchor = CGPoint(x: c0.x - sx * w0 / 2, y: c0.y - sy * h0 / 2)
+            let diagonal = CGVector(dx: sx * w0, dy: sy * h0)
+            let pointer = CGPoint(x: c0.x + sx * w0 / 2 + dx, y: c0.y + sy * h0 / 2 + dy)
+            let k0 = ((pointer.x - anchor.x) * diagonal.dx + (pointer.y - anchor.y) * diagonal.dy)
+                / (diagonal.dx * diagonal.dx + diagonal.dy * diagonal.dy)
+            let f0 = ann.style.fontSize
+            let f1 = min(max(f0 * k0, Self.textScaleFontRange.lowerBound),
+                         Self.textScaleFontRange.upperBound)
+            ann.style.fontSize = f1
+            if let w = ann.textWidth { ann.textWidth = w * f1 / f0 }
+            // Re-measure at the new size and re-hang from the anchor: the pill's
+            // height is not exactly linear in the font size, and measuring is
+            // what keeps the anchored corner from creeping.
+            let w1 = textBubbleWidth(for: ann)
+            let h1 = TextBubbleGeometry.imageHeight(for: ann, scale: scale)
+            ann.startPoint = CGPoint(x: anchor.x + sx * w1 / 2, y: anchor.y + sy * h1 / 2)
+            ann.endPoint = ann.startPoint
+            snapH = false
+            snapV = false
         }
 
         draggingAnnotation = ann
@@ -925,6 +956,12 @@ struct EditorCanvasView: View {
         if let final = draggingAnnotation,
            let idx = annotations.firstIndex(where: { $0.id == final.id }) {
             annotations[idx] = final
+        }
+        // Scaling changed the annotation's font size. The sidebar replaces a
+        // selection's WHOLE style on the next tweak, so it must be re-read now
+        // or a colour change would snap the text back to its old size.
+        if case .textCorner = dragMode, let final = draggingAnnotation {
+            currentStyle.fontSize = final.style.fontSize
         }
         isDraggingAnnotation = false
         draggingAnnotationID = nil
@@ -941,6 +978,11 @@ struct EditorCanvasView: View {
 
     /// Default badge size (points) for a newly placed numbered step.
     private static let numberedStepDefaultFontSize: CGFloat = 40
+
+    /// Smallest / largest font size a corner drag may scale text to. Wider than
+    /// the sidebar slider (12…120) on purpose: dragging is for big headings and
+    /// fine print the slider can't reach.
+    private static let textScaleFontRange: ClosedRange<CGFloat> = 8...300
 
     private func placeText(at point: CGPoint) {
         let annotation = Annotation(
@@ -1176,6 +1218,12 @@ struct EditorCanvasView: View {
             let rightHandle = CGPoint(x: cx + halfW, y: handleY)
             if dist(point, leftHandle)  < r { return .textLeftEdge }
             if dist(point, rightHandle) < r { return .textRightEdge }
+            let halfH = TextBubbleGeometry.imageHeight(for: annotation, scale: scale) / 2
+            for (right, bottom) in [(false, false), (true, false), (false, true), (true, true)] {
+                let corner = CGPoint(x: cx + (right ? halfW : -halfW),
+                                     y: cy + (bottom ? halfH : -halfH))
+                if dist(point, corner) < r { return .textCorner(rightSide: right, bottomSide: bottom) }
+            }
             return nil
 
         default:
@@ -1248,14 +1296,9 @@ struct EditorCanvasView: View {
                 }
 
             case .text:
-                let fs = annotation.style.fontSize
-
-                let vPad = fs * 0.25
+                // The pill's measured size — the same one the corner handles use.
                 let bubbleW = textBubbleWidth(for: annotation)
-                let lines = annotation.text.components(separatedBy: .newlines)
-                let lineCount = max(lines.count, 1)
-                let lineSpacing = fs * 0.22
-                let estHeight = CGFloat(lineCount) * fs + CGFloat(max(0, lineCount - 1)) * lineSpacing + vPad * 2
+                let estHeight = TextBubbleGeometry.imageHeight(for: annotation, scale: scale)
                 let textRect = CGRect(
                     x: annotation.startPoint.x - bubbleW / 2,
                     y: annotation.startPoint.y - estHeight / 2,

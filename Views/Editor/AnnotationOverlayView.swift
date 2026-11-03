@@ -380,8 +380,14 @@ struct AnnotationOverlayView: View {
             let bubbleW = TextBubbleGeometry.displayWidth(for: annotation, scale: scale)
             let cx = annotation.startPoint.x * scale
             let cy = annotation.startPoint.y * scale
+            let bubbleH = TextBubbleGeometry.displayHeight(for: annotation, scale: scale)
+            // Mid-sides change the wrap width; corners scale the text itself.
             HandleDot(center: CGPoint(x: cx - bubbleW / 2, y: cy))
             HandleDot(center: CGPoint(x: cx + bubbleW / 2, y: cy))
+            HandleDot(center: CGPoint(x: cx - bubbleW / 2, y: cy - bubbleH / 2))
+            HandleDot(center: CGPoint(x: cx + bubbleW / 2, y: cy - bubbleH / 2))
+            HandleDot(center: CGPoint(x: cx - bubbleW / 2, y: cy + bubbleH / 2))
+            HandleDot(center: CGPoint(x: cx + bubbleW / 2, y: cy + bubbleH / 2))
 
         case .freeDraw, .numberedStep, .highlight:
             // Highlight bands are snapped to text lines; a corner resize would

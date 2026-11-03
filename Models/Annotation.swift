@@ -621,6 +621,33 @@ enum TextBubbleGeometry {
         return naturalWidth(text: annotation.text,
                             fontSize: annotation.style.fontSize * scale) / scale
     }
+
+    /// Pill height in **view points** at zoom `scale` — where the corner handles
+    /// are drawn. Same measurement the inline editor frames itself from
+    /// (`layoutSize`, at the DISPLAYED size — see the warning on this type), so
+    /// the handles sit on the pill the user sees rather than on an estimate.
+    static func displayHeight(for annotation: Annotation, scale: CGFloat) -> CGFloat {
+        let fs = annotation.style.fontSize * scale
+        let hPad = horizontalPadding(fontSize: fs)
+        let innerWidth: CGFloat
+        if let w = annotation.textWidth {
+            innerWidth = max(1, w * scale - hPad * 2)
+        } else {
+            // Ceil, as the editor does: a sub-point mismatch must not wrap a line.
+            innerWidth = max(ceil(naturalWidth(text: annotation.text, fontSize: fs) - hPad * 2),
+                             fs * 2)
+        }
+        let textHeight = max(layoutSize(text: annotation.text, fontSize: fs,
+                                        containerWidth: innerWidth).height,
+                             fs * 1.2)
+        return textHeight + fs * 0.5
+    }
+
+    /// `displayHeight` in **image pixels** — where hit testing and drags work.
+    static func imageHeight(for annotation: Annotation, scale: CGFloat) -> CGFloat {
+        guard scale > 0 else { return annotation.style.fontSize * 1.7 }
+        return displayHeight(for: annotation, scale: scale) / scale
+    }
 }
 
 // MARK: - Sticker (Emoji) Geometry
