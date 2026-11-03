@@ -226,7 +226,7 @@ struct EditorSidebarView: View {
     /// What the fill swatch should show: the picked colour, or the marker
     /// default for a tool that cannot be unfilled.
     private var effectiveFillColor: Color? {
-        currentStyle.fillColor ?? (fillIsRequired ? HighlightGeometry.defaultColor : nil)
+        fillValue ?? (fillIsRequired ? HighlightGeometry.defaultColor : nil)
     }
 
     private var showFillColorControl: Bool {
@@ -978,31 +978,74 @@ struct EditorSidebarView: View {
 
     // MARK: - Color Button
 
-    private var strokeColorBinding: Binding<Color> {
-        Binding(
-            get: { currentStyle.strokeColor },
-            set: { newColor in
-                currentStyle.strokeColor = newColor
-                applyStyleToSelection()
+    /// The text tool has its own ink + pill pair (see `AnnotationStyle.textColor`);
+    /// every other tool uses stroke + fill. The two swatches read and write
+    /// whichever pair belongs to the active tool.
+    private var isTextStyle: Bool { activeStyleTool == .text }
+
+    private var inkColor: Color {
+        isTextStyle ? currentStyle.textColor : currentStyle.strokeColor
+    }
+
+    private var fillValue: Color? {
+        isTextStyle ? currentStyle.textBackgroundColor : currentStyle.fillColor
+    }
+
+    private func setInkColor(_ color: Color) {
+        if isTextStyle { currentStyle.textColor = color } else { currentStyle.strokeColor = color }
+        applyStyleToSelection()
+    }
+
+    /// Setting a text background also repairs unreadable ink: if the words would
+    /// drop below 3:1 against the new pill, they switch to the recommended
+    /// colour. Ink that is already readable is left alone.
+    private func setFillValue(_ color: Color?) {
+        if isTextStyle {
+            currentStyle.textBackgroundColor = color
+            if let color,
+               let ratio = currentStyle.textColor.contrastRatio(with: color), ratio < 3 {
+                currentStyle.textColor = Color.recommendedInk(on: color)
             }
-        )
+        } else {
+            currentStyle.fillColor = color
+        }
+        applyStyleToSelection()
+    }
+
+    private var strokeColorBinding: Binding<Color> {
+        Binding(get: { inkColor }, set: { setInkColor($0) })
     }
 
     private var fillColorBinding: Binding<Color> {
-        Binding(
-            get: { currentStyle.fillColor ?? .clear },
-            set: { newColor in
-                currentStyle.fillColor = newColor
-                applyStyleToSelection()
-            }
-        )
+        Binding(get: { fillValue ?? .clear }, set: { setFillValue($0) })
+    }
+
+    /// Best text colour for the current background, or nil when there is no
+    /// pill to be legible against.
+    private var recommendedTextInk: Color? {
+        guard isTextStyle, let bg = currentStyle.textBackgroundColor else { return nil }
+        return Color.recommendedInk(on: bg)
     }
 
     private var colorButton: some View {
         Button { colorPopoverVisible.toggle() } label: {
             HStack(spacing: 4) {
                 ZStack {
-                    if showFillColorControl && currentStyle.strokeColor == .clear {
+                    if isTextStyle {
+                        // A tiny preview of the words on a neutral chip, so a
+                        // white ink is as visible as a black one.
+                        let inkIsLight = (inkColor.relativeLuminance ?? 0) > 0.5
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(inkIsLight ? Color(white: 0.22) : Color(white: 0.94))
+                            .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .stroke(Color.primary.opacity(0.15), lineWidth: 0.5))
+                            .frame(width: 22, height: 16)
+                            .overlay(
+                                Text("Aa")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(inkColor)
+                            )
+                    } else if showFillColorControl && inkColor == .clear {
                         Circle()
                             .fill(Color.primary.opacity(0.06))
                             .overlay(Circle().stroke(Color.primary.opacity(0.2), lineWidth: 0.5))
@@ -1016,10 +1059,10 @@ struct EditorSidebarView: View {
                         .clipShape(Circle())
                     } else {
                         Circle()
-                            .strokeBorder(currentStyle.strokeColor, lineWidth: 2.5)
+                            .strokeBorder(inkColor, lineWidth: 2.5)
                     }
                 }
-                .frame(width: 16, height: 16)
+                .frame(width: isTextStyle ? 22 : 16, height: 16)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -1030,20 +1073,49 @@ struct EditorSidebarView: View {
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
+        .help(isTextStyle ? String(localized: "Text Color") : "")
         .popover(isPresented: $colorPopoverVisible, arrowEdge: .bottom) {
             HStack(spacing: 6) {
-                if showFillColorControl {
+                if let recommended = recommendedTextInk {
+                    // Black or white, whichever reads better on the pill.
                     Button {
-                        currentStyle.strokeColor = .clear
-                        applyStyleToSelection()
+                        setInkColor(recommended)
+                        colorPopoverVisible = false
+                    } label: {
+                        Circle()
+                            .fill(recommended)
+                            .overlay(
+                                Circle().stroke(
+                                    inkColor == recommended ? Color.accentColor : Color.primary.opacity(0.2),
+                                    lineWidth: inkColor == recommended ? 2 : 0.5
+                                )
+                            )
+                            .overlay(
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(recommended == .white ? Color.black : Color.white)
+                            )
+                            .frame(width: 20, height: 20)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Best contrast for this background")
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.15))
+                        .frame(width: 1, height: 20)
+                        .padding(.horizontal, 2)
+                }
+                if showFillColorControl && !isTextStyle {
+                    Button {
+                        setInkColor(.clear)
                         colorPopoverVisible = false
                     } label: {
                         ZStack {
                             Circle()
                                 .fill(Color.primary.opacity(0.06))
                                 .overlay(Circle().stroke(
-                                    currentStyle.strokeColor == .clear ? Color.accentColor : Color.primary.opacity(0.2),
-                                    lineWidth: currentStyle.strokeColor == .clear ? 2 : 0.5
+                                    inkColor == .clear ? Color.accentColor : Color.primary.opacity(0.2),
+                                    lineWidth: inkColor == .clear ? 2 : 0.5
                                 ))
                             Path { path in
                                 let s: CGFloat = 20
@@ -1052,7 +1124,7 @@ struct EditorSidebarView: View {
                                 path.addLine(to: CGPoint(x: s - inset, y: inset))
                             }
                             .stroke(
-                                currentStyle.strokeColor == .clear ? Color.accentColor : Color.red,
+                                inkColor == .clear ? Color.accentColor : Color.red,
                                 lineWidth: 1.5
                             )
                             .clipShape(Circle())
@@ -1069,16 +1141,15 @@ struct EditorSidebarView: View {
                 }
                 ForEach(presetColors, id: \.self) { color in
                     Button {
-                        currentStyle.strokeColor = color
-                        applyStyleToSelection()
+                        setInkColor(color)
                         colorPopoverVisible = false
                     } label: {
                         Circle()
                             .fill(color)
                             .overlay(
                                 Circle().stroke(
-                                    currentStyle.strokeColor == color ? Color.accentColor : Color.primary.opacity(0.15),
-                                    lineWidth: currentStyle.strokeColor == color ? 2 : 0.5
+                                    inkColor == color ? Color.accentColor : Color.primary.opacity(0.15),
+                                    lineWidth: inkColor == color ? 2 : 0.5
                                 )
                             )
                             .frame(width: 20, height: 20)
@@ -1129,10 +1200,10 @@ struct EditorSidebarView: View {
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
-        .help("Fill Color")
+        .help(isTextStyle ? String(localized: "Background Color") : String(localized: "Fill Color"))
         .popover(isPresented: $fillColorPopoverVisible, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Fill")
+                Text(isTextStyle ? String(localized: "Background") : String(localized: "Fill"))
                     .font(.system(size: 12, weight: .medium))
                 HStack(spacing: 6) {
                     // No-fill option — omitted for a tool whose fill IS the
@@ -1140,16 +1211,15 @@ struct EditorSidebarView: View {
                     // would just make the annotation invisible.
                     if !fillIsRequired {
                         Button {
-                            currentStyle.fillColor = nil
-                            applyStyleToSelection()
+                            setFillValue(nil)
                             fillColorPopoverVisible = false
                         } label: {
                             ZStack {
                                 Circle()
                                     .fill(Color.primary.opacity(0.06))
                                     .overlay(Circle().stroke(
-                                        currentStyle.fillColor == nil ? Color.accentColor : Color.primary.opacity(0.2),
-                                        lineWidth: currentStyle.fillColor == nil ? 2 : 0.5
+                                        fillValue == nil ? Color.accentColor : Color.primary.opacity(0.2),
+                                        lineWidth: fillValue == nil ? 2 : 0.5
                                     ))
                                 Path { path in
                                     let s: CGFloat = 20
@@ -1158,7 +1228,7 @@ struct EditorSidebarView: View {
                                     path.addLine(to: CGPoint(x: s - inset, y: inset))
                                 }
                                 .stroke(
-                                    currentStyle.fillColor == nil ? Color.accentColor : Color.red,
+                                    fillValue == nil ? Color.accentColor : Color.red,
                                     lineWidth: 1.5
                                 )
                                 .clipShape(Circle())
@@ -1175,8 +1245,7 @@ struct EditorSidebarView: View {
                     }
                     ForEach(presetColors, id: \.self) { color in
                         Button {
-                            currentStyle.fillColor = color
-                            applyStyleToSelection()
+                            setFillValue(color)
                             fillColorPopoverVisible = false
                         } label: {
                             Circle()
@@ -1267,8 +1336,98 @@ struct EditorSidebarView: View {
                     .frame(width: 36, alignment: .trailing)
             }
             .padding(.vertical, 2)
+
+            // Text only — numbered steps have their own badge face.
+            if activeStyleTool == .text {
+                Divider()
+                Text("Font")
+                    .font(.system(size: 12, weight: .medium))
+                textFontChoices
+            }
         }
         .padding(12)
+    }
+
+    // MARK: - Text Font
+
+    /// Every installed family, sorted once — enumerating them is not free.
+    private static let installedFontFamilies: [String] =
+        NSFontManager.shared.availableFontFamilies.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+
+    private var textFontBinding: Binding<TextFont> {
+        Binding(
+            get: { currentStyle.textFont },
+            set: { newValue in
+                currentStyle.textFont = newValue
+                applyStyleToSelection()
+            }
+        )
+    }
+
+    /// The three curated looks as "Aa" samples in their own face, then a menu
+    /// of every installed family.
+    private var textFontChoices: some View {
+        let selected = currentStyle.textFont
+        let looks: [(font: TextFont, name: LocalizedStringKey)] = [
+            (.sans, "Sans-serif"), (.serif, "Serif"), (.handwritten, "Handwritten"),
+        ]
+        var customName: String? = nil
+        if case .family(let name) = selected { customName = name }
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                ForEach(Array(looks.enumerated()), id: \.offset) { _, look in
+                    let isSelected = selected == look.font
+                    Button {
+                        textFontBinding.wrappedValue = look.font
+                    } label: {
+                        VStack(spacing: 2) {
+                            Text("Aa")
+                                .font(Font(look.font.nsFont(size: 22) as CTFont))
+                            Text(look.name)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.06))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Menu {
+                ForEach(Self.installedFontFamilies, id: \.self) { family in
+                    Button {
+                        textFontBinding.wrappedValue = .family(family)
+                    } label: {
+                        if customName == family {
+                            Label(family, systemImage: "checkmark")
+                        } else {
+                            Text(family)
+                        }
+                    }
+                }
+            } label: {
+                if let customName {
+                    Text(customName)
+                } else {
+                    Text("More Fonts…")
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+        .frame(width: 228)
     }
 
     // MARK: - Arrow Style Popover

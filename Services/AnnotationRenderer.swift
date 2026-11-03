@@ -938,9 +938,10 @@ class AnnotationRenderer {
         // font size stays in image-pixel units (matching the preview's
         // `fontSize * scale`). Users size text directly via the font control.
         let fontSize = style.fontSize
-        // System font, matching the live overlay/editor (AnnotationOverlayView,
-        // GrowingTextField) so the exported bubble wraps and sizes identically.
-        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        // Resolved by the same TextFont the live overlay/editor use
+        // (AnnotationOverlayView, GrowingTextField), so the exported bubble
+        // wraps and sizes identically.
+        let font = style.textFont.nsFont(size: fontSize)
         let bgColor = style.cgTextPill
         // Ink is the stroke colour; the pill, when there is one, is the fill colour.
         let fgColor = style.cgTextInk

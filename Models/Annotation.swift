@@ -535,6 +535,55 @@ enum AngleGeometry {
     }
 }
 
+// MARK: - Text Font
+
+/// The typeface of a `.text` bubble.
+///
+/// Three curated looks plus any installed family. Resolved in ONE place
+/// (`nsFont(size:)`) and consumed by the SwiftUI preview, the inline editor, the
+/// height/width measurement and the export, so they cannot lay out different
+/// faces. Families are looked up through `NSFontManager` by *family* name —
+/// never a hardcoded PostScript name, which silently degrades to Helvetica when
+/// absent — and an unresolvable one falls back to the system font.
+enum TextFont: Equatable, Hashable {
+    case sans
+    case serif
+    case handwritten
+    /// Any installed family, by its display name (`availableFontFamilies`).
+    case family(String)
+
+    /// Handwriting families that ship with macOS, in order of preference.
+    static let handwritingFamilies = ["Bradley Hand", "Noteworthy", "Marker Felt", "Chalkboard SE"]
+
+    func nsFont(size: CGFloat) -> NSFont {
+        let system = NSFont.systemFont(ofSize: size, weight: .medium)
+        switch self {
+        case .sans:
+            return system
+        case .serif:
+            if let d = system.fontDescriptor.withDesign(.serif),
+               let f = NSFont(descriptor: d, size: size) { return f }
+            return system
+        case .handwritten:
+            for name in Self.handwritingFamilies {
+                if let f = Self.member(of: name, size: size) { return f }
+            }
+            return system
+        case .family(let name):
+            return Self.member(of: name, size: size) ?? system
+        }
+    }
+
+    private static func member(of family: String, size: CGFloat) -> NSFont? {
+        NSFontManager.shared.font(withFamily: family, traits: [], weight: 5, size: size)
+    }
+
+    /// The first installed handwriting family, if any — what "Handwritten" shows.
+    static var resolvedHandwritingFamily: String? {
+        handwritingFamilies.first { member(of: $0, size: 12) != nil }
+    }
+}
+
 // MARK: - Text Bubble Geometry
 
 /// The one place the text pill's width is derived. The drawn resize handles,
@@ -555,8 +604,8 @@ enum TextBubbleGeometry {
 
     /// Natural (wrap-free) pill width for `text` rendered at `fontSize`.
     /// The result is in whatever space `fontSize` is expressed in.
-    static func naturalWidth(text: String, fontSize: CGFloat) -> CGFloat {
-        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+    static func naturalWidth(text: String, fontSize: CGFloat, textFont: TextFont = .sans) -> CGFloat {
+        let font = textFont.nsFont(size: fontSize)
         let attrs: [NSAttributedString.Key: Any] = [.font: font]
         let maxLineW = text.components(separatedBy: .newlines)
             .map { ($0.isEmpty ? " " : $0 as NSString).size(withAttributes: attrs).width }
@@ -568,14 +617,15 @@ enum TextBubbleGeometry {
     static func displayWidth(for annotation: Annotation, scale: CGFloat) -> CGFloat {
         if let w = annotation.textWidth { return w * scale }
         return naturalWidth(text: annotation.text,
-                            fontSize: annotation.style.fontSize * scale)
+                            fontSize: annotation.style.fontSize * scale,
+                            textFont: annotation.style.textFont)
     }
 
     /// Paragraph style shared by the inline editor and the height
     /// measurement below, matching `AnnotationRenderer.drawText`'s line
     /// spacing so a bubble keeps its height across the edit.
-    static func paragraphStyle(fontSize: CGFloat) -> NSMutableParagraphStyle {
-        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+    static func paragraphStyle(fontSize: CGFloat, textFont: TextFont = .sans) -> NSMutableParagraphStyle {
+        let font = textFont.nsFont(size: fontSize)
         let lineHeight = font.ascender + abs(font.descender)
         let p = NSMutableParagraphStyle()
         p.alignment = .center
@@ -588,11 +638,12 @@ enum TextBubbleGeometry {
     /// editor frames itself from this **synchronously**: asking the text view
     /// for its size and feeding it back through `@State` lands a frame late,
     /// which is visible as a blink when edit mode opens.
-    static func layoutSize(text: String, fontSize: CGFloat, containerWidth: CGFloat) -> CGSize {
-        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+    static func layoutSize(text: String, fontSize: CGFloat, containerWidth: CGFloat,
+                           textFont: TextFont = .sans) -> CGSize {
+        let font = textFont.nsFont(size: fontSize)
         let storage = NSTextStorage(string: text, attributes: [
             .font: font,
-            .paragraphStyle: paragraphStyle(fontSize: fontSize),
+            .paragraphStyle: paragraphStyle(fontSize: fontSize, textFont: textFont),
         ])
         let layout = NSLayoutManager()
         let container = NSTextContainer(size: CGSize(width: max(1, containerWidth),
@@ -617,9 +668,13 @@ enum TextBubbleGeometry {
     /// and the resize drag work. Exactly `displayWidth / scale`.
     static func imageWidth(for annotation: Annotation, scale: CGFloat) -> CGFloat {
         if let w = annotation.textWidth { return w }
-        guard scale > 0 else { return naturalWidth(text: annotation.text, fontSize: annotation.style.fontSize) }
+        guard scale > 0 else {
+            return naturalWidth(text: annotation.text, fontSize: annotation.style.fontSize,
+                                textFont: annotation.style.textFont)
+        }
         return naturalWidth(text: annotation.text,
-                            fontSize: annotation.style.fontSize * scale) / scale
+                            fontSize: annotation.style.fontSize * scale,
+                            textFont: annotation.style.textFont) / scale
     }
 
     /// Pill height in **view points** at zoom `scale` — where the corner handles
@@ -634,11 +689,13 @@ enum TextBubbleGeometry {
             innerWidth = max(1, w * scale - hPad * 2)
         } else {
             // Ceil, as the editor does: a sub-point mismatch must not wrap a line.
-            innerWidth = max(ceil(naturalWidth(text: annotation.text, fontSize: fs) - hPad * 2),
+            innerWidth = max(ceil(naturalWidth(text: annotation.text, fontSize: fs,
+                                               textFont: annotation.style.textFont) - hPad * 2),
                              fs * 2)
         }
         let textHeight = max(layoutSize(text: annotation.text, fontSize: fs,
-                                        containerWidth: innerWidth).height,
+                                        containerWidth: innerWidth,
+                                        textFont: annotation.style.textFont).height,
                              fs * 1.2)
         return textHeight + fs * 0.5
     }
@@ -812,20 +869,31 @@ struct AnnotationStyle: Equatable {
         NSColor(textBubbleBackground).cgColor
     }
 
-    // `.text` follows the shape tools' two swatches: the stroke colour is the
-    // ink and the fill colour is the pill behind it (nil = no pill). Numbered
-    // steps keep using `textBubbleForeground`/`textBubbleBackground` above.
-
-    /// Whether a `.text` annotation sits on a filled pill.
-    var textHasBackground: Bool { fillColor != nil }
+    // `.text` has its own pair of swatches — ink and pill — rather than reusing
+    // the stroke/fill colours of the shape tools. The style is shared across
+    // tools, so borrowing them would leak a text pill onto the next rectangle
+    // (or a rectangle's fill onto the next text) and make the default look
+    // depend on whatever was picked last. Numbered steps keep using
+    // `textBubbleForeground`/`textBubbleBackground` above.
 
     /// Colour of the words in a `.text` annotation.
-    var textInk: Color { strokeColor }
+    var textColor: Color = .white
 
-    var cgTextInk: CGColor { cgStrokeColor }
+    /// Typeface of a `.text` annotation (see `TextFont`).
+    var textFont: TextFont = .sans
+
+    /// Pill behind a `.text` annotation; nil = no pill. Solid red by default.
+    var textBackgroundColor: Color? = .red
+
+    /// Whether a `.text` annotation sits on a filled pill.
+    var textHasBackground: Bool { textBackgroundColor != nil }
+
+    var textInk: Color { textColor }
+
+    var cgTextInk: CGColor { NSColor(textColor).cgColor }
 
     /// Pill behind a `.text` annotation; clear when there is none.
-    var textPill: Color { fillColor ?? .clear }
+    var textPill: Color { textBackgroundColor ?? .clear }
 
     var cgTextPill: CGColor {
         NSColor(textPill).cgColor
@@ -857,6 +925,20 @@ extension Color {
         return (linearize(resolved.redComponent),
                 linearize(resolved.greenComponent),
                 linearize(resolved.blueComponent))
+    }
+
+    /// The text colour to recommend on `background`: black on a light colour,
+    /// white on a dark one — the same split numbered steps and the old text
+    /// pill used (`AnnotationStyle.isLight`).
+    static func recommendedInk(on background: Color) -> Color {
+        (background.relativeLuminance ?? 0) > 0.4 ? .black : .white
+    }
+
+    /// WCAG contrast ratio between two colours, 1 (none) to 21 (black on
+    /// white); nil if either has no RGB representation.
+    func contrastRatio(with other: Color) -> CGFloat? {
+        guard let a = relativeLuminance, let b = other.relativeLuminance else { return nil }
+        return (max(a, b) + 0.05) / (min(a, b) + 0.05)
     }
 
     /// WCAG relative luminance, 0 (black) to 1 (white), or nil if the colour

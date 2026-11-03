@@ -463,7 +463,8 @@ struct EditorCanvasView: View {
                 // never lags a keystroke behind the caret.
                 let fixedInnerW: CGFloat? = ann.textWidth.map { $0 * scale - hPad * 2 }
                 let naturalInnerW = ceil(
-                    TextBubbleGeometry.naturalWidth(text: editingText, fontSize: scaledFontSize)
+                    TextBubbleGeometry.naturalWidth(text: editingText, fontSize: scaledFontSize,
+                                                    textFont: ann.style.textFont)
                     - hPad * 2
                 )
                 let contentW = fixedInnerW ?? max(naturalInnerW, scaledFontSize * 2)
@@ -474,12 +475,14 @@ struct EditorCanvasView: View {
                 let contentH = max(
                     TextBubbleGeometry.layoutSize(text: editingText,
                                                   fontSize: scaledFontSize,
-                                                  containerWidth: contentW).height,
+                                                  containerWidth: contentW,
+                                                  textFont: ann.style.textFont).height,
                     scaledFontSize * 1.2
                 )
                 GrowingTextField(
                     text: $editingText,
                     fontSize: scaledFontSize,
+                    textFont: ann.style.textFont,
                     textColor: NSColor(ann.style.textInk),
                     contentWidth: contentW,
                     wraps: fixedInnerW != nil,
@@ -2076,6 +2079,7 @@ final class StickerCursorView: NSView {
 private struct GrowingTextField: NSViewRepresentable {
     @Binding var text: String
     let fontSize: CGFloat
+    var textFont: TextFont = .sans
     let textColor: NSColor
     /// Inner width of the pill, in view points — the text is centered in it.
     let contentWidth: CGFloat
@@ -2127,10 +2131,10 @@ private struct GrowingTextField: NSViewRepresentable {
     }
 
     private func applyLayout(to tv: NSTextView, restyleExistingText: Bool) {
-        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        let font = textFont.nsFont(size: fontSize)
         // Shared with the parent's height measurement — the two must lay the
         // text out identically or the pill mis-fits its own content.
-        let paraStyle = TextBubbleGeometry.paragraphStyle(fontSize: fontSize)
+        let paraStyle = TextBubbleGeometry.paragraphStyle(fontSize: fontSize, textFont: textFont)
         let attributes: [NSAttributedString.Key: Any] = [
             .paragraphStyle: paraStyle,
             .font: font,

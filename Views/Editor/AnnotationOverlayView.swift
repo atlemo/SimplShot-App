@@ -216,7 +216,7 @@ struct AnnotationOverlayView: View {
                     }
                 }
             }
-            .font(.system(size: scaledFontSize, weight: .medium))
+            .font(Font(annotation.style.textFont.nsFont(size: scaledFontSize) as CTFont))
             .foregroundColor(annotation.style.textInk)
             .padding(.horizontal, hPad)
             .padding(.vertical, scaledFontSize * 0.25)
