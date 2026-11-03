@@ -4199,40 +4199,6 @@
         }
       }
     },
-    "Cropping now takes over the whole sidebar — Straighten, Flip, Rotate and every aspect ratio sit in one panel instead of behind a pop-up menu, in both Annotate and Edit mode. A locked ratio survives flipping and rotating too, so your selection keeps its shape." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das Zuschneiden übernimmt jetzt die gesamte Seitenleiste — Ausrichten, Spiegeln, Drehen und alle Seitenverhältnisse liegen in einem Bereich statt in einem Aufklappmenü, sowohl im Modus „Anmerken“ als auch „Bearbeiten“. Ein festgelegtes Seitenverhältnis bleibt auch beim Spiegeln und Drehen erhalten, sodass die Auswahl ihre Form behält."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le rognage occupe désormais toute la barre latérale — Redresser, Retourner, Faire pivoter et tous les formats sont réunis dans un seul panneau au lieu d'un menu déroulant, en mode Annoter comme en mode Modifier. Un format verrouillé est conservé lors d'un retournement ou d'une rotation, si bien que la sélection garde sa forme."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "トリミングがサイドバー全体を使うようになりました — 傾き補正、反転、回転、そしてすべてのアスペクト比が、ポップアップメニューではなく一つのパネルにまとまります。注釈モードでも編集モードでも同じです。固定したアスペクト比は反転や回転をしても保たれるので、選択範囲の形はそのままです。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кадрирование теперь занимает всю боковую панель — выравнивание, отражение, поворот и все соотношения сторон собраны в одной панели, а не спрятаны во всплывающем меню, и так в режимах «Аннотации» и «Правка». Закреплённое соотношение сохраняется при отражении и повороте, поэтому выделение не меняет форму."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "裁剪现在占据整个边栏 — 校正、翻转、旋转和所有宽高比集中在一个面板中，不再藏在弹出菜单里，标注模式和编辑模式都是如此。锁定的宽高比在翻转和旋转后依然保留，选区形状保持不变。"
-          }
-        }
-      }
-    },
     "Current image only" : {
       "localizations" : {
         "de" : {
@@ -9108,40 +9074,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增：表情贴纸 — 贴纸工具可将 emoji 盖在截图上。在工具列表中选择一个表情，点按图片上任意位置即可放置，之后拖动可移动，拖动边角可调整大小。"
-          }
-        }
-      }
-    },
-    "New: Flip — mirror a screenshot left to right or top to bottom from the crop panel. Like rotating and straightening, it is non-destructive: annotations stay glued to the image, and you can flip back at any time." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neu: Spiegeln — spiegle ein Bildschirmfoto im Zuschneidebereich horizontal oder vertikal. Wie Drehen und Ausrichten ist das nicht destruktiv: Anmerkungen bleiben am Bild haften und lassen sich jederzeit zurückspiegeln."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau : Retourner — retournez une capture horizontalement ou verticalement depuis le panneau de rognage. Comme la rotation et le redressement, l'opération n'est pas destructive : les annotations restent solidaires de l'image et vous pouvez revenir en arrière à tout moment."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新機能：反転 — トリミングパネルからスクリーンショットを左右または上下に反転できます。回転や傾き補正と同じく非破壊的で、注釈は画像に貼り付いたままになり、いつでも元に戻せます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новое: отражение — отразите снимок по горизонтали или вертикали прямо на панели кадрирования. Как поворот и выравнивание, это неразрушающее действие: аннотации остаются привязанными к изображению, а отражение можно отменить в любой момент."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增：翻转 — 在裁剪面板中将截图左右或上下镜像。与旋转和校正一样，翻转是非破坏性的：标注始终贴合图像，随时可以翻转回来。"
           }
         }
       }
@@ -16943,6 +16875,210 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更多字体…"
+          }
+        }
+      }
+    },
+    "New: Rotate text — drag the handle above a text bubble to turn it to any angle, or hold Shift to snap to 15° steps. Rotated text stays rotated when you rotate or flip the image." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Text drehen — ziehe den Griff über einer Textblase, um sie beliebig zu drehen, oder halte die Umschalttaste gedrückt, um in 15°-Schritten einzurasten. Gedrehter Text bleibt gedreht, wenn du das Bild drehst oder spiegelst."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : faire pivoter le texte — faites glisser la poignée au-dessus d’une bulle de texte pour l’incliner à l’angle voulu, ou maintenez Maj pour aimanter par pas de 15°. Le texte pivoté le reste lorsque vous faites pivoter ou retournez l’image."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：テキストの回転 — テキストの吹き出しの上にあるハンドルをドラッグすると好きな角度に回転できます。Shiftキーを押しながらなら15°刻みにスナップします。画像を回転・反転しても、回転したテキストはそのままの向きを保ちます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: поворот текста — потяните за маркер над текстовой выноской, чтобы повернуть её на любой угол, или удерживайте Shift для привязки с шагом 15°. Повёрнутый текст остаётся повёрнутым, когда вы поворачиваете или отражаете изображение."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：旋转文字——拖动文字气泡上方的手柄即可任意角度旋转，按住 Shift 可按 15° 步进吸附。旋转或翻转图像时，已旋转的文字会保持原有朝向。"
+          }
+        }
+      }
+    },
+    "New: Scale text from its corners — drag a corner handle to resize the text and its bubble together, or an edge handle to change how wide the text wraps." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Text über die Ecken skalieren — ziehe einen Eckgriff, um Text und Blase gemeinsam zu vergrößern oder zu verkleinern, oder einen Seitengriff, um die Umbruchbreite des Textes zu ändern."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : redimensionner le texte par les coins — faites glisser une poignée d’angle pour redimensionner ensemble le texte et sa bulle, ou une poignée latérale pour modifier la largeur de retour à la ligne."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：角からテキストを拡大縮小 — 角のハンドルをドラッグするとテキストと吹き出しがいっしょに拡大縮小し、辺のハンドルをドラッグするとテキストの折り返し幅を変えられます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: масштабирование текста за углы — потяните угловой маркер, чтобы изменить размер текста вместе с выноской, или боковой маркер, чтобы изменить ширину переноса строк."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：从角部缩放文字——拖动角部手柄可同时缩放文字及其气泡，拖动边缘手柄则可调整文字的换行宽度。"
+          }
+        }
+      }
+    },
+    "New: Choose a font for your text — Sans-serif, Serif, Handwritten, or any font installed on your Mac." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Schrift für Text wählen — Serifenlos, Serif, Handschrift oder jede auf deinem Mac installierte Schrift."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : choisir la police du texte — Sans empattement, Avec empattement, Manuscrite, ou n’importe quelle police installée sur votre Mac."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：テキストのフォントを選択 — サンセリフ、セリフ、手書き風、またはMacにインストールされている任意のフォントを使えます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: выбор шрифта для текста — без засечек, с засечками, рукописный или любой шрифт, установленный на вашем Mac."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：为文字选择字体——无衬线、衬线、手写体，或 Mac 上安装的任意字体。"
+          }
+        }
+      }
+    },
+    "Fixed: the text cursor sometimes didn’t appear after placing a text bubble. It now shows up every time, and Esc or ⌘Return finishes editing. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the report." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behoben: Der Textcursor erschien nach dem Platzieren einer Textblase manchmal nicht. Er erscheint jetzt jedes Mal, und mit Esc oder ⌘Return beendest du die Bearbeitung. Danke an Matt Ormianek (@MattOrmianek auf GitHub) für den Hinweis."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigé : le curseur de texte n’apparaissait parfois pas après la création d’une bulle de texte. Il s’affiche désormais à chaque fois, et Échap ou ⌘Retour termine la modification. Merci à Matt Ormianek (@MattOrmianek sur GitHub) pour le signalement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正：テキストの吹き出しを置いた直後に文字カーソルが表示されないことがありました。今後は毎回表示され、Escキーまたは⌘Returnで編集を終了できます。ご報告くださったMatt Ormianekさん（GitHubの@MattOrmianek）に感謝します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправлено: после добавления текстовой выноски курсор иногда не появлялся. Теперь он появляется всегда, а завершить правку можно клавишей Esc или ⌘Return. Спасибо Matt Ormianek (@MattOrmianek на GitHub) за сообщение."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复：放置文字气泡后，文字光标有时不会出现。现在每次都会显示，按 Esc 或 ⌘Return 即可结束编辑。感谢 Matt Ormianek（GitHub 上的 @MattOrmianek）的反馈。"
+          }
+        }
+      }
+    },
+    "Settings › Shortcuts now explains that a shortcut needs ⌘, ⌥ or ⌃ — the recorder ignores a bare key or Shift plus a key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Einstellungen › Kurzbefehle steht jetzt, dass ein Kurzbefehl ⌘, ⌥ oder ⌃ braucht — der Rekorder ignoriert eine einzelne Taste oder Umschalt plus Taste."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réglages › Raccourcis explique désormais qu’un raccourci nécessite ⌘, ⌥ ou ⌃ — l’enregistreur ignore une touche seule ou Maj plus une touche."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 › ショートカットに、ショートカットには⌘・⌥・⌃のいずれかが必要であることを説明する文を追加しました。キー単独やShift＋キーは記録されません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В Настройках › Сочетания клавиш теперь объясняется, что сочетанию нужны ⌘, ⌥ или ⌃: запись игнорирует одиночную клавишу или Shift плюс клавишу."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置 › 快捷键现在会说明快捷键需要包含 ⌘、⌥ 或 ⌃——录制器会忽略单独的按键或 Shift 加按键。"
+          }
+        }
+      }
+    },
+    "New: Text without a background — text now has its own Text Color and Background Color. Choose No Fill for plain lettering, and SimplShot suggests the text colour that reads best against the background you choose." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Text ohne Hintergrund — Text hat jetzt eine eigene Textfarbe und Hintergrundfarbe. Wähle „Keine Füllung“ für reine Schrift; SimplShot schlägt dir die Textfarbe vor, die sich am besten vom gewählten Hintergrund abhebt."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : texte sans fond — le texte a désormais sa propre couleur de texte et sa propre couleur de fond. Choisissez Aucun remplissage pour obtenir du texte seul ; SimplShot propose la couleur de texte la plus lisible sur le fond choisi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：背景なしのテキスト — テキストに専用の「文字色」と「背景色」が加わりました。「塗りつぶしなし」を選べば文字だけを置けます。選んだ背景の上でいちばん読みやすい文字色も SimplShot が提案します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: текст без фона — у текста теперь собственные цвет текста и цвет фона. Выберите «Без заливки», чтобы получить чистую надпись; SimplShot подскажет цвет текста, который лучше всего читается на выбранном фоне."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：无背景文字——文字现在拥有独立的文字颜色和背景颜色。选择“无填充”即可得到纯文字，SimplShot 还会根据所选背景推荐对比度最佳的文字颜色。"
           }
         }
       }

@@ -18,6 +18,14 @@ struct WhatsNewEntry {
 let maxWhatsNewEntries = 4
 
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.8.1", items: [
+        "New: Rotate text — drag the handle above a text bubble to turn it to any angle, or hold Shift to snap to 15° steps. Rotated text stays rotated when you rotate or flip the image.",
+        "New: Scale text from its corners — drag a corner handle to resize the text and its bubble together, or an edge handle to change how wide the text wraps.",
+        "New: Text without a background — text now has its own Text Color and Background Color. Choose No Fill for plain lettering, and SimplShot suggests the text colour that reads best against the background you choose.",
+        "New: Choose a font for your text — Sans-serif, Serif, Handwritten, or any font installed on your Mac.",
+        "Fixed: the text cursor sometimes didn’t appear after placing a text bubble. It now shows up every time, and Esc or ⌘Return finishes editing. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the report.",
+        "Settings › Shortcuts now explains that a shortcut needs ⌘, ⌥ or ⌃ — the recorder ignores a bare key or Shift plus a key.",
+    ]),
     WhatsNewEntry(version: "1.7.8", items: [
         "Fixed: copying or saving with the crop tool still open ignored the crop. Save & Copy, Save, Save As and Print now apply it first, and the button reads Save & Copy while you crop. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the report.",
         "New: Highlight — sweep the tool across text to mark it like a real highlighter pen. It snaps to whole words and lines on PDFs and screenshots alike, the text underneath stays crisp, and darker colours turn the text white so it stays readable.",
@@ -43,10 +51,6 @@ let whatsNewEntries: [WhatsNewEntry] = [
         "New: Hide the menu bar icon — Settings › General can take SimplShot's icon out of your menu bar, leaving your keyboard shortcuts to do the work. The app keeps running: open it from Spotlight and the menu appears for as long as you need it, then hides itself again. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the idea.",
         "Check for Updates now also sits in Settings › About, so you can update SimplShot without bringing its menu bar icon back.",
         "Settings › Template now previews templates more accurately: Auto keeps even padding, ratio presets show the right canvas shape, and watermarks appear closer to their exported size.",
-    ]),
-    WhatsNewEntry(version: "1.7.5", items: [
-        "Cropping now takes over the whole sidebar — Straighten, Flip, Rotate and every aspect ratio sit in one panel instead of behind a pop-up menu, in both Annotate and Edit mode. A locked ratio survives flipping and rotating too, so your selection keeps its shape.",
-        "New: Flip — mirror a screenshot left to right or top to bottom from the crop panel. Like rotating and straightening, it is non-destructive: annotations stay glued to the image, and you can flip back at any time.",
     ]),
 ]
 
