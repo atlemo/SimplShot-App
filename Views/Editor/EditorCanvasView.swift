@@ -478,7 +478,7 @@ struct EditorCanvasView: View {
                 GrowingTextField(
                     text: $editingText,
                     fontSize: scaledFontSize,
-                    textColor: NSColor(ann.style.textBubbleForeground),
+                    textColor: NSColor(ann.style.textInk),
                     contentWidth: contentW,
                     wraps: fixedInnerW != nil,
                     onFinish: {
@@ -492,16 +492,21 @@ struct EditorCanvasView: View {
                 .padding(.vertical, scaledFontSize * 0.25)
                 .background(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(ann.style.textBubbleBackground)
+                        .fill(ann.style.textHasBackground ? ann.style.textBubbleBackground : Color.clear)
                 )
                 .overlay(
+                    // Same selected look as the committed pill (AnnotationOverlayView).
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(.white, lineWidth: borderWidth)
+                        .stroke(ann.style.textHasBackground ? Color.white : Color.accentColor,
+                                style: StrokeStyle(lineWidth: borderWidth,
+                                                   dash: ann.style.textHasBackground
+                                                       ? [] : [borderWidth * 3, borderWidth * 2]))
                 )
                 .padding(borderWidth)
                 .overlay(
                     RoundedRectangle(cornerRadius: cornerRadius + borderWidth, style: .continuous)
-                        .stroke(ann.style.textBubbleBackground, lineWidth: borderWidth)
+                        .stroke(ann.style.textHasBackground ? ann.style.textBubbleBackground : Color.clear,
+                                lineWidth: borderWidth)
                 )
                 .position(x: pos.x, y: pos.y)
             }

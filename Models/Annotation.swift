@@ -741,6 +741,21 @@ struct AnnotationStyle: Equatable {
     var cgTextBubbleBackground: CGColor {
         NSColor(textBubbleBackground).cgColor
     }
+
+    /// `.text` only: whether the words sit on a filled pill. Off, the stroke
+    /// colour becomes the ink and nothing is painted behind it. Numbered steps
+    /// share `textBubbleForeground`/`textBubbleBackground` and ignore this.
+    var textHasBackground: Bool = true
+
+    /// Colour of the words in a `.text` annotation: contrast-on-pill when there
+    /// is a pill, otherwise the stroke colour itself.
+    var textInk: Color {
+        textHasBackground ? textBubbleForeground : strokeColor
+    }
+
+    var cgTextInk: CGColor {
+        NSColor(textInk).cgColor
+    }
 }
 
 extension Color {

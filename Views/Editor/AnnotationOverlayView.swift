@@ -198,6 +198,7 @@ struct AnnotationOverlayView: View {
             let borderWidth = max(2, 2 * scale)
             let hPad = scaledFontSize * 0.55
             let hasFixedWidth = annotation.textWidth != nil
+            let hasBackground = annotation.style.textHasBackground
             let innerWidth: CGFloat? = annotation.textWidth.map { $0 * scale - hPad * 2 }
             Group {
                 if let iw = innerWidth {
@@ -216,21 +217,26 @@ struct AnnotationOverlayView: View {
                 }
             }
             .font(.system(size: scaledFontSize, weight: .medium))
-            .foregroundColor(annotation.style.textBubbleForeground)
+            .foregroundColor(annotation.style.textInk)
             .padding(.horizontal, hPad)
             .padding(.vertical, scaledFontSize * 0.25)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(annotation.style.textBubbleBackground)
+                    .fill(hasBackground ? annotation.style.textBubbleBackground : Color.clear)
             )
             .overlay(
+                // Pill: white ring. No pill: a dashed accent outline, so a
+                // selected bit of loose text still shows its extent.
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(isSelected ? Color.white : Color.clear, lineWidth: borderWidth)
+                    .stroke(isSelected ? (hasBackground ? Color.white : Color.accentColor) : Color.clear,
+                            style: StrokeStyle(lineWidth: borderWidth,
+                                               dash: hasBackground ? [] : [borderWidth * 3, borderWidth * 2]))
             )
             .padding(isSelected ? borderWidth : 0)
             .overlay(
                 RoundedRectangle(cornerRadius: isSelected ? cornerRadius + borderWidth : cornerRadius, style: .continuous)
-                    .stroke(isSelected ? annotation.style.textBubbleBackground : Color.clear, lineWidth: borderWidth)
+                    .stroke(isSelected && hasBackground ? annotation.style.textBubbleBackground : Color.clear,
+                            lineWidth: borderWidth)
             )
             .fixedSize(horizontal: !hasFixedWidth, vertical: false)
             .position(x: start.x, y: start.y)

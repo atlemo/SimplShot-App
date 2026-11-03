@@ -929,7 +929,9 @@ class AnnotationRenderer {
         // GrowingTextField) so the exported bubble wraps and sizes identically.
         let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
         let bgColor = style.cgTextBubbleBackground
-        let fgColor = style.cgTextBubbleForeground
+        // Ink is contrast-on-pill, or the stroke colour itself with no pill.
+        let fgColor = style.cgTextInk
+        let drawsPill = style.textHasBackground
 
         let hPad = fontSize * 0.55
         let vPad = fontSize * 0.25
@@ -973,12 +975,14 @@ class AnnotationRenderer {
                 height: bgHeight
             )
 
-            context.saveGState()
-            context.setFillColor(bgColor)
-            let pillPath = CGPath(roundedRect: bgRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-            context.addPath(pillPath)
-            context.fillPath()
-            context.restoreGState()
+            if drawsPill {
+                context.saveGState()
+                context.setFillColor(bgColor)
+                let pillPath = CGPath(roundedRect: bgRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                context.addPath(pillPath)
+                context.fillPath()
+                context.restoreGState()
+            }
 
             // Draw the framed text. CT uses bottom-left origin so un-flip for the frame rect.
             let textRect = CGRect(
@@ -1025,12 +1029,14 @@ class AnnotationRenderer {
                 height: bgHeight
             )
 
-            context.saveGState()
-            context.setFillColor(bgColor)
-            let pillPath = CGPath(roundedRect: bgRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-            context.addPath(pillPath)
-            context.fillPath()
-            context.restoreGState()
+            if drawsPill {
+                context.saveGState()
+                context.setFillColor(bgColor)
+                let pillPath = CGPath(roundedRect: bgRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+                context.addPath(pillPath)
+                context.fillPath()
+                context.restoreGState()
+            }
 
             for (i, ctLine) in ctLines.enumerated() {
                 let lineWidth = CTLineGetBoundsWithOptions(ctLine, []).width
