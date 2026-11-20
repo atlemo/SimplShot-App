@@ -74,7 +74,7 @@ class ScreenshotService {
         // WebP encoding requires the swift-webp library; CGImageDestination
         // does not support WebP encoding on macOS.
         if format == .webp {
-            let data = try WebPEncoder().encode(finalImage, config: .preset(.photo, quality: 80))
+            let data = try Self.webPData(from: finalImage)
             try data.write(to: filePath)
             return filePath
         }
@@ -164,8 +164,64 @@ class ScreenshotService {
               let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             throw ScreenshotError.saveFailed
         }
-        let data = try WebPEncoder().encode(cgImage, config: .preset(.photo, quality: 80))
+        let data = try webPData(from: cgImage)
         try data.write(to: destinationURL)
+    }
+
+    /// Encodes `image` as WebP.
+    ///
+    /// ⚠️ Never hand a `CGImage` straight to `WebPEncoder.encode(_:config:)`. It
+    /// reads the image's raw bytes **assuming straight-alpha RGBA** and ignores
+    /// the image's real layout. ScreenCaptureKit delivers BGRA (premultiplied,
+    /// little-endian), so red and blue came out swapped. The encoder also embeds
+    /// no ICC profile, so the pixels have to be sRGB to be read correctly.
+    ///
+    /// So the image is first redrawn into a known 8-bit sRGB RGBA bitmap, then
+    /// un-premultiplied (libwebp expects straight alpha; translucent window
+    /// corners would otherwise darken).
+    static func webPData(from image: CGImage, quality: Float = 80) throws -> Data {
+        let width = image.width
+        let height = image.height
+        guard width > 0, height > 0,
+              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                  data: nil,
+                  width: width,
+                  height: height,
+                  bitsPerComponent: 8,
+                  bytesPerRow: 0,
+                  space: colorSpace,
+                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                      | CGBitmapInfo.byteOrder32Big.rawValue
+              ),
+              let base = context.data
+        else {
+            throw ScreenshotError.saveFailed
+        }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        let stride = context.bytesPerRow
+        let bytes = base.assumingMemoryBound(to: UInt8.self)
+        for y in 0..<height {
+            let row = bytes + y * stride
+            for x in 0..<width {
+                let px = row + x * 4
+                let a = Int(px[3])
+                guard a != 0, a != 255 else { continue }
+                px[0] = UInt8(min(255, (Int(px[0]) * 255 + a / 2) / a))
+                px[1] = UInt8(min(255, (Int(px[1]) * 255 + a / 2) / a))
+                px[2] = UInt8(min(255, (Int(px[2]) * 255 + a / 2) / a))
+            }
+        }
+
+        return try WebPEncoder().encode(
+            UnsafeBufferPointer(start: bytes, count: stride * height),
+            format: .rgba,
+            config: .preset(.photo, quality: quality),
+            originWidth: width,
+            originHeight: height,
+            stride: stride
+        )
     }
     #endif
 

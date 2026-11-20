@@ -5018,7 +5018,7 @@ struct EditorView: View {
 
         #if !APPSTORE
         if ext == "webp" {
-            let data = try WebPEncoder().encode(cgImage, config: .preset(.photo, quality: 80))
+            let data = try ScreenshotService.webPData(from: cgImage)
             try data.write(to: url)
             return
         }
