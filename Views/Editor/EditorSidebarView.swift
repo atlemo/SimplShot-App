@@ -91,6 +91,7 @@ struct EditorSidebarView: View {
     @State private var fillColorPopoverVisible = false
     @State private var sizePopoverVisible = false
     @State private var pixelatePopoverVisible = false
+    @State private var magnifierPopoverVisible = false
     @State private var arrowStylePopoverVisible = false
     @State private var shapesPopoverVisible = false
     @State private var spotlightPopoverVisible = false
@@ -159,8 +160,8 @@ struct EditorSidebarView: View {
     ]
 
     // .rectangle acts as the shapes-group representative (circle/triangle/star are in the shapes picker).
-    // For PDF sessions (hasTemplate == false), pixelate is omitted (PDFs export as
-    // vector; pixelate would force rasterization) and crop is omitted too: the live
+    // For PDF sessions (hasTemplate == false), pixelate and magnifier are omitted (PDFs export as
+    // vector; both would force rasterization) and crop is omitted too: the live
     // vector page view and the PDF export both draw the full page, so a crop would
     // distort the on-screen page and be silently dropped from the saved PDF.
     private var drawingTools: [AnnotationTool] {
@@ -169,13 +170,13 @@ struct EditorSidebarView: View {
         // next to the other tool that works off the page's text layer.
         let base: [AnnotationTool] = [
             .select, .highlight, .freeDraw, .arrow, .rectangle, .line, .text, .numberedStep,
-            .sticker, .measurement, .angle, .pixelate, .spotlight, .crop
+            .sticker, .measurement, .angle, .pixelate, .magnifier, .spotlight, .crop
         ]
         guard !hasTemplate else { return base }
         // PDF sessions: pixelate/crop don't apply (vector export draws the full
         // page); add a text-selection tool so the page's text can be selected and
         // copied without leaving the markup mode.
-        return [.select, .textSelect] + base.filter { $0 != .select && $0 != .pixelate && $0 != .crop }
+        return [.select, .textSelect] + base.filter { $0 != .select && $0 != .pixelate && $0 != .magnifier && $0 != .crop }
     }
 
     private let stylingTools: [AnnotationTool] = [
@@ -819,6 +820,7 @@ struct EditorSidebarView: View {
                     return
                 }
                 pixelatePopoverVisible = false
+                magnifierPopoverVisible = false
                 arrowStylePopoverVisible = false
                 spotlightPopoverVisible = false
                 selectTool(.rectangle)
@@ -854,6 +856,7 @@ struct EditorSidebarView: View {
                     // the FIRST click too: a sticker tool with no emoji chosen
                     // has nothing to stamp.
                     pixelatePopoverVisible = false
+                    magnifierPopoverVisible = false
                     arrowStylePopoverVisible = false
                     shapesPopoverVisible = false
                     spotlightPopoverVisible = false
@@ -869,6 +872,10 @@ struct EditorSidebarView: View {
                     pixelatePopoverVisible.toggle()
                     return
                 }
+                if tool == .magnifier, currentTool == .magnifier {
+                    magnifierPopoverVisible.toggle()
+                    return
+                }
                 if tool == .arrow, currentTool == .arrow {
                     // Already active — clicking again opens the style picker.
                     // (First selection just activates the tool, no popover.)
@@ -876,6 +883,7 @@ struct EditorSidebarView: View {
                     return
                 }
                 pixelatePopoverVisible = false
+                magnifierPopoverVisible = false
                 arrowStylePopoverVisible = false
                 shapesPopoverVisible = false
                 spotlightPopoverVisible = false
@@ -939,6 +947,10 @@ struct EditorSidebarView: View {
             } else if tool == .pixelate {
                 button.popover(isPresented: $pixelatePopoverVisible, arrowEdge: .trailing) {
                     pixelatePopoverContent
+                }
+            } else if tool == .magnifier {
+                button.popover(isPresented: $magnifierPopoverVisible, arrowEdge: .trailing) {
+                    magnifierPopoverContent
                 }
             } else if tool == .arrow {
                 button.popover(isPresented: $arrowStylePopoverVisible, arrowEdge: .trailing) {
@@ -1518,6 +1530,47 @@ struct EditorSidebarView: View {
         annotations[idx].style.pixelationScale = currentStyle.pixelationScale
     }
 
+    // MARK: - Magnifier Popover
+
+    private var magnifierPopoverContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Magnification")
+                .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 8) {
+                // No .focusable(false) — see strokeWidthSliderContent.
+                Slider(value: magnificationBinding,
+                       in: Double(MagnifierLens.zoomRange.lowerBound)...Double(MagnifierLens.zoomRange.upperBound),
+                       step: Double(MagnifierLens.zoomStep))
+                    .tint(.accentColor)
+                    .frame(width: 180)
+                    .focusEffectDisabled()
+                Text(String(format: "%.2g×", Double(currentStyle.magnification)))
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 34, alignment: .trailing)
+            }
+            .padding(.vertical, 2)
+        }
+        .padding(12)
+    }
+
+    private var magnificationBinding: Binding<Double> {
+        Binding(
+            get: { Double(currentStyle.magnification) },
+            set: { newValue in
+                currentStyle.magnification = CGFloat(newValue)
+                applyMagnificationToSelection()
+            }
+        )
+    }
+
+    private func applyMagnificationToSelection() {
+        guard let id = selectedAnnotationID,
+              let idx = annotations.firstIndex(where: { $0.id == id }),
+              annotations[idx].tool == .magnifier
+        else { return }
+        annotations[idx].style.magnification = currentStyle.magnification
+    }
+
     // MARK: - Spotlight Popover
 
     private var spotlightPopoverContent: some View {
@@ -1619,7 +1672,7 @@ struct EditorSidebarView: View {
     // MARK: - Helpers
 
     private func hasSecondaryOptions(_ tool: AnnotationTool) -> Bool {
-        tool == .arrow || tool == .pixelate || tool == .spotlight || tool == .sticker
+        tool == .arrow || tool == .pixelate || tool == .magnifier || tool == .spotlight || tool == .sticker
     }
 
     private func sectionLabel(_ text: LocalizedStringKey) -> some View {
@@ -1712,7 +1765,11 @@ struct EditorSidebarView: View {
         guard let id = selectedAnnotationID,
               let idx = annotations.firstIndex(where: { $0.id == id })
         else { return }
+        // A lens keeps its own zoom: the colour/size controls share `currentStyle`,
+        // whose magnification is whatever the slider last said.
+        let ownZoom = annotations[idx].style.magnification
         annotations[idx].style = currentStyle
+        if annotations[idx].tool == .magnifier { annotations[idx].style.magnification = ownZoom }
     }
 
     // MARK: - Bindings

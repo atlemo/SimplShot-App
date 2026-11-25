@@ -66,6 +66,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Compile the magnifier's shader off the main thread now, so the first
+        // lens the user draws doesn't pay for it.
+        DispatchQueue.global(qos: .utility).async { _ = MagnifierGPU.shared }
 #if !APPSTORE
         // Set up batch capture service
         batchCaptureService = BatchCaptureService(

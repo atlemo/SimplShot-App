@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import CoreImage
 import CoreText
+import Metal
 import PDFKit
 
 /// Renders annotations onto a CGImage for export.
@@ -120,6 +121,10 @@ class AnnotationRenderer {
         // 4. Draw remaining annotations on top of the spotlight dim.
         for annotation in annotations {
             if annotation.tool == .spotlight || annotation.tool == .pixelate { continue }
+            if annotation.tool == .magnifier {
+                drawMagnifier(annotation, from: image, in: context)
+                continue
+            }
             drawAnnotation(annotation, drawingHeight: CGFloat(height), in: context)
         }
 
@@ -230,7 +235,7 @@ class AnnotationRenderer {
 
         for annotation in annotations {
             if annotation.tool == .spotlight { continue }
-            if annotation.tool == .pixelate { continue }  // unsupported in vector mode
+            if annotation.tool == .pixelate || annotation.tool == .magnifier { continue }  // unsupported in vector mode
             drawAnnotation(annotation, drawingHeight: CGFloat(heightPx), in: context)
         }
 
@@ -386,6 +391,8 @@ class AnnotationRenderer {
             break // Drawn in its own multiplied pass (see drawHighlights)
         case .select, .textSelect, .crop, .pixelate:
             break // Not drawn here (.pixelate is handled before the coordinate flip)
+        case .magnifier:
+            break // Needs the source image — see drawMagnifier, called from render()
         }
 
         context.restoreGState()
@@ -839,6 +846,17 @@ class AnnotationRenderer {
         context.restoreGState()
     }
 
+    /// Draws a `.magnifier` lens (see `MagnifierLens`). The context is in the
+    /// flipped, top-left-origin image-pixel space the annotations are drawn in.
+    ///
+    /// Magnifies `source` — the base image without other annotations, exactly
+    /// what the preview samples. Needs raster pixels, so vector PDF export
+    /// skips it like pixelate.
+    private func drawMagnifier(_ annotation: Annotation, from source: CGImage, in context: CGContext) {
+        MagnifierLens.draw(source: source, rect: annotation.boundingRect,
+                           magnification: annotation.style.magnification, in: context)
+    }
+
     /// Draws a single dimming overlay with one clear cutout per spotlight annotation.
     private func drawSpotlights(
         _ annotations: [Annotation],
@@ -1190,4 +1208,378 @@ enum PixelateMosaic {
         context.draw(cropped, in: CGRect(x: 0, y: 0, width: smallW, height: smallH))
         return context.makeImage()
     }
+}
+
+
+// MARK: - Magnifier Lens
+
+/// The glass magnifier behind `.magnifier`: the circle inscribed in the
+/// annotation's (square) rect shows the picture beneath it enlarged
+/// `magnification`×, with a smooth bend toward the rim and a frosted-glass finish.
+///
+/// ### One shader, on the GPU, for preview AND export
+/// The whole lens — warp, shading, shadow — is one fragment shader
+/// (`MagnifierGPU.source`). The live preview (`MagnifierMetalView`) draws it into
+/// a transparent `MTKView` on every pointer event, so moving or resizing a lens
+/// costs one quad however large it is; the export (`MagnifierLens.draw`) runs the
+/// same shader into an offscreen texture and composites the result. Two
+/// implementations of the look would drift; this cannot.
+///
+/// The shader is compiled **at runtime** from the source string
+/// (`makeLibrary(source:)`), so there is no `.metal` file in the project — a
+/// `.metal` file needs Xcode's separately-downloaded Metal Toolchain to build,
+/// and would have to be registered in both app targets.
+///
+/// ### The optics
+/// A lens is radially symmetric, so the warp is one function of the normalised
+/// radius ρ = r / R (`sourceScale`): the source pixel under lens pixel `d` lies
+/// at `d · g(ρ)`. `g` is `1 / zoom` (uniform zoom) in the middle; in a narrow
+/// band at the rim the lookup radius peaks and **turns back toward the centre**,
+/// so the edge shows a mirrored strip of the picture just inside it, folded in.
+/// The lookup never leaves the lens's own circle.
+///
+/// The lens samples the canvas *without* other annotations — what the preview's
+/// `sourceImage` and the export's base image both are.
+enum MagnifierLens {
+
+    static let defaultZoom: CGFloat = 2
+    static let zoomRange: ClosedRange<CGFloat> = 1.25...6
+    static let zoomStep: CGFloat = 0.25
+    /// Smallest lens a drag may leave behind, in image pixels.
+    static let minimumDiameter: CGFloat = 40
+
+    /// Fraction of the radius where the rim fold begins.
+    static let rimStart: Double = 0.90
+    /// Where in the rim band (0 = start, 1 = edge) the lookup turns back toward
+    /// the centre. Earlier = a deeper fold (more of the band is mirrored).
+    static let foldAt: Double = 0.62
+    /// Drop shadow, as fractions of the radius. Faint: it only lifts the glass.
+    static let shadowOpacity: Double = 0.12
+    static let shadowBlur: Double = 0.12
+    static let shadowOffset: Double = 0.04
+
+    static func clampedZoom(_ zoom: CGFloat) -> CGFloat {
+        min(max(zoom, zoomRange.lowerBound), zoomRange.upperBound)
+    }
+
+    // MARK: Geometry
+
+    /// The lens circle for an annotation rect (image-pixel space).
+    static func circle(for rect: CGRect) -> (center: CGPoint, radius: CGFloat) {
+        (CGPoint(x: rect.midX, y: rect.midY), max(min(rect.width, rect.height) / 2, 1))
+    }
+
+    /// Room around the lens for its shadow, in whole pixels (or points).
+    static func shadowMargin(radius: CGFloat) -> CGFloat {
+        (radius * 0.24).rounded(.up) + 1
+    }
+
+    /// Where the lens's bitmap goes in image space: a whole-pixel square
+    /// holding the lens plus its shadow, centred on the annotation.
+    static func frame(for rect: CGRect) -> CGRect {
+        let (c, r) = circle(for: rect)
+        let side = (r * 2).rounded(.up) + 2 * shadowMargin(radius: r)
+        return CGRect(x: (c.x - side / 2).rounded(), y: (c.y - side / 2).rounded(),
+                      width: side, height: side)
+    }
+
+    // MARK: Optics
+
+    /// `g(ρ)`: how far from the lens centre, as a multiple of the lens pixel's
+    /// own distance from it, the source pixel for normalised radius `rho` lies.
+    /// The shader implements the same function.
+    ///
+    /// The lookup radius is `f(ρ) = ρ · g(ρ) = ρ/zoom − K·x³`, `x = max(ρ − rimStart, 0)`:
+    /// uniform zoom, then a cubic that bends over, peaks at `foldAt` of the rim
+    /// band and **turns back toward the centre**. The rim therefore shows a
+    /// mirrored strip of what lies just inside it, folded in — never content from
+    /// outside the lens — which is how the glass "breaks" at its edge. (An
+    /// earlier version kept reading further OUT at the rim, compressing the
+    /// picture from beyond the lens into the edge; that folds the wrong way.)
+    /// The cubic has zero slope and zero curvature where it starts, so the zoom
+    /// leaves its uniform value without a crease.
+    static func sourceScale(rho: Double, zoom: Double) -> Double {
+        let span = 1 - rimStart
+        let k = 1 / (3 * zoom * foldAt * foldAt * span * span)
+        let x = max(rho - rimStart, 0)
+        return 1 / zoom - k * x * x * x / max(rho, 1e-6)
+    }
+
+    /// `g(1)`: the source radius under the very rim, in lens radii.
+    static func rimReach(zoom: Double) -> Double {
+        sourceScale(rho: 1, zoom: zoom)
+    }
+
+    /// Lookup radius `f(ρ) = ρ · g(ρ)`, in lens radii.
+    static func lookupRadius(rho: Double, zoom: Double) -> Double {
+        rho * sourceScale(rho: rho, zoom: zoom)
+    }
+
+    // MARK: Export
+
+    /// Draws the lens into `context`, which is in the flipped, top-left-origin
+    /// image-pixel space the annotations are drawn in. `source` is the base
+    /// image, in that same space.
+    static func draw(source: CGImage, rect: CGRect, magnification: CGFloat, in context: CGContext) {
+        guard let gpu = MagnifierGPU.shared,
+              let (lens, frame) = gpu.renderLens(source: source, rect: rect,
+                                                 zoom: clampedZoom(magnification))
+        else { return }
+        context.saveGState()
+        context.translateBy(x: frame.minX, y: frame.maxY)   // un-flip locally: the bitmap is upright
+        context.scaleBy(x: 1, y: -1)
+        context.draw(lens, in: CGRect(x: 0, y: 0, width: frame.width, height: frame.height))
+        context.restoreGState()
+    }
+}
+
+// MARK: - Magnifier GPU
+
+/// Metal pipeline shared by the preview and the export (see `MagnifierLens`).
+final class MagnifierGPU: @unchecked Sendable {
+
+    /// nil when there is no usable GPU; the lens then simply isn't drawn.
+    static let shared = MagnifierGPU()
+
+    /// Must match the MSL `Uniforms` struct field for field.
+    struct Uniforms {
+        var lensCenter: SIMD2<Float>   // lens centre in output pixels
+        var srcCenter: SIMD2<Float>    // lens centre in source-image pixels
+        var texSize: SIMD2<Float>
+        var radius: Float              // lens radius in output pixels
+        var srcPerOut: Float           // source pixels per output pixel
+        var zoom: Float
+        var pad: Float = 0
+    }
+
+    let device: MTLDevice
+    let queue: MTLCommandQueue
+    let pipeline: MTLRenderPipelineState
+    let sampler: MTLSamplerState
+    private let lock = NSLock()
+    private var cachedImage: CGImage?
+    private var cachedTexture: (MTLTexture, CGColorSpace)?
+
+    static let pixelFormat = MTLPixelFormat.bgra8Unorm
+
+    private init?() {
+        guard let device = MTLCreateSystemDefaultDevice(),
+              let queue = device.makeCommandQueue(),
+              let library = try? device.makeLibrary(source: Self.source, options: nil),
+              let vertex = library.makeFunction(name: "lensVertex"),
+              let fragment = library.makeFunction(name: "lensFragment")
+        else { return nil }
+        let descriptor = MTLRenderPipelineDescriptor()
+        descriptor.vertexFunction = vertex
+        descriptor.fragmentFunction = fragment
+        descriptor.colorAttachments[0].pixelFormat = Self.pixelFormat
+        let samplerDescriptor = MTLSamplerDescriptor()
+        samplerDescriptor.minFilter = .linear
+        samplerDescriptor.magFilter = .linear
+        samplerDescriptor.mipFilter = .linear
+        // Outside the picture is transparent, not smeared edge pixels.
+        samplerDescriptor.sAddressMode = .clampToZero
+        samplerDescriptor.tAddressMode = .clampToZero
+        guard let pipeline = try? device.makeRenderPipelineState(descriptor: descriptor),
+              let sampler = device.makeSamplerState(descriptor: samplerDescriptor)
+        else { return nil }
+        self.device = device
+        self.queue = queue
+        self.pipeline = pipeline
+        self.sampler = sampler
+    }
+
+    // MARK: Texture
+
+    /// The image as a premultiplied BGRA texture in its own colour space, and
+    /// that space. One entry is cached (the canvas the lens is over), by identity.
+    func texture(for image: CGImage) -> (MTLTexture, CGColorSpace)? {
+        lock.lock(); defer { lock.unlock() }
+        if let cachedImage, cachedImage === image, let cachedTexture { return cachedTexture }
+        let w = image.width, h = image.height
+        guard w > 0, h > 0, w <= 16384, h <= 16384 else { return nil }
+        let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        // Keep the picture's own RGB space, so colours are interpreted the way
+        // the rest of the app interprets them (screenshots are Display P3).
+        var space = image.colorSpace.flatMap { $0.model == .rgb ? $0 : nil }
+            ?? CGColorSpace(name: CGColorSpace.sRGB)!
+        var context = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: space, bitmapInfo: info)
+        if context == nil {
+            space = CGColorSpace(name: CGColorSpace.sRGB)!
+            context = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: space, bitmapInfo: info)
+        }
+        guard let context, let data = context.data else { return nil }
+        context.clear(CGRect(x: 0, y: 0, width: w, height: h))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: Self.pixelFormat, width: w, height: h, mipmapped: true)
+        descriptor.usage = [.shaderRead, .renderTarget]   // render-target: needed to generate mipmaps
+        descriptor.storageMode = device.hasUnifiedMemory ? .shared : .managed
+        guard let texture = device.makeTexture(descriptor: descriptor) else { return nil }
+        texture.replace(region: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0,
+                        withBytes: data, bytesPerRow: context.bytesPerRow)
+        // Mipmaps, so the rim — where a lot of picture is squeezed into a narrow
+        // band — is filtered instead of aliasing into zebra stripes. The middle
+        // of the lens magnifies, so it still reads level 0 and stays sharp.
+        if let commands = queue.makeCommandBuffer(), let blit = commands.makeBlitCommandEncoder() {
+            blit.generateMipmaps(for: texture)
+            blit.endEncoding()
+            commands.commit()
+            commands.waitUntilCompleted()
+        }
+        cachedImage = image
+        cachedTexture = (texture, space)
+        return (texture, space)
+    }
+
+    // MARK: Draw
+
+    /// Encodes the lens into `encoder`, a pass over a texture/drawable.
+    func encode(_ uniforms: Uniforms, texture: MTLTexture, into encoder: MTLRenderCommandEncoder) {
+        var u = uniforms
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentBytes(&u, length: MemoryLayout<Uniforms>.stride, index: 0)
+        encoder.setFragmentTexture(texture, index: 0)
+        encoder.setFragmentSamplerState(sampler, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+    }
+
+    /// The lens as an upright bitmap (lens + shadow) and where it goes in image
+    /// space, one output pixel per image pixel. For the export.
+    func renderLens(source: CGImage, rect: CGRect, zoom: CGFloat) -> (CGImage, CGRect)? {
+        guard let (texture, space) = texture(for: source) else { return nil }
+        let frame = MagnifierLens.frame(for: rect)
+        let side = Int(frame.width)
+        let (c, r) = MagnifierLens.circle(for: rect)
+
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: Self.pixelFormat, width: side, height: side, mipmapped: false)
+        descriptor.usage = [.renderTarget, .shaderRead]
+        descriptor.storageMode = device.hasUnifiedMemory ? .shared : .managed
+        guard let target = device.makeTexture(descriptor: descriptor),
+              let commands = queue.makeCommandBuffer() else { return nil }
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = target
+        pass.colorAttachments[0].loadAction = .clear
+        pass.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+        pass.colorAttachments[0].storeAction = .store
+        guard let encoder = commands.makeRenderCommandEncoder(descriptor: pass) else { return nil }
+        encode(Uniforms(lensCenter: SIMD2(Float(c.x - frame.minX), Float(c.y - frame.minY)),
+                        srcCenter: SIMD2(Float(c.x), Float(c.y)),
+                        texSize: SIMD2(Float(texture.width), Float(texture.height)),
+                        radius: Float(r), srcPerOut: 1, zoom: Float(zoom)),
+               texture: texture, into: encoder)
+        encoder.endEncoding()
+        if !device.hasUnifiedMemory, let blit = commands.makeBlitCommandEncoder() {
+            blit.synchronize(resource: target)
+            blit.endEncoding()
+        }
+        commands.commit()
+        commands.waitUntilCompleted()
+
+        let bytesPerRow = side * 4
+        var bytes = [UInt8](repeating: 0, count: bytesPerRow * side)
+        target.getBytes(&bytes, bytesPerRow: bytesPerRow,
+                        from: MTLRegionMake2D(0, 0, side, side), mipmapLevel: 0)
+        guard let provider = CGDataProvider(data: Data(bytes) as CFData),
+              let image = CGImage(width: side, height: side, bitsPerComponent: 8, bitsPerPixel: 32,
+                                  bytesPerRow: bytesPerRow, space: space,
+                                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue
+                                                           | CGBitmapInfo.byteOrder32Little.rawValue),
+                                  provider: provider, decode: nil, shouldInterpolate: false,
+                                  intent: .defaultIntent)
+        else { return nil }
+        return (image, frame)
+    }
+
+    // MARK: Shader
+
+    /// The lens. Coordinates are output pixels, origin top-left (Metal's
+    /// framebuffer convention, matching the image).
+    static let source = """
+    #include <metal_stdlib>
+    using namespace metal;
+
+    struct Uniforms {
+        float2 lensCenter;
+        float2 srcCenter;
+        float2 texSize;
+        float radius;
+        float srcPerOut;
+        float zoom;
+        float pad;
+    };
+
+    struct VOut { float4 position [[position]]; };
+
+    vertex VOut lensVertex(uint vid [[vertex_id]]) {
+        // One triangle covering the whole target.
+        float2 p[3] = { float2(-1.0, -1.0), float2(3.0, -1.0), float2(-1.0, 3.0) };
+        VOut o;
+        o.position = float4(p[vid], 0.0, 1.0);
+        return o;
+    }
+
+    constant float kRimStart = \(MagnifierLens.rimStart);
+    constant float kFoldAt = \(MagnifierLens.foldAt);
+    constant float kShadowOpacity = \(MagnifierLens.shadowOpacity);
+    constant float kShadowBlur = \(MagnifierLens.shadowBlur);
+    constant float kShadowOffset = \(MagnifierLens.shadowOffset);
+
+    // g(rho) — keep in step with MagnifierLens.sourceScale.
+    float sourceScale(float rho, float zoom) {
+        float span = 1.0 - kRimStart;
+        float k = 1.0 / (3.0 * zoom * kFoldAt * kFoldAt * span * span);
+        float x = max(rho - kRimStart, 0.0);
+        return 1.0 / zoom - k * x * x * x / max(rho, 1e-6);
+    }
+
+    fragment float4 lensFragment(VOut in [[stage_in]],
+                                 constant Uniforms &u [[buffer(0)]],
+                                 texture2d<float> tex [[texture(0)]],
+                                 sampler smp [[sampler(0)]]) {
+        float2 d = in.position.xy - u.lensCenter;
+        float dist = length(d);
+        float R = u.radius;
+        float rho = dist / R;
+        float coverage = clamp(R - dist + 0.5, 0.0, 1.0);
+
+        float4 lens = float4(0.0);
+        if (coverage > 0.0) {
+            float k = sourceScale(min(rho, 1.0), u.zoom) * u.srcPerOut;
+            float4 c = tex.sample(smp, (u.srcCenter + d * k) / u.texSize);
+
+            // Frosted glass, neutral white: a broad fade toward the bottom, a
+            // glow round the rim, a soft top-left highlight, a light edge ring.
+            float nx = d.x / R, ny = d.y / R;
+            float belly = smoothstep(0.15, 1.05, ny);
+            float white = 0.72 * belly * belly;
+            float fresnel = smoothstep(0.90, 1.0, rho);
+            white += 0.30 * fresnel;
+            float2 dir = d / max(dist, 1e-3);
+            float band = smoothstep(0.80, 0.93, rho) * (1.0 - smoothstep(0.975, 1.0, rho));
+            float key = max(0.0, dot(dir, float2(-0.62, -0.78)));
+            float k2 = key * key;
+            white += band * 0.40 * k2 * k2 * key;
+            float2 q = float2(nx + 0.38, ny + 0.50);
+            float along = (q.x - q.y) * 0.7071 / 0.28;
+            float across = (q.x + q.y) * 0.7071 / 0.12;
+            white += 0.28 * exp(-(along * along + across * across));
+            float ring = (rho - 0.965) / 0.016;
+            white += 0.22 * exp(-ring * ring);
+            white = min(white, 0.85);
+
+            c = float4(c.rgb * (1.0 - white) + white, c.a * (1.0 - white) + white);
+            lens = c * coverage;
+        }
+
+        // Soft shadow: a blurred disc, offset downward.
+        float shadowDist = length(d - float2(0.0, R * kShadowOffset));
+        float blur = R * kShadowBlur;
+        float shadow = kShadowOpacity * (1.0 - smoothstep(R - blur, R + blur, shadowDist));
+        return lens + float4(0.0, 0.0, 0.0, shadow) * (1.0 - lens.a);
+    }
+    """
 }

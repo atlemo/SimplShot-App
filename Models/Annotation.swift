@@ -19,6 +19,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
     case line
     case text
     case pixelate
+    case magnifier
     case spotlight
     case numberedStep
     case sticker
@@ -42,6 +43,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .line:         return String(localized: "Line")
         case .text:         return String(localized: "Text")
         case .pixelate:     return String(localized: "Pixelate")
+        case .magnifier:    return String(localized: "Magnifier")
         case .spotlight:    return String(localized: "Spotlight")
         case .numberedStep: return String(localized: "Steps")
         case .sticker:      return String(localized: "Sticker")
@@ -65,6 +67,7 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
         case .line:         return "line.diagonal"
         case .text:         return "textformat"
         case .pixelate:     return ""       // uses customImageName instead
+        case .magnifier:    return "magnifyingglass"
         case .spotlight:    return "light.overhead.left"
         case .numberedStep: return "1.circle.fill"
         case .sticker:      return "face.smiling"
@@ -826,6 +829,8 @@ struct AnnotationStyle: Equatable {
     var strokeWidth: CGFloat = 3
     var fontSize: CGFloat = 48
     var pixelationScale: CGFloat = 20
+    /// Zoom of a `.magnifier` lens (2 = twice as large). See `MagnifierLens`.
+    var magnification: CGFloat = 2
     var arrowStyle: ArrowStyle = .chevron
     /// Fill color for shape tools (rectangle, circle, triangle, star).
     /// nil = outline-only; a Color value = fill with that color.

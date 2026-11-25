@@ -1,4 +1,5 @@
 import SwiftUI
+import MetalKit
 
 /// Renders a single annotation shape in view coordinates.
 /// The parent is responsible for mapping image-pixel coords → view coords via `scale`.
@@ -254,6 +255,22 @@ struct AnnotationOverlayView: View {
             .frame(width: rect.width, height: rect.height)
             .position(x: rect.midX, y: rect.midY)
 
+        case .magnifier:
+            // Drawn by the GPU into a transparent view a little larger than the
+            // lens (room for its shadow), centred on it.
+            let lens = MagnifierLens.circle(for: annotation.boundingRect)
+            let side = (lens.radius * 2 * scale).rounded(.up)
+                + 2 * MagnifierLens.shadowMargin(radius: lens.radius * scale)
+            MagnifierMetalView(
+                sourceImage: sourceImage,
+                imagePixelSize: imagePixelSize,
+                rect: annotation.boundingRect,
+                magnification: annotation.style.magnification,
+                scale: scale
+            )
+            .frame(width: side, height: side)
+            .position(x: lens.center.x * scale, y: lens.center.y * scale)
+
         case .spotlight:
             if suppressSpotlightShape {
                 EmptyView()
@@ -369,7 +386,7 @@ struct AnnotationOverlayView: View {
             HandleDot(center: end)
             HandleDot(center: scaled(annotation.angleVertex))
 
-        case .rectangle, .circle, .triangle, .star, .pixelate, .spotlight, .sticker:
+        case .rectangle, .circle, .triangle, .star, .pixelate, .magnifier, .spotlight, .sticker:
             let rect = scaledBoundingRect
             HandleDot(center: CGPoint(x: rect.minX, y: rect.minY))
             HandleDot(center: CGPoint(x: rect.maxX, y: rect.minY))
@@ -867,6 +884,118 @@ private struct PixelatePreviewView: View {
     }
 }
 
+// MARK: - Magnifier Preview
+
+/// The on-canvas lens: a transparent `MTKView` running the same shader the export
+/// does (`MagnifierGPU`). A pointer event only changes the uniforms and asks for
+/// a redraw — no bitmap is rendered, nothing is queued, nothing is resampled —
+/// so moving or resizing follows the cursor at the display's refresh rate at any
+/// lens size. (The CPU version this replaced could not.)
+///
+/// The picture it magnifies is uploaded to the GPU once per canvas — a new
+/// `NSImage` — and shared by every lens; a padding drag, which produces a new
+/// canvas per frame, re-uploads per frame.
+///
+/// ⚠️ The view returns nil from `hitTest` so the SwiftUI gesture layer under it
+/// still owns clicks (an AppKit view on top of the canvas swallows them).
+struct MagnifierMetalView: NSViewRepresentable {
+    let sourceImage: NSImage?
+    let imagePixelSize: CGSize
+    let rect: CGRect              // annotation bounds, image-pixel space
+    let magnification: CGFloat
+    let scale: CGFloat            // view points per image pixel
+
+    final class LensView: MTKView {
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> LensView {
+        let view = LensView(frame: .zero, device: MagnifierGPU.shared?.device)
+        view.colorPixelFormat = MagnifierGPU.pixelFormat
+        view.clearColor = MTLClearColorMake(0, 0, 0, 0)
+        view.framebufferOnly = true
+        // Redraw only when asked — never on a timer.
+        view.isPaused = true
+        view.enableSetNeedsDisplay = true
+        view.wantsLayer = true
+        (view.layer as? CAMetalLayer)?.isOpaque = false
+        view.layer?.isOpaque = false
+        view.delegate = context.coordinator
+        return view
+    }
+
+    func updateNSView(_ view: LensView, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.update(sourceImage: sourceImage, imagePixelSize: imagePixelSize,
+                           rect: rect, magnification: magnification, scale: scale)
+        if let space = coordinator.colorSpace {
+            (view.layer as? CAMetalLayer)?.colorspace = space
+        }
+        view.needsDisplay = true
+    }
+
+    final class Coordinator: NSObject, MTKViewDelegate {
+        private var image: NSImage?
+        private var cgImage: CGImage?
+        private(set) var colorSpace: CGColorSpace?
+        private var texture: MTLTexture?
+        private var rect: CGRect = .zero
+        private var zoom: CGFloat = MagnifierLens.defaultZoom
+        private var scale: CGFloat = 1
+
+        func update(sourceImage: NSImage?, imagePixelSize: CGSize, rect: CGRect,
+                    magnification: CGFloat, scale: CGFloat) {
+            self.rect = rect
+            self.zoom = MagnifierLens.clampedZoom(magnification)
+            self.scale = scale
+            guard let gpu = MagnifierGPU.shared else { return }
+            guard let sourceImage, imagePixelSize.width > 0, imagePixelSize.height > 0 else {
+                image = nil; cgImage = nil; texture = nil
+                return
+            }
+            // `cgImage(forProposedRect:)` once per canvas, not once per frame.
+            if image !== sourceImage {
+                image = sourceImage
+                cgImage = sourceImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
+                texture = nil
+            }
+            if texture == nil, let cgImage, let (t, space) = gpu.texture(for: cgImage) {
+                texture = t
+                colorSpace = space
+            }
+        }
+
+        func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+
+        func draw(in view: MTKView) {
+            guard let gpu = MagnifierGPU.shared, let texture,
+                  let drawable = view.currentDrawable,
+                  let pass = view.currentRenderPassDescriptor,
+                  let commands = gpu.queue.makeCommandBuffer(),
+                  let encoder = commands.makeRenderCommandEncoder(descriptor: pass)
+            else { return }
+            // Output pixels per image pixel: view points per image pixel × the
+            // display's backing scale.
+            let pixelsPerPoint = view.drawableSize.width / max(view.bounds.width, 1)
+            let outScale = Float(scale * pixelsPerPoint)
+            let (center, radius) = MagnifierLens.circle(for: rect)
+            gpu.encode(
+                MagnifierGPU.Uniforms(
+                    lensCenter: SIMD2(Float(view.drawableSize.width / 2), Float(view.drawableSize.height / 2)),
+                    srcCenter: SIMD2(Float(center.x), Float(center.y)),
+                    texSize: SIMD2(Float(texture.width), Float(texture.height)),
+                    radius: Float(radius) * outScale, srcPerOut: 1 / max(outScale, 0.0001),
+                    zoom: Float(zoom)),
+                texture: texture, into: encoder)
+            encoder.endEncoding()
+            commands.present(drawable)
+            commands.commit()
+        }
+    }
+}
+
 // MARK: - Highlighter Ink
 
 /// Every highlight's ink in ONE layer, so the whole set can be blended into the
@@ -1017,7 +1146,9 @@ struct CommittedAnnotationsView: Equatable, View {
                 dpiScaleFactor: dpiScaleFactor,
                 isSelected: annotation.id == selectedAnnotationID,
                 suppressSpotlightShape: annotation.tool == .spotlight,
-                sourceImage: nil,
+                // Only the magnifier samples the canvas here (pixelate is
+                // drawn in its own pass above).
+                sourceImage: annotation.tool == .magnifier ? sourceImage : nil,
                 imagePixelSize: imagePixelSize
             )
             .allowsHitTesting(false)

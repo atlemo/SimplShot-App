@@ -411,7 +411,7 @@ struct EditorCanvasView: View {
                         displayBackingScale: displayBackingScale,
                         dpiScaleFactor: dpiScaleFactor,
                         isSelected: false,
-                        sourceImage: dragging.tool == .pixelate ? image : nil,
+                        sourceImage: dragging.tool == .pixelate || dragging.tool == .magnifier ? image : nil,
                         imagePixelSize: imagePixelSize
                     )
                     .allowsHitTesting(false)
@@ -425,7 +425,7 @@ struct EditorCanvasView: View {
                         displayBackingScale: displayBackingScale,
                         dpiScaleFactor: dpiScaleFactor,
                         isSelected: false,
-                        sourceImage: pending.tool == .pixelate ? image : nil,
+                        sourceImage: pending.tool == .pixelate || pending.tool == .magnifier ? image : nil,
                         imagePixelSize: imagePixelSize
                     )
                     .allowsHitTesting(false)
@@ -651,7 +651,9 @@ struct EditorCanvasView: View {
                             pendingAnnotation = Annotation(
                                 tool: currentTool,
                                 startPoint: startInImage,
-                                endPoint: currentInImage,
+                                endPoint: currentTool == .magnifier
+                                    ? constrainToSquare(start: startInImage, end: currentInImage)
+                                    : currentInImage,
                                 // Angle tool: vertex starts at the drag midpoint
                                 // (a flat 180°); the user bends it afterwards.
                                 points: currentTool == .angle
@@ -689,6 +691,9 @@ struct EditorCanvasView: View {
                               isShiftDown,
                               let start = pendingAnnotation?.startPoint {
                         pendingAnnotation?.endPoint = constrainTo45Degree(start: start, end: currentInImage)
+                    } else if tool == .magnifier, let start = pendingAnnotation?.startPoint {
+                        // Always a circle: the box is square whatever the drag does.
+                        pendingAnnotation?.endPoint = constrainToSquare(start: start, end: currentInImage)
                     } else if isShiftDown && (tool == .rectangle || tool == .circle || tool == .triangle || tool == .star || tool == .spotlight),
                        let start = pendingAnnotation?.startPoint {
                         pendingAnnotation?.endPoint = constrainToSquare(start: start, end: currentInImage)
@@ -711,7 +716,15 @@ struct EditorCanvasView: View {
                     finishSelectDrag()
                 } else if pendingAnnotation != nil, currentTool != .text {
                     // Commit the pending annotation
-                    if let annotation = pendingAnnotation {
+                    if var annotation = pendingAnnotation {
+                        if annotation.tool == .magnifier {
+                            // A stray flick shouldn't leave an invisible lens behind.
+                            let r = annotation.boundingRect
+                            let side = max(r.width, MagnifierLens.minimumDiameter)
+                            annotation.endPoint = CGPoint(
+                                x: annotation.startPoint.x + copysign(side, annotation.endPoint.x - annotation.startPoint.x),
+                                y: annotation.startPoint.y + copysign(side, annotation.endPoint.y - annotation.startPoint.y))
+                        }
                         onCommit()
                         annotations.append(annotation)
                         selectedAnnotationID = annotation.id
@@ -898,6 +911,13 @@ struct EditorCanvasView: View {
             var draggedY = minYFixed ? origRect.maxY + dy : origRect.minY + dy
             let fixedX = minXFixed ? origRect.minX : origRect.maxX
             let fixedY = minYFixed ? origRect.minY : origRect.maxY
+            if ann.tool == .magnifier {
+                // A lens is round — keep its box square (and above a floor).
+                let side = max(abs(draggedX - fixedX), abs(draggedY - fixedY),
+                               MagnifierLens.minimumDiameter)
+                draggedX = fixedX + (draggedX < fixedX ? -side : side)
+                draggedY = fixedY + (draggedY < fixedY ? -side : side)
+            }
             if ann.tool == .sticker {
                 // An emoji glyph is square — keep its box square (and above a
                 // floor) so the drawn sticker always fills the selection rect.
@@ -1226,7 +1246,7 @@ struct EditorCanvasView: View {
             if dist(point, annotation.angleVertex) < r { return .vertexHandle }
             return nil
 
-        case .rectangle, .circle, .triangle, .star, .pixelate, .spotlight, .sticker:
+        case .rectangle, .circle, .triangle, .star, .pixelate, .magnifier, .spotlight, .sticker:
             let rect = annotation.boundingRect
             let inset = cornerHitInset / scale
             let corners: [(CGPoint, DragMode)] = [
@@ -1316,6 +1336,14 @@ struct EditorCanvasView: View {
             case .rectangle, .circle, .triangle, .star, .pixelate, .spotlight:
                 let rect = annotation.boundingRect.insetBy(dx: -threshold, dy: -threshold)
                 if rect.contains(point) {
+                    return annotation.id
+                }
+
+            case .magnifier:
+                // The lens is a circle: the corners of its square belong to
+                // whatever lies beneath, so test the radius, not the rect.
+                let r = annotation.boundingRect
+                if dist(point, CGPoint(x: r.midX, y: r.midY)) < min(r.width, r.height) / 2 + threshold {
                     return annotation.id
                 }
 
