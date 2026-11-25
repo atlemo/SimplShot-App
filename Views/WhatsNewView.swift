@@ -18,6 +18,9 @@ struct WhatsNewEntry {
 let maxWhatsNewEntries = 4
 
 let whatsNewEntries: [WhatsNewEntry] = [
+    WhatsNewEntry(version: "1.8.2", items: [
+        "New: Magnifier — draw a circle over any part of a screenshot to enlarge it under a glass lens. Click the tool again to set the zoom (2× by default), then move or resize the lens like any other shape.",
+    ]),
     WhatsNewEntry(version: "1.8.1", items: [
         "New: Rotate text — drag the handle above a text bubble to turn it to any angle, or hold Shift to snap to 15° steps. Rotated text stays rotated when you rotate or flip the image.",
         "New: Scale text from its corners — drag a corner handle to resize the text and its bubble together, or an edge handle to change how wide the text wraps.",
@@ -44,13 +47,6 @@ let whatsNewEntries: [WhatsNewEntry] = [
         "Fixed: text ran out the side of a bubble while editing if you had set its width by hand. The editor now wraps exactly as the finished bubble does.",
         "Fixed: pixelated areas flickered while dragging the Padding slider, and could keep showing the previous background after a change.",
         "Fixed: the Noise slider in Edit mode washed pictures out instead of graining them. Grain is now blended in properly, leaving tones and colours alone and falling strongest through the midtones.",
-    ]),
-    WhatsNewEntry(version: "1.7.6", items: [
-        "New: Organise PDF pages — the page strip can now add, delete and reorder pages. Drag a PDF or an image onto the strip to insert its pages where you drop them, use the × on a thumbnail to delete a page, and drag thumbnails to reorder. Every page change can be undone with ⌘Z, and nothing touches your file until you save.",
-        "Saving a PDF now keeps its table of contents, links and document details. Previously they were discarded whenever a PDF was saved; a document you have only reorganised is no longer re-encoded at all.",
-        "New: Hide the menu bar icon — Settings › General can take SimplShot's icon out of your menu bar, leaving your keyboard shortcuts to do the work. The app keeps running: open it from Spotlight and the menu appears for as long as you need it, then hides itself again. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the idea.",
-        "Check for Updates now also sits in Settings › About, so you can update SimplShot without bringing its menu bar icon back.",
-        "Settings › Template now previews templates more accurately: Auto keeps even padding, ratio presets show the right canvas shape, and watermarks appear closer to their exported size.",
     ]),
 ]
 

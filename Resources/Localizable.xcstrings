@@ -616,6 +616,43 @@
         }
       }
     },
+    "A shortcut needs ⌘, ⌥ or ⌃ — for example ⌃⌥S. A plain key, or ⇧ with a key, can't be recorded." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Kurzbefehl braucht ⌘, ⌥ oder ⌃ – zum Beispiel ⌃⌥S. Eine einzelne Taste oder ⇧ mit einer Taste lässt sich nicht aufnehmen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un raccourci doit comporter ⌘, ⌥ ou ⌃ – par exemple ⌃⌥S. Une touche seule, ou ⇧ avec une touche, ne peut pas être enregistrée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカットには ⌘、⌥、⌃ のいずれかが必要です（例：⌃⌥S）。修飾キーなしのキーや、⇧ とキーだけの組み合わせは登録できません。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В сочетании должна быть клавиша ⌘, ⌥ или ⌃ — например, ⌃⌥S. Одиночную клавишу или ⇧ с клавишей записать нельзя."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷键必须包含 ⌘、⌥ 或 ⌃，例如 ⌃⌥S。单独的按键，或仅 ⇧ 加按键，无法录制。"
+          }
+        }
+      }
+    },
+    "Aa" : {
+      "shouldTranslate" : false
+    },
     "About" : {
       "localizations" : {
         "de" : {
@@ -2054,6 +2091,40 @@
         }
       }
     },
+    "Background Color" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hintergrundfarbe"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couleur d’arrière-plan"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "背景色"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Цвет фона"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "背景颜色"
+          }
+        }
+      }
+    },
     "Background Effects" : {
       "localizations" : {
         "de" : {
@@ -2152,6 +2223,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "批量截图失败：%@"
+          }
+        }
+      }
+    },
+    "Best contrast for this background" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bester Kontrast für diesen Hintergrund"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meilleur contraste pour cet arrière-plan"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この背景に最適なコントラスト"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лучший контраст для этого фона"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此背景的最佳对比色"
           }
         }
       }
@@ -3004,40 +3109,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "碳钢"
-          }
-        }
-      }
-    },
-    "Check for Updates now also sits in Settings › About, so you can update SimplShot without bringing its menu bar icon back." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "„Nach Updates suchen“ findest du jetzt auch in Einstellungen › Über — so kannst du SimplShot aktualisieren, ohne das Menüleistensymbol zurückzuholen."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "« Rechercher les mises à jour » se trouve désormais aussi dans Réglages › À propos : vous pouvez mettre SimplShot à jour sans faire réapparaître son icône dans la barre des menus."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「アップデートを確認」が設定 › このアプリについてにも加わり、メニューバーアイコンを戻さなくてもSimplShotを更新できます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Пункт «Проверить обновления» теперь есть и в Настройках › О программе — обновить SimplShot можно, не возвращая значок в строку меню."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“检查更新”现在也出现在设置 › 关于中，无需让菜单栏图标重新出现即可更新 SimplShot。"
           }
         }
       }
@@ -6658,6 +6729,40 @@
         }
       }
     },
+    "Fixed: copying or saving with the crop tool still open ignored the crop. Save & Copy, Save, Save As and Print now apply it first, and the button reads Save & Copy while you crop. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the report." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behoben: Wer bei geöffnetem Werkzeug „Zuschneiden“ kopierte oder sicherte, bekam das Bild ohne Zuschnitt. „Sichern und kopieren“, „Sichern“, „Sichern unter“ und „Drucken“ wenden ihn jetzt zuerst an, und während des Zuschneidens heißt die Taste „Sichern und kopieren“. Danke an Matt Ormianek (@MattOrmianek auf GitHub) für den Hinweis."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigé : copier ou enregistrer avec l’outil Rogner encore ouvert ignorait le rognage. Enregistrer et copier, Enregistrer, Enregistrer sous et Imprimer l’appliquent désormais d’abord, et le bouton affiche Enregistrer et copier pendant le rognage. Merci à Matt Ormianek (@MattOrmianek sur GitHub) pour le signalement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正：トリミングツールを開いたままコピーや保存をすると、トリミングが反映されませんでした。「保存してコピー」「保存」「別名で保存」「プリント」は先にトリミングを適用するようになり、トリミング中はボタンが「保存してコピー」と表示されます。報告してくださった Matt Ormianek さん（GitHub：@MattOrmianek）に感謝します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправлено: если копировать или сохранять, не закрыв инструмент «Кадрировать», кадрирование не применялось. «Сохранить и скопировать», «Сохранить», «Сохранить как» и «Напечатать» теперь сначала применяют его, а во время кадрирования кнопка называется «Сохранить и скопировать». Спасибо Мэтту Ормианеку (@MattOrmianek на GitHub) за сообщение."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复：在裁剪工具仍打开时拷贝或存储，裁剪不会生效。“存储并拷贝”“存储”“存储为”和“打印”现在会先应用裁剪，裁剪期间按钮也会显示为“存储并拷贝”。感谢 Matt Ormianek（GitHub：@MattOrmianek）的反馈。"
+          }
+        }
+      }
+    },
     "Fixed: pixelated areas flickered while dragging the Padding slider, and could keep showing the previous background after a change." : {
       "localizations" : {
         "de" : {
@@ -6794,6 +6899,40 @@
         }
       }
     },
+    "Fixed: the text cursor sometimes didn’t appear after placing a text bubble. It now shows up every time, and Esc or ⌘Return finishes editing. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the report." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behoben: Der Textcursor erschien nach dem Platzieren einer Textblase manchmal nicht. Er erscheint jetzt jedes Mal, und mit Esc oder ⌘Return beendest du die Bearbeitung. Danke an Matt Ormianek (@MattOrmianek auf GitHub) für den Hinweis."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrigé : le curseur de texte n’apparaissait parfois pas après la création d’une bulle de texte. Il s’affiche désormais à chaque fois, et Échap ou ⌘Retour termine la modification. Merci à Matt Ormianek (@MattOrmianek sur GitHub) pour le signalement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正：テキストの吹き出しを置いた直後に文字カーソルが表示されないことがありました。今後は毎回表示され、Escキーまたは⌘Returnで編集を終了できます。ご報告くださったMatt Ormianekさん（GitHubの@MattOrmianek）に感謝します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправлено: после добавления текстовой выноски курсор иногда не появлялся. Теперь он появляется всегда, а завершить правку можно клавишей Esc или ⌘Return. Спасибо Matt Ormianek (@MattOrmianek на GitHub) за сообщение."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复：放置文字气泡后，文字光标有时不会出现。现在每次都会显示，按 Esc 或 ⌘Return 即可结束编辑。感谢 Matt Ormianek（GitHub 上的 @MattOrmianek）的反馈。"
+          }
+        }
+      }
+    },
     "Flip" : {
       "localizations" : {
         "de" : {
@@ -6892,6 +7031,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "垂直翻转"
+          }
+        }
+      }
+    },
+    "Font" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schrift"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Police"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォント"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Шрифт"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字体"
           }
         }
       }
@@ -7512,6 +7685,40 @@
     },
     "H" : {
       "shouldTranslate" : false
+    },
+    "Handwritten" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Handschrift"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manuscrit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手書き風"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рукописный"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手写体"
+          }
+        }
+      }
     },
     "Height:" : {
       "localizations" : {
@@ -8363,6 +8570,74 @@
         }
       }
     },
+    "Magnification" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vergrößerung"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grossissement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拡大率"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Увеличение"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放大倍数"
+          }
+        }
+      }
+    },
+    "Magnifier" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lupe"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loupe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拡大鏡"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лупа"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放大镜"
+          }
+        }
+      }
+    },
     "Make SimplShot Default ❤️" : {
       "localizations" : {
         "de" : {
@@ -8737,6 +9012,40 @@
         }
       }
     },
+    "More Fonts…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weitere Schriften …"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autres polices…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他のフォント…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Другие шрифты…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多字体…"
+          }
+        }
+      }
+    },
     "My default" : {
       "localizations" : {
         "de" : {
@@ -9010,6 +9319,40 @@
         }
       }
     },
+    "New: Choose a font for your text — Sans-serif, Serif, Handwritten, or any font installed on your Mac." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Schrift für Text wählen — Serifenlos, Serif, Handschrift oder jede auf deinem Mac installierte Schrift."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : choisir la police du texte — Sans empattement, Avec empattement, Manuscrite, ou n’importe quelle police installée sur votre Mac."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：テキストのフォントを選択 — サンセリフ、セリフ、手書き風、またはMacにインストールされている任意のフォントを使えます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: выбор шрифта для текста — без засечек, с засечками, рукописный или любой шрифт, установленный на вашем Mac."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：为文字选择字体——无衬线、衬线、手写体，或 Mac 上安装的任意字体。"
+          }
+        }
+      }
+    },
     "New: Drag pages between windows — drag a thumbnail out of one editor window and drop it into another to copy the page, or hold ⌥ while dropping to move it instead." : {
       "localizations" : {
         "de" : {
@@ -9112,70 +9455,70 @@
         }
       }
     },
-    "New: Hide the menu bar icon — Settings › General can take SimplShot's icon out of your menu bar, leaving your keyboard shortcuts to do the work. The app keeps running: open it from Spotlight and the menu appears for as long as you need it, then hides itself again. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the idea." : {
+    "New: Highlight — sweep the tool across text to mark it like a real highlighter pen. It snaps to whole words and lines on PDFs and screenshots alike, the text underneath stays crisp, and darker colours turn the text white so it stays readable." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neu: Menüleistensymbol ausblenden — In Einstellungen › Allgemein kannst du SimplShots Symbol aus der Menüleiste nehmen und alles über deine Tastaturkurzbefehle erledigen. Die App läuft weiter: Öffne sie über Spotlight, dann erscheint das Menü so lange, wie du es brauchst, und blendet sich danach wieder aus. Danke an Matt Ormianek (@MattOrmianek auf GitHub) für die Idee."
+            "value" : "Neu: Markieren – fahre mit dem Werkzeug über Text, um ihn wie mit einem echten Textmarker hervorzuheben. Es rastet in PDFs wie in Bildschirmfotos an ganzen Wörtern und Zeilen ein, der Text darunter bleibt scharf, und bei dunkleren Farben wird der Text weiß, damit er lesbar bleibt."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nouveau : masquer l’icône de la barre des menus — Réglages › Général permet de retirer l’icône de SimplShot de la barre des menus et de tout piloter au clavier. L’app continue de fonctionner : ouvrez-la depuis Spotlight et le menu s’affiche aussi longtemps que nécessaire, puis se masque à nouveau. Merci à Matt Ormianek (@MattOrmianek sur GitHub) pour l’idée."
+            "value" : "Nouveau : Surligner — balayez un texte avec cet outil pour le marquer comme avec un vrai surligneur. Il s’aligne sur des mots et des lignes entiers, dans les PDF comme dans les captures d’écran, le texte en dessous reste net, et les couleurs sombres passent le texte en blanc pour qu’il reste lisible."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新機能: メニューバーアイコンを非表示 — 設定 › 一般でSimplShotのアイコンをメニューバーから外し、あとはキーボードショートカットで操作できます。Appはそのまま動作し続けます。SpotlightからSimplShotを開けば必要なあいだメニューが表示され、閉じるとアイコンはまた非表示になります。アイデアをくださったMatt Ormianekさん（GitHubの@MattOrmianek）に感謝します。"
+            "value" : "新機能：ハイライト — テキストをなぞると本物の蛍光ペンのようにマークできます。PDF でもスクリーンショットでも単語や行単位でぴったり合わせ、下の文字はくっきりしたまま。濃い色では文字が白くなるので読みやすさも保たれます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Новое: скрытие значка в строке меню — в Настройках › Основные можно убрать значок SimplShot из строки меню и работать одними сочетаниями клавиш. Приложение продолжает работать: откройте его через Spotlight, и меню появится ровно на столько, сколько нужно, а затем значок снова скроется. Спасибо Matt Ormianek (@MattOrmianek на GitHub) за идею."
+            "value" : "Новое: инструмент «Выделение» — проведите по тексту, чтобы выделить его, как настоящим маркером. И в PDF, и на снимках экрана выделение прилипает к целым словам и строкам, текст под ним остаётся чётким, а на тёмных цветах текст становится белым, чтобы его было легко читать."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增：隐藏菜单栏图标——在设置 › 通用中，可以把 SimplShot 的图标从菜单栏移除，改用键盘快捷键操作。App 会继续运行：通过 Spotlight 打开它，菜单就会显示，需要多久都行，之后图标又会隐藏起来。感谢 Matt Ormianek（GitHub 上的 @MattOrmianek）提出这个想法。"
+            "value" : "新功能：高亮 — 划过文字即可像真正的荧光笔一样标记。无论是 PDF 还是截图，它都会对齐到完整的单词和行，下方文字保持清晰；颜色较深时文字会变成白色，保证易于阅读。"
           }
         }
       }
     },
-    "New: Organise PDF pages — the page strip can now add, delete and reorder pages. Drag a PDF or an image onto the strip to insert its pages where you drop them, use the × on a thumbnail to delete a page, and drag thumbnails to reorder. Every page change can be undone with ⌘Z, and nothing touches your file until you save." : {
+    "New: Rotate text — drag the handle above a text bubble to turn it to any angle, or hold Shift to snap to 15° steps. Rotated text stays rotated when you rotate or flip the image." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Neu: PDF-Seiten organisieren — in der Seitenübersicht lassen sich jetzt Seiten hinzufügen, löschen und neu anordnen. Ziehen Sie ein PDF oder ein Bild auf die Übersicht, um dessen Seiten an der abgelegten Stelle einzufügen, löschen Sie eine Seite über das × auf der Miniatur, und ordnen Sie Seiten durch Ziehen der Miniaturen neu. Jede Seitenänderung lässt sich mit ⌘Z widerrufen, und Ihre Datei bleibt unberührt, bis Sie speichern."
+            "value" : "Neu: Text drehen — ziehe den Griff über einer Textblase, um sie beliebig zu drehen, oder halte die Umschalttaste gedrückt, um in 15°-Schritten einzurasten. Gedrehter Text bleibt gedreht, wenn du das Bild drehst oder spiegelst."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nouveau : organisez les pages d'un PDF — la bande de pages permet désormais d'ajouter, de supprimer et de réorganiser des pages. Faites glisser un PDF ou une image sur la bande pour insérer ses pages à l'endroit où vous les déposez, utilisez le × d'une miniature pour supprimer une page, et déplacez les miniatures pour les réordonner. Chaque modification de page s'annule avec ⌘Z, et votre fichier n'est pas touché tant que vous n'enregistrez pas."
+            "value" : "Nouveau : faire pivoter le texte — faites glisser la poignée au-dessus d’une bulle de texte pour l’incliner à l’angle voulu, ou maintenez Maj pour aimanter par pas de 15°. Le texte pivoté le reste lorsque vous faites pivoter ou retournez l’image."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新機能：PDF のページを整理 — ページストリップでページの追加・削除・並べ替えができるようになりました。PDF や画像をストリップにドラッグすると、ドロップした位置にそのページが挿入されます。サムネイルの × でページを削除でき、サムネイルをドラッグして順序を入れ替えられます。ページの変更は ⌘Z で取り消せ、保存するまでファイルは変更されません。"
+            "value" : "新機能：テキストの回転 — テキストの吹き出しの上にあるハンドルをドラッグすると好きな角度に回転できます。Shiftキーを押しながらなら15°刻みにスナップします。画像を回転・反転しても、回転したテキストはそのままの向きを保ちます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Новое: управление страницами PDF — на панели страниц теперь можно добавлять, удалять и переупорядочивать страницы. Перетащите PDF или изображение на панель, чтобы вставить его страницы там, где вы их отпустили, нажмите × на миниатюре, чтобы удалить страницу, и перетаскивайте миниатюры для изменения порядка. Любое изменение страниц отменяется клавишами ⌘Z, а файл остаётся нетронутым до сохранения."
+            "value" : "Новое: поворот текста — потяните за маркер над текстовой выноской, чтобы повернуть её на любой угол, или удерживайте Shift для привязки с шагом 15°. Повёрнутый текст остаётся повёрнутым, когда вы поворачиваете или отражаете изображение."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新功能：整理 PDF 页面 — 页面栏现在可以添加、删除和重新排序页面。将 PDF 或图像拖到页面栏，即可在放下的位置插入其页面；点击缩略图上的 × 删除页面；拖动缩略图调整顺序。所有页面更改都可以用 ⌘Z 撤销，在你保存之前文件不会被修改。"
+            "value" : "新增：旋转文字——拖动文字气泡上方的手柄即可任意角度旋转，按住 Shift 可按 15° 步进吸附。旋转或翻转图像时，已旋转的文字会保持原有朝向。"
           }
         }
       }
@@ -9244,6 +9587,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增：将打开的图像存为一个 PDF — 在“存储为”中选择 PDF，每张打开的图像都会成为一页。"
+          }
+        }
+      }
+    },
+    "New: Scale text from its corners — drag a corner handle to resize the text and its bubble together, or an edge handle to change how wide the text wraps." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Text über die Ecken skalieren — ziehe einen Eckgriff, um Text und Blase gemeinsam zu vergrößern oder zu verkleinern, oder einen Seitengriff, um die Umbruchbreite des Textes zu ändern."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : redimensionner le texte par les coins — faites glisser une poignée d’angle pour redimensionner ensemble le texte et sa bulle, ou une poignée latérale pour modifier la largeur de retour à la ligne."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：角からテキストを拡大縮小 — 角のハンドルをドラッグするとテキストと吹き出しがいっしょに拡大縮小し、辺のハンドルをドラッグするとテキストの折り返し幅を変えられます。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: масштабирование текста за углы — потяните угловой маркер, чтобы изменить размер текста вместе с выноской, или боковой маркер, чтобы изменить ширину переноса строк."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：从角部缩放文字——拖动角部手柄可同时缩放文字及其气泡，拖动边缘手柄则可调整文字的换行宽度。"
+          }
+        }
+      }
+    },
+    "New: Text without a background — text now has its own Text Color and Background Color. Choose No Fill for plain lettering, and SimplShot suggests the text colour that reads best against the background you choose." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu: Text ohne Hintergrund — Text hat jetzt eine eigene Textfarbe und Hintergrundfarbe. Wähle „Keine Füllung“ für reine Schrift; SimplShot schlägt dir die Textfarbe vor, die sich am besten vom gewählten Hintergrund abhebt."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau : texte sans fond — le texte a désormais sa propre couleur de texte et sa propre couleur de fond. Choisissez Aucun remplissage pour obtenir du texte seul ; SimplShot propose la couleur de texte la plus lisible sur le fond choisi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新機能：背景なしのテキスト — テキストに専用の「文字色」と「背景色」が加わりました。「塗りつぶしなし」を選べば文字だけを置けます。選んだ背景の上でいちばん読みやすい文字色も SimplShot が提案します。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новое: текст без фона — у текста теперь собственные цвет текста и цвет фона. Выберите «Без заливки», чтобы получить чистую надпись; SimplShot подскажет цвет текста, который лучше всего читается на выбранном фоне."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增：无背景文字——文字现在拥有独立的文字颜色和背景颜色。选择“无填充”即可得到纯文字，SimplShot 还会根据所选背景推荐对比度最佳的文字颜色。"
           }
         }
       }
@@ -12381,6 +12792,40 @@
         }
       }
     },
+    "Sans-serif" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serifenlos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sans empattement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゴシック体"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без засечек"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无衬线"
+          }
+        }
+      }
+    },
     "Saturation" : {
       "localizations" : {
         "de" : {
@@ -12854,40 +13299,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "存储、关闭并将图像拷贝到剪贴板"
-          }
-        }
-      }
-    },
-    "Saving a PDF now keeps its table of contents, links and document details. Previously they were discarded whenever a PDF was saved; a document you have only reorganised is no longer re-encoded at all." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Beim Speichern eines PDFs bleiben jetzt Inhaltsverzeichnis, Links und Dokumentinformationen erhalten. Bisher gingen sie beim Speichern verloren; ein Dokument, das Sie nur neu geordnet haben, wird gar nicht mehr neu kodiert."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L'enregistrement d'un PDF conserve désormais sa table des matières, ses liens et ses informations de document. Auparavant, tout cela disparaissait à l'enregistrement ; un document que vous vous êtes contenté de réorganiser n'est même plus ré-encodé."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PDF を保存しても、目次・リンク・書類情報が保持されるようになりました。これまでは保存のたびに失われていました。ページを並べ替えただけの書類は、再エンコードすらされません。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "При сохранении PDF теперь сохраняются оглавление, ссылки и сведения о документе. Раньше они терялись при каждом сохранении; документ, в котором изменён только порядок страниц, больше вообще не перекодируется."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存 PDF 时现在会保留目录、链接和文稿信息。以前这些内容在每次保存时都会丢失；仅调整过页面顺序的文稿现在完全不会被重新编码。"
           }
         }
       }
@@ -13368,6 +13779,40 @@
         }
       }
     },
+    "Serif" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serif"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec empattement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "明朝体"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "С засечками"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "衬线"
+          }
+        }
+      }
+    },
     "Set Up SimplShot" : {
       "localizations" : {
         "de" : {
@@ -13402,36 +13847,36 @@
         }
       }
     },
-    "Settings › Template now previews templates more accurately: Auto keeps even padding, ratio presets show the right canvas shape, and watermarks appear closer to their exported size." : {
+    "Settings › Shortcuts now explains that a shortcut needs ⌘, ⌥ or ⌃ — the recorder ignores a bare key or Shift plus a key." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Vorschau in Einstellungen › Vorlage ist jetzt genauer: „Automatisch“ behält gleichmäßige Ränder, Seitenverhältnis-Vorgaben zeigen die richtige Leinwandform, und Wasserzeichen erscheinen näher an ihrer exportierten Größe."
+            "value" : "In Einstellungen › Kurzbefehle steht jetzt, dass ein Kurzbefehl ⌘, ⌥ oder ⌃ braucht — der Rekorder ignoriert eine einzelne Taste oder Umschalt plus Taste."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Réglages › Modèle prévisualise désormais les modèles plus fidèlement : Auto conserve une marge uniforme, les formats prédéfinis affichent la bonne forme de canevas, et les filigranes apparaissent à une taille plus proche de celle de l’export."
+            "value" : "Réglages › Raccourcis explique désormais qu’un raccourci nécessite ⌘, ⌥ ou ⌃ — l’enregistreur ignore une touche seule ou Maj plus une touche."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "設定 › テンプレートのプレビューがより正確になりました。「自動」では余白が均等に保たれ、アスペクト比のプリセットは正しいキャンバスの形で表示され、透かしは書き出し時のサイズに近い大きさで表示されます。"
+            "value" : "設定 › ショートカットに、ショートカットには⌘・⌥・⌃のいずれかが必要であることを説明する文を追加しました。キー単独やShift＋キーは記録されません。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "В Настройках › Шаблон предпросмотр шаблонов стал точнее: «Авто» сохраняет одинаковые отступы, предустановки соотношения сторон показывают правильную форму холста, а водяные знаки отображаются ближе к своему размеру при экспорте."
+            "value" : "В Настройках › Сочетания клавиш теперь объясняется, что сочетанию нужны ⌘, ⌥ или ⌃: запись игнорирует одиночную клавишу или Shift плюс клавишу."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "设置 › 模板中的模板预览更准确了：「自动」保持均匀的内边距，比例预设显示正确的画布形状，水印的大小也更接近导出时的效果。"
+            "value" : "设置 › 快捷键现在会说明快捷键需要包含 ⌘、⌥ 或 ⌃——录制器会忽略单独的按键或 Shift 加按键。"
           }
         }
       }
@@ -14256,6 +14701,40 @@
         }
       }
     },
+    "Solid Colors has a new palette of 18 shades, arranged in ramps from dark to light. Templates that used a retired colour switch to the closest new one." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Einfarbig“ hat eine neue Palette mit 18 Tönen, von dunkel nach hell geordnet. Vorlagen mit einer entfallenen Farbe wechseln zur ähnlichsten neuen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les couleurs unies ont une nouvelle palette de 18 teintes, rangées du foncé au clair. Les modèles qui utilisaient une couleur retirée passent à la nouvelle la plus proche."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "単色に 18 色の新しいパレットが登場し、暗い色から明るい色へ並びました。廃止された色を使っていたテンプレートは、最も近い新しい色に切り替わります。"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В разделе «Сплошные цвета» новая палитра из 18 оттенков, выстроенных от тёмных к светлым. Шаблоны с удалённым цветом переходят на ближайший новый."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "纯色背景换上了 18 种颜色的新调色板，按从深到浅排列。使用了已停用颜色的模板会自动换成最接近的新颜色。"
+          }
+        }
+      }
+    },
     "Some captures failed:\n" : {
       "localizations" : {
         "de" : {
@@ -15069,6 +15548,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文本"
+          }
+        }
+      }
+    },
+    "Text Color" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Textfarbe"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couleur du texte"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字色"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Цвет текста"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字颜色"
           }
         }
       }
@@ -16471,682 +16984,36 @@
         }
       }
     },
-    "Fixed: copying or saving with the crop tool still open ignored the crop. Save & Copy, Save, Save As and Print now apply it first, and the button reads Save & Copy while you crop. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the report." : {
+    "New: Magnifier — draw a circle over any part of a screenshot to enlarge it under a glass lens. Click the tool again to set the zoom (2× by default), then move or resize the lens like any other shape." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Behoben: Wer bei geöffnetem Werkzeug „Zuschneiden“ kopierte oder sicherte, bekam das Bild ohne Zuschnitt. „Sichern und kopieren“, „Sichern“, „Sichern unter“ und „Drucken“ wenden ihn jetzt zuerst an, und während des Zuschneidens heißt die Taste „Sichern und kopieren“. Danke an Matt Ormianek (@MattOrmianek auf GitHub) für den Hinweis."
+            "value" : "Neu: Lupe — zeichne einen Kreis über einen beliebigen Teil eines Screenshots, um ihn unter einer Glaslinse zu vergrößern. Klicke das Werkzeug noch einmal an, um die Vergrößerung einzustellen (standardmäßig 2×), und verschiebe die Lupe oder ändere ihre Größe wie jede andere Form."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Corrigé : copier ou enregistrer avec l’outil Rogner encore ouvert ignorait le rognage. Enregistrer et copier, Enregistrer, Enregistrer sous et Imprimer l’appliquent désormais d’abord, et le bouton affiche Enregistrer et copier pendant le rognage. Merci à Matt Ormianek (@MattOrmianek sur GitHub) pour le signalement."
+            "value" : "Nouveau : loupe — dessinez un cercle sur n’importe quelle partie d’une capture pour l’agrandir sous une lentille de verre. Cliquez de nouveau sur l’outil pour régler le grossissement (2× par défaut), puis déplacez ou redimensionnez la loupe comme n’importe quelle autre forme."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修正：トリミングツールを開いたままコピーや保存をすると、トリミングが反映されませんでした。「保存してコピー」「保存」「別名で保存」「プリント」は先にトリミングを適用するようになり、トリミング中はボタンが「保存してコピー」と表示されます。報告してくださった Matt Ormianek さん（GitHub：@MattOrmianek）に感謝します。"
+            "value" : "新機能：拡大鏡 — スクリーンショットの好きな部分に円を描くと、ガラスのレンズ越しに拡大して表示します。ツールをもう一度クリックして倍率（初期値は2×）を設定でき、ほかの図形と同じようにレンズを移動・リサイズできます。"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Исправлено: если копировать или сохранять, не закрыв инструмент «Кадрировать», кадрирование не применялось. «Сохранить и скопировать», «Сохранить», «Сохранить как» и «Напечатать» теперь сначала применяют его, а во время кадрирования кнопка называется «Сохранить и скопировать». Спасибо Мэтту Ормианеку (@MattOrmianek на GitHub) за сообщение."
+            "value" : "Новое: лупа — нарисуйте круг на любой части скриншота, чтобы увеличить её под стеклянной линзой. Нажмите на инструмент ещё раз, чтобы задать увеличение (по умолчанию 2×), а затем перемещайте линзу или меняйте её размер, как любую другую фигуру."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修复：在裁剪工具仍打开时拷贝或存储，裁剪不会生效。“存储并拷贝”“存储”“存储为”和“打印”现在会先应用裁剪，裁剪期间按钮也会显示为“存储并拷贝”。感谢 Matt Ormianek（GitHub：@MattOrmianek）的反馈。"
-          }
-        }
-      }
-    },
-    "New: Highlight — sweep the tool across text to mark it like a real highlighter pen. It snaps to whole words and lines on PDFs and screenshots alike, the text underneath stays crisp, and darker colours turn the text white so it stays readable." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neu: Markieren – fahre mit dem Werkzeug über Text, um ihn wie mit einem echten Textmarker hervorzuheben. Es rastet in PDFs wie in Bildschirmfotos an ganzen Wörtern und Zeilen ein, der Text darunter bleibt scharf, und bei dunkleren Farben wird der Text weiß, damit er lesbar bleibt."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau : Surligner — balayez un texte avec cet outil pour le marquer comme avec un vrai surligneur. Il s’aligne sur des mots et des lignes entiers, dans les PDF comme dans les captures d’écran, le texte en dessous reste net, et les couleurs sombres passent le texte en blanc pour qu’il reste lisible."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新機能：ハイライト — テキストをなぞると本物の蛍光ペンのようにマークできます。PDF でもスクリーンショットでも単語や行単位でぴったり合わせ、下の文字はくっきりしたまま。濃い色では文字が白くなるので読みやすさも保たれます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новое: инструмент «Выделение» — проведите по тексту, чтобы выделить его, как настоящим маркером. И в PDF, и на снимках экрана выделение прилипает к целым словам и строкам, текст под ним остаётся чётким, а на тёмных цветах текст становится белым, чтобы его было легко читать."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新功能：高亮 — 划过文字即可像真正的荧光笔一样标记。无论是 PDF 还是截图，它都会对齐到完整的单词和行，下方文字保持清晰；颜色较深时文字会变成白色，保证易于阅读。"
-          }
-        }
-      }
-    },
-    "Solid Colors has a new palette of 18 shades, arranged in ramps from dark to light. Templates that used a retired colour switch to the closest new one." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "„Einfarbig“ hat eine neue Palette mit 18 Tönen, von dunkel nach hell geordnet. Vorlagen mit einer entfallenen Farbe wechseln zur ähnlichsten neuen."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les couleurs unies ont une nouvelle palette de 18 teintes, rangées du foncé au clair. Les modèles qui utilisaient une couleur retirée passent à la nouvelle la plus proche."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "単色に 18 色の新しいパレットが登場し、暗い色から明るい色へ並びました。廃止された色を使っていたテンプレートは、最も近い新しい色に切り替わります。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "В разделе «Сплошные цвета» новая палитра из 18 оттенков, выстроенных от тёмных к светлым. Шаблоны с удалённым цветом переходят на ближайший новый."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "纯色背景换上了 18 种颜色的新调色板，按从深到浅排列。使用了已停用颜色的模板会自动换成最接近的新颜色。"
-          }
-        }
-      }
-    },
-    "A shortcut needs ⌘, ⌥ or ⌃ — for example ⌃⌥S. A plain key, or ⇧ with a key, can't be recorded." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ein Kurzbefehl braucht ⌘, ⌥ oder ⌃ – zum Beispiel ⌃⌥S. Eine einzelne Taste oder ⇧ mit einer Taste lässt sich nicht aufnehmen."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Un raccourci doit comporter ⌘, ⌥ ou ⌃ – par exemple ⌃⌥S. Une touche seule, ou ⇧ avec une touche, ne peut pas être enregistrée."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ショートカットには ⌘、⌥、⌃ のいずれかが必要です（例：⌃⌥S）。修飾キーなしのキーや、⇧ とキーだけの組み合わせは登録できません。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "В сочетании должна быть клавиша ⌘, ⌥ или ⌃ — например, ⌃⌥S. Одиночную клавишу или ⇧ с клавишей записать нельзя."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "快捷键必须包含 ⌘、⌥ 或 ⌃，例如 ⌃⌥S。单独的按键，或仅 ⇧ 加按键，无法录制。"
-          }
-        }
-      }
-    },
-    "Text Color" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Textfarbe"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couleur du texte"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "文字色"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Цвет текста"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "文字颜色"
-          }
-        }
-      }
-    },
-    "Background Color" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hintergrundfarbe"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couleur d’arrière-plan"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "背景色"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Цвет фона"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "背景颜色"
-          }
-        }
-      }
-    },
-    "Best contrast for this background" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bester Kontrast für diesen Hintergrund"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Meilleur contraste pour cet arrière-plan"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この背景に最適なコントラスト"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Лучший контраст для этого фона"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此背景的最佳对比色"
-          }
-        }
-      }
-    },
-    "Font" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Schrift"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Police"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フォント"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Шрифт"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "字体"
-          }
-        }
-      }
-    },
-    "Sans-serif" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Serifenlos"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sans empattement"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ゴシック体"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Без засечек"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无衬线"
-          }
-        }
-      }
-    },
-    "Serif" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Serif"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Avec empattement"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "明朝体"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "С засечками"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "衬线"
-          }
-        }
-      }
-    },
-    "Handwritten" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Handschrift"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Manuscrit"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "手書き風"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Рукописный"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "手写体"
-          }
-        }
-      }
-    },
-    "More Fonts…" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Weitere Schriften …"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Autres polices…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "その他のフォント…"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Другие шрифты…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更多字体…"
-          }
-        }
-      }
-    },
-    "New: Rotate text — drag the handle above a text bubble to turn it to any angle, or hold Shift to snap to 15° steps. Rotated text stays rotated when you rotate or flip the image." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neu: Text drehen — ziehe den Griff über einer Textblase, um sie beliebig zu drehen, oder halte die Umschalttaste gedrückt, um in 15°-Schritten einzurasten. Gedrehter Text bleibt gedreht, wenn du das Bild drehst oder spiegelst."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau : faire pivoter le texte — faites glisser la poignée au-dessus d’une bulle de texte pour l’incliner à l’angle voulu, ou maintenez Maj pour aimanter par pas de 15°. Le texte pivoté le reste lorsque vous faites pivoter ou retournez l’image."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新機能：テキストの回転 — テキストの吹き出しの上にあるハンドルをドラッグすると好きな角度に回転できます。Shiftキーを押しながらなら15°刻みにスナップします。画像を回転・反転しても、回転したテキストはそのままの向きを保ちます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новое: поворот текста — потяните за маркер над текстовой выноской, чтобы повернуть её на любой угол, или удерживайте Shift для привязки с шагом 15°. Повёрнутый текст остаётся повёрнутым, когда вы поворачиваете или отражаете изображение."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增：旋转文字——拖动文字气泡上方的手柄即可任意角度旋转，按住 Shift 可按 15° 步进吸附。旋转或翻转图像时，已旋转的文字会保持原有朝向。"
-          }
-        }
-      }
-    },
-    "New: Scale text from its corners — drag a corner handle to resize the text and its bubble together, or an edge handle to change how wide the text wraps." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neu: Text über die Ecken skalieren — ziehe einen Eckgriff, um Text und Blase gemeinsam zu vergrößern oder zu verkleinern, oder einen Seitengriff, um die Umbruchbreite des Textes zu ändern."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau : redimensionner le texte par les coins — faites glisser une poignée d’angle pour redimensionner ensemble le texte et sa bulle, ou une poignée latérale pour modifier la largeur de retour à la ligne."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新機能：角からテキストを拡大縮小 — 角のハンドルをドラッグするとテキストと吹き出しがいっしょに拡大縮小し、辺のハンドルをドラッグするとテキストの折り返し幅を変えられます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новое: масштабирование текста за углы — потяните угловой маркер, чтобы изменить размер текста вместе с выноской, или боковой маркер, чтобы изменить ширину переноса строк."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增：从角部缩放文字——拖动角部手柄可同时缩放文字及其气泡，拖动边缘手柄则可调整文字的换行宽度。"
-          }
-        }
-      }
-    },
-    "New: Choose a font for your text — Sans-serif, Serif, Handwritten, or any font installed on your Mac." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neu: Schrift für Text wählen — Serifenlos, Serif, Handschrift oder jede auf deinem Mac installierte Schrift."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau : choisir la police du texte — Sans empattement, Avec empattement, Manuscrite, ou n’importe quelle police installée sur votre Mac."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新機能：テキストのフォントを選択 — サンセリフ、セリフ、手書き風、またはMacにインストールされている任意のフォントを使えます。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новое: выбор шрифта для текста — без засечек, с засечками, рукописный или любой шрифт, установленный на вашем Mac."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增：为文字选择字体——无衬线、衬线、手写体，或 Mac 上安装的任意字体。"
-          }
-        }
-      }
-    },
-    "Fixed: the text cursor sometimes didn’t appear after placing a text bubble. It now shows up every time, and Esc or ⌘Return finishes editing. Thanks to Matt Ormianek (@MattOrmianek on GitHub) for the report." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Behoben: Der Textcursor erschien nach dem Platzieren einer Textblase manchmal nicht. Er erscheint jetzt jedes Mal, und mit Esc oder ⌘Return beendest du die Bearbeitung. Danke an Matt Ormianek (@MattOrmianek auf GitHub) für den Hinweis."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Corrigé : le curseur de texte n’apparaissait parfois pas après la création d’une bulle de texte. Il s’affiche désormais à chaque fois, et Échap ou ⌘Retour termine la modification. Merci à Matt Ormianek (@MattOrmianek sur GitHub) pour le signalement."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修正：テキストの吹き出しを置いた直後に文字カーソルが表示されないことがありました。今後は毎回表示され、Escキーまたは⌘Returnで編集を終了できます。ご報告くださったMatt Ormianekさん（GitHubの@MattOrmianek）に感謝します。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Исправлено: после добавления текстовой выноски курсор иногда не появлялся. Теперь он появляется всегда, а завершить правку можно клавишей Esc или ⌘Return. Спасибо Matt Ormianek (@MattOrmianek на GitHub) за сообщение."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修复：放置文字气泡后，文字光标有时不会出现。现在每次都会显示，按 Esc 或 ⌘Return 即可结束编辑。感谢 Matt Ormianek（GitHub 上的 @MattOrmianek）的反馈。"
-          }
-        }
-      }
-    },
-    "Settings › Shortcuts now explains that a shortcut needs ⌘, ⌥ or ⌃ — the recorder ignores a bare key or Shift plus a key." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In Einstellungen › Kurzbefehle steht jetzt, dass ein Kurzbefehl ⌘, ⌥ oder ⌃ braucht — der Rekorder ignoriert eine einzelne Taste oder Umschalt plus Taste."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Réglages › Raccourcis explique désormais qu’un raccourci nécessite ⌘, ⌥ ou ⌃ — l’enregistreur ignore une touche seule ou Maj plus une touche."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定 › ショートカットに、ショートカットには⌘・⌥・⌃のいずれかが必要であることを説明する文を追加しました。キー単独やShift＋キーは記録されません。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "В Настройках › Сочетания клавиш теперь объясняется, что сочетанию нужны ⌘, ⌥ или ⌃: запись игнорирует одиночную клавишу или Shift плюс клавишу."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "设置 › 快捷键现在会说明快捷键需要包含 ⌘、⌥ 或 ⌃——录制器会忽略单独的按键或 Shift 加按键。"
-          }
-        }
-      }
-    },
-    "New: Text without a background — text now has its own Text Color and Background Color. Choose No Fill for plain lettering, and SimplShot suggests the text colour that reads best against the background you choose." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neu: Text ohne Hintergrund — Text hat jetzt eine eigene Textfarbe und Hintergrundfarbe. Wähle „Keine Füllung“ für reine Schrift; SimplShot schlägt dir die Textfarbe vor, die sich am besten vom gewählten Hintergrund abhebt."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nouveau : texte sans fond — le texte a désormais sa propre couleur de texte et sa propre couleur de fond. Choisissez Aucun remplissage pour obtenir du texte seul ; SimplShot propose la couleur de texte la plus lisible sur le fond choisi."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新機能：背景なしのテキスト — テキストに専用の「文字色」と「背景色」が加わりました。「塗りつぶしなし」を選べば文字だけを置けます。選んだ背景の上でいちばん読みやすい文字色も SimplShot が提案します。"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новое: текст без фона — у текста теперь собственные цвет текста и цвет фона. Выберите «Без заливки», чтобы получить чистую надпись; SimplShot подскажет цвет текста, который лучше всего читается на выбранном фоне."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增：无背景文字——文字现在拥有独立的文字颜色和背景颜色。选择“无填充”即可得到纯文字，SimplShot 还会根据所选背景推荐对比度最佳的文字颜色。"
-          }
-        }
-      }
-    },
-    "Magnifier" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lupe"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loupe"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拡大鏡"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Лупа"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "放大镜"
-          }
-        }
-      }
-    },
-    "Magnification" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vergrößerung"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Grossissement"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拡大率"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Увеличение"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "放大倍数"
+            "value" : "新增：放大镜——在截图的任意位置绘制一个圆，即可在玻璃镜片下放大该区域。再次点击该工具可设置放大倍数（默认 2×），还能像其他形状一样移动或调整镜片大小。"
           }
         }
       }
